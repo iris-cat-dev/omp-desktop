@@ -59,6 +59,7 @@ import {
   canDismissPaneInLayout,
   collectAllTabs,
   DEFAULT_PANE_ID,
+  findBottomTerminalPaneId,
   findPaneById,
   getFocusedBrowserId,
   FOCUSED_PANE_PLACEMENT,
@@ -147,10 +148,7 @@ import {
   deriveWorkspaceAgentVisibility,
   workspaceAgentVisibilityEqual,
 } from "@/workspace-tabs/agent-visibility";
-import {
-  deriveWorkspacePaneState,
-  findBottomTerminalPaneId,
-} from "@/screens/workspace/workspace-pane-state";
+import { deriveWorkspacePaneState } from "@/screens/workspace/workspace-pane-state";
 import {
   buildWorkspacePaneContentModel,
   WorkspacePaneContent,
@@ -1213,14 +1211,6 @@ interface WorkspaceTerminalTabActionsInput {
     tabId: string,
     target: WorkspaceTabTarget,
   ) => string | null;
-  splitWorkspacePaneEmpty: (
-    workspaceKey: string,
-    input: {
-      targetPaneId: string;
-      position: "left" | "right" | "top" | "bottom";
-    },
-  ) => string | null;
-  onSplitPaneCreated: (paneId: string) => void;
   labels: {
     workspacePathUnavailable: string;
     terminalQueued: string;
@@ -1246,30 +1236,12 @@ function useWorkspaceTerminalTabActions({
   persistenceKey,
   openWorkspaceTabFocused,
   replaceWorkspaceTabTarget,
-  splitWorkspacePaneEmpty,
-  onSplitPaneCreated,
   labels,
   toast,
 }: WorkspaceTerminalTabActionsInput): WorkspaceTerminalTabActions {
   const handleTerminalCreated = useCallback(
     ({ terminalId, destination }: { terminalId: string; destination: TerminalTabDestination }) => {
       if (!persistenceKey) {
-        return;
-      }
-      if (destination.kind === "split") {
-        const paneId = splitWorkspacePaneEmpty(persistenceKey, {
-          targetPaneId: destination.targetPaneId,
-          position: destination.position,
-        });
-        if (!paneId) {
-          return;
-        }
-        openWorkspaceTabFocused(
-          persistenceKey,
-          { kind: "terminal", terminalId },
-          paneLocalPlacement(paneId),
-        );
-        onSplitPaneCreated(paneId);
         return;
       }
       if (destination.kind === "replace") {
@@ -1279,30 +1251,16 @@ function useWorkspaceTerminalTabActions({
         });
         return;
       }
-      openWorkspaceTabFocused(
-        persistenceKey,
-        { kind: "terminal", terminalId },
-        paneLocalPlacement(destination.paneId),
-      );
+      openWorkspaceTabFocused(persistenceKey, { kind: "terminal", terminalId });
     },
-    [
-      onSplitPaneCreated,
-      openWorkspaceTabFocused,
-      persistenceKey,
-      replaceWorkspaceTabTarget,
-      splitWorkspacePaneEmpty,
-    ],
+    [openWorkspaceTabFocused, persistenceKey, replaceWorkspaceTabTarget],
   );
   const handleScriptTerminalSelected = useCallback(
     (terminalId: string) => {
       if (!persistenceKey) {
         return;
       }
-      openWorkspaceTabFocused(
-        persistenceKey,
-        { kind: "terminal", terminalId },
-        FOCUSED_PANE_PLACEMENT,
-      );
+      openWorkspaceTabFocused(persistenceKey, { kind: "terminal", terminalId });
     },
     [openWorkspaceTabFocused, persistenceKey],
   );
@@ -1463,9 +1421,6 @@ function WorkspaceScreenContent({
   }, []);
   const focusWorkspacePane = useWorkspaceLayoutStore((state) => state.focusPane);
   const splitWorkspacePaneEmpty = useWorkspaceLayoutStore((state) => state.splitPaneEmpty);
-  const [preferredHeaderBottomPaneId, setPreferredHeaderBottomPaneId] = useState<string | null>(
-    null,
-  );
   const hasHydratedWorkspaces = useSessionStore(
     (state) => state.sessions[normalizedServerId]?.hasHydratedWorkspaces ?? false,
   );
@@ -1490,8 +1445,6 @@ function WorkspaceScreenContent({
     persistenceKey,
     openWorkspaceTabFocused,
     replaceWorkspaceTabTarget,
-    splitWorkspacePaneEmpty,
-    onSplitPaneCreated: setPreferredHeaderBottomPaneId,
     labels: {
       workspacePathUnavailable: t("workspace.header.toasts.workspacePathUnavailable"),
       terminalQueued: t("workspace.header.toasts.terminalQueued"),
@@ -2735,13 +2688,8 @@ function WorkspaceScreenContent({
     ],
   );
   const headerBottomPaneId = useMemo(
-    () =>
-      findBottomTerminalPaneId({
-        layout: workspaceLayout,
-        tabs: uiTabs,
-        preferredPaneId: preferredHeaderBottomPaneId,
-      }),
-    [preferredHeaderBottomPaneId, uiTabs, workspaceLayout],
+    () => findBottomTerminalPaneId({ layout: workspaceLayout, tabs: uiTabs }),
+    [uiTabs, workspaceLayout],
   );
   const isHeaderBottomPaneOpen = headerBottomPaneId !== null;
   const handleToggleTerminalBelowFocusedPane = useStableEvent(() => {
@@ -2749,12 +2697,7 @@ function WorkspaceScreenContent({
       void handleClosePane(headerBottomPaneId);
       return;
     }
-    if (!focusedPaneId) {
-      return;
-    }
-    createTerminal({
-      destination: { kind: "split", targetPaneId: focusedPaneId, position: "bottom" },
-    });
+    createTerminal({ destination: { kind: "open" } });
   });
 
   const handleWorkspacePanelOpenAction = useCallback(

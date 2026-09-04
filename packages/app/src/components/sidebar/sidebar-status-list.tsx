@@ -12,6 +12,7 @@ import { NestableScrollContainer } from "react-native-draggable-flatlist";
 import {
   navigateToSidebarWorkspace,
   useActiveWorkspaceSelection,
+  useSidebarActiveWorkspaceSelection,
 } from "@/stores/navigation-active-workspace-store";
 import { type SidebarWorkspaceEntry } from "@/hooks/use-sidebar-workspaces-list";
 import type { StatusBucket } from "@/hooks/sidebar-status-view-model";
@@ -434,7 +435,8 @@ const StatusWorkspaceRow = memo(function StatusWorkspaceRow({
   isDragging?: boolean;
   dragHandleProps?: DraggableListDragHandleProps;
 }) {
-  const activeWorkspaceSelection = useActiveWorkspaceSelection();
+  const tabHostSelection = useActiveWorkspaceSelection();
+  const activeWorkspaceSelection = useSidebarActiveWorkspaceSelection();
   const selected =
     activeWorkspaceSelection?.serverId === workspace.serverId &&
     activeWorkspaceSelection?.workspaceId === workspace.workspaceId;
@@ -445,9 +447,9 @@ const StatusWorkspaceRow = memo(function StatusWorkspaceRow({
     void navigateToSidebarWorkspace({
       serverId: workspace.serverId,
       workspaceId: workspace.workspaceId,
-      tabHost: activeWorkspaceSelection,
+      tabHost: tabHostSelection,
     });
-  }, [activeWorkspaceSelection, onWorkspacePress, workspace.serverId, workspace.workspaceId]);
+  }, [onWorkspacePress, tabHostSelection, workspace.serverId, workspace.workspaceId]);
 
   return (
     <StatusWorkspaceRowWithMenu
@@ -1074,6 +1076,6 @@ const styles = StyleSheet.create((theme) => ({
     ...theme.shadow.md,
   },
   sidebarRowSelected: {
-    backgroundColor: theme.colors.surfaceSidebarSelected,
+    backgroundColor: theme.colors.surface2,
   },
 }));

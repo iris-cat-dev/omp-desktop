@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   resolveSidebarWorkspaceAccessibilityLabel,
   resolveSidebarWorkspacePrimaryLabel,
+  resolveAgentTabPrimaryLabel,
 } from "@/components/sidebar/sidebar-workspace-title";
 
 describe("resolveSidebarWorkspacePrimaryLabel", () => {
@@ -30,6 +31,40 @@ describe("resolveSidebarWorkspacePrimaryLabel", () => {
     });
 
     expect(label).toBe("Local folder");
+  });
+});
+describe("resolveAgentTabPrimaryLabel", () => {
+  it("uses the owning conversation title for a root-agent tab", () => {
+    expect(
+      resolveAgentTabPrimaryLabel({
+        agentTitle: "Raw agent prompt",
+        isRootAgent: true,
+        workspace: { name: "Generated conversation title", currentBranch: "feature/title" },
+        workspaceTitleSource: "title",
+      }),
+    ).toBe("Generated conversation title");
+  });
+
+  it("follows the sidebar branch preference for a root-agent tab", () => {
+    expect(
+      resolveAgentTabPrimaryLabel({
+        agentTitle: "Raw agent prompt",
+        isRootAgent: true,
+        workspace: { name: "Generated conversation title", currentBranch: "feature/title" },
+        workspaceTitleSource: "branch",
+      }),
+    ).toBe("feature/title");
+  });
+
+  it("keeps a child agent's own title", () => {
+    expect(
+      resolveAgentTabPrimaryLabel({
+        agentTitle: "Child agent",
+        isRootAgent: false,
+        workspace: { name: "Parent conversation", currentBranch: null },
+        workspaceTitleSource: "title",
+      }),
+    ).toBe("Child agent");
   });
 });
 

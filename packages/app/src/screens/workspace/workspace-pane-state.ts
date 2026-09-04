@@ -1,9 +1,4 @@
-import {
-  findPaneById,
-  type SplitNode,
-  type SplitPane,
-  type WorkspaceLayout,
-} from "@/stores/workspace-layout-store";
+import { findPaneById, type SplitPane, type WorkspaceLayout } from "@/stores/workspace-layout-store";
 import type { WorkspaceTab, WorkspaceTabTarget } from "@/workspace-tabs/model";
 import type { WorkspaceTabDescriptor } from "@/screens/workspace/workspace-tabs-types";
 import {
@@ -204,43 +199,6 @@ export function getWorkspacePaneDescriptors(input: {
   tabs: WorkspaceTab[];
 }): WorkspaceTabDescriptor[] {
   return deriveWorkspacePaneState(input).tabs.map((tab) => tab.descriptor);
-}
-export function findBottomTerminalPaneId(input: {
-  layout: WorkspaceLayout | null;
-  tabs: WorkspaceTab[];
-  preferredPaneId?: string | null;
-}): string | null {
-  if (!input.layout) {
-    return null;
-  }
-  if (input.preferredPaneId) {
-    const preferredPane = findPaneById(input.layout.root, input.preferredPaneId);
-    if (preferredPane && !preferredPane.hidden) {
-      return preferredPane.id;
-    }
-  }
-  const tabsById = new Map(input.tabs.map((tab) => [tab.tabId, tab]));
-  const pendingNodes: SplitNode[] = [input.layout.root];
-  while (pendingNodes.length > 0) {
-    const node = pendingNodes.pop();
-    if (!node || node.kind === "pane") {
-      continue;
-    }
-    if (node.group.direction === "vertical") {
-      for (let index = node.group.children.length - 1; index >= 1; index -= 1) {
-        const child = node.group.children[index];
-        if (
-          child?.kind === "pane" &&
-          !child.pane.hidden &&
-          child.pane.tabIds.some((tabId) => tabsById.get(tabId)?.target.kind === "terminal")
-        ) {
-          return child.pane.id;
-        }
-      }
-    }
-    pendingNodes.push(...node.group.children);
-  }
-  return null;
 }
 
 export function resolveSideFileOpenPlacement(input: {

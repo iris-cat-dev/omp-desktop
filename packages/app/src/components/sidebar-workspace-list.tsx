@@ -27,6 +27,7 @@ import { router, useGlobalSearchParams, usePathname, type Href } from "expo-rout
 import {
   navigateToSidebarWorkspace,
   useActiveWorkspaceSelection,
+  useSidebarActiveWorkspaceSelection,
   type ActiveWorkspaceSelection,
 } from "@/stores/navigation-active-workspace-store";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
@@ -1493,6 +1494,7 @@ function WorkspaceRowItem({
   isDragging = false,
   dragHandleProps,
 }: WorkspaceRowItemProps) {
+  const tabHostSelection = useActiveWorkspaceSelection();
   const handlePress = useCallback(() => {
     if (!workspace.serverId) {
       return;
@@ -1501,9 +1503,9 @@ function WorkspaceRowItem({
     void navigateToSidebarWorkspace({
       serverId: workspace.serverId,
       workspaceId: workspace.workspaceId,
-      tabHost: activeWorkspaceSelection,
+      tabHost: tabHostSelection,
     });
-  }, [activeWorkspaceSelection, onWorkspacePress, workspace.serverId, workspace.workspaceId]);
+  }, [onWorkspacePress, tabHostSelection, workspace.serverId, workspace.workspaceId]);
 
   return (
     <WorkspaceRow
@@ -2218,7 +2220,7 @@ function ProjectModeList({
     [pathname],
   );
   const selectionEnabled = isWorkspaceRoute;
-  const activeWorkspaceSelection = useActiveWorkspaceSelection();
+  const activeWorkspaceSelection = useSidebarActiveWorkspaceSelection();
   const nativeScrollGestureProps = useMemo(
     () =>
       parentGestureRef
@@ -2701,7 +2703,7 @@ const styles = StyleSheet.create((theme) => ({
     ...theme.shadow.md,
   },
   sidebarRowSelected: {
-    backgroundColor: theme.colors.surfaceSidebarSelected,
+    backgroundColor: theme.colors.surface2,
   },
   workspaceRowContainer: {
     position: "relative",

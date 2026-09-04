@@ -11,6 +11,20 @@ export function resolveSidebarWorkspacePrimaryLabel(input: {
   }
   return input.workspace.name;
 }
+export function resolveAgentTabPrimaryLabel(input: {
+  agentTitle: string | null | undefined;
+  isRootAgent: boolean;
+  workspace: Pick<SidebarWorkspaceEntry, "name" | "currentBranch"> | null;
+  workspaceTitleSource: WorkspaceTitleSource;
+}): string | null | undefined {
+  if (input.isRootAgent && input.workspace) {
+    return resolveSidebarWorkspacePrimaryLabel({
+      workspace: input.workspace,
+      workspaceTitleSource: input.workspaceTitleSource,
+    });
+  }
+  return input.agentTitle;
+}
 
 export function resolveSidebarWorkspaceAccessibilityLabel(input: {
   workspace: Pick<SidebarWorkspaceEntry, "name" | "currentBranch" | "statusBucket">;

@@ -25,6 +25,7 @@ import {
   FOCUSED_PANE_PLACEMENT,
   SIDE_PANEL_PANE_ID,
   findPaneById,
+  findBottomTerminalPaneId,
   findPaneContainingTab,
   focusPaneInLayout,
   focusTabInLayout,
@@ -65,6 +66,7 @@ import {
   DEFAULT_WORKSPACE_SIDE_PANEL_TARGET,
   isWorkspaceSidePanelToolTarget,
 } from "@/workspace-tabs/side-panel-target";
+import { findAdjacentPane } from "@/utils/split-navigation";
 
 export {
   AMBIENT_PLACEMENT,
@@ -76,6 +78,7 @@ export {
   createWorkspaceLayoutWithSidePanel,
   FOCUSED_PANE_PLACEMENT,
   findPaneById,
+  findBottomTerminalPaneId,
   findPaneContainingTab,
   getFocusedBrowserId,
   getTreeDepth,
@@ -376,12 +379,204 @@ export function resolveSidePanelPaneId(
   const defaultPane = findPaneById(layout.root, SIDE_PANEL_PANE_ID);
   return defaultPane?.id ?? null;
 }
-function findMainWorkspacePaneId(layout: WorkspaceLayout, sidePanelPaneId: string): string | null {
+function findMainWorkspacePaneId(
+  layout: WorkspaceLayout,
+  sidePanelPaneId: string | null,
+): string | null {
   const defaultPane = findPaneById(layout.root, DEFAULT_PANE_ID);
   if (defaultPane && defaultPane.id !== sidePanelPaneId && defaultPane.hidden !== true) {
     return defaultPane.id;
   }
   return collectAllPanes(layout.root).find((pane) => pane.id !== sidePanelPaneId)?.id ?? null;
+}
+
+function isWorkspaceConversationTarget(target: WorkspaceTabTarget): boolean {
+  return (
+    target.kind === "agent" || target.kind === "provider_subagent" || target.kind === "draft"
+  );
+}
+
+interface CanonicalPaneResult {
+  layout: WorkspaceLayout;
+  paneId: string;
+}
+
+function ensureMainWorkspacePane(input: {
+  layout: WorkspaceLayout;
+  sidePanelPaneId: string | null;
+  ids: WorkspaceLayoutIdSource;
+}): CanonicalPaneResult | null {
+  const existingPaneId = findMainWorkspacePaneId(input.layout, input.sidePanelPaneId);
+  if (existingPaneId) {
+    return { layout: input.layout, paneId: existingPaneId };
+  }
+
+  const sidePanel = findPaneById(input.layout.root, input.sidePanelPaneId);
+  if (!sidePanel) {
+    return null;
+  }
+  const split = splitPaneEmptyInLayout({
+    layout: input.layout,
+    targetPaneId: sidePanel.id,
+    position: "left",
+    createNodeId: input.ids.createNodeId,
+    maxTreeDepth: MAX_TREE_DEPTH,
+  });
+  if (!split) {
+    return null;
+  }
+  return {
+    layout: { ...split.layout, focusedPaneId: input.layout.focusedPaneId },
+    paneId: split.paneId,
+  };
+}
+
+function ensureBottomTerminalPane(input: {
+  layout: WorkspaceLayout;
+  mainPaneId: string;
+  sidePanelPaneId: string | null;
+  ids: WorkspaceLayoutIdSource;
+}): CanonicalPaneResult | null {
+  const existingPaneId = findBottomTerminalPaneId({
+    layout: input.layout,
+    tabs: collectAllTabs(input.layout.root),
+  });
+  if (existingPaneId) {
+    return { layout: input.layout, paneId: existingPaneId };
+  }
+
+  const adjacentPaneId = findAdjacentPane(input.layout.root, input.mainPaneId, "down");
+  if (adjacentPaneId && adjacentPaneId !== input.sidePanelPaneId) {
+    return { layout: input.layout, paneId: adjacentPaneId };
+  }
+
+  const split = splitPaneEmptyInLayout({
+    layout: input.layout,
+    targetPaneId: input.mainPaneId,
+    position: "bottom",
+    createNodeId: input.ids.createNodeId,
+    maxTreeDepth: MAX_TREE_DEPTH,
+  });
+  if (!split) {
+    return null;
+  }
+  return {
+    layout: { ...split.layout, focusedPaneId: input.layout.focusedPaneId },
+    paneId: split.paneId,
+  };
+}
+
+function moveTabsToCanonicalPane(input: {
+  layout: WorkspaceLayout;
+  tabs: WorkspaceTab[];
+  paneId: string;
+  preservedPaneIds: ReadonlySet<string>;
+}): WorkspaceLayout {
+  const targetPane = findPaneById(input.layout.root, input.paneId);
+  const targetTabsById = new Map(
+    collectAllTabs(input.layout.root).map((tab) => [tab.tabId, tab]),
+  );
+  const placeholderTabId =
+    targetPane?.tabIds.length === 1 &&
+    targetTabsById.get(targetPane.tabIds[0] ?? "")?.target.kind === "new_tab"
+      ? (targetPane.tabIds[0] ?? null)
+      : null;
+  let nextLayout = input.layout;
+  let movedAnyTab = false;
+
+  for (const tab of input.tabs) {
+    const sourcePane = findPaneContainingTab(nextLayout.root, tab.tabId);
+    if (!sourcePane || sourcePane.id === input.paneId) {
+      continue;
+    }
+    const movedLayout = moveTabToPaneInLayout({
+      layout: nextLayout,
+      tabId: tab.tabId,
+      toPaneId: input.paneId,
+      preserveEmptyPaneId: input.preservedPaneIds.has(sourcePane.id) ? sourcePane.id : null,
+    });
+    if (movedLayout) {
+      nextLayout = movedLayout;
+      movedAnyTab = true;
+    }
+  }
+
+  if (movedAnyTab && placeholderTabId) {
+    nextLayout =
+      closeTabInLayout({
+        layout: nextLayout,
+        tabId: placeholderTabId,
+        preserveEmptyPaneId: input.paneId,
+      }) ?? nextLayout;
+  }
+  return nextLayout;
+}
+
+function enforceWorkspaceTabZones(input: {
+  layout: WorkspaceLayout;
+  sidePanelPaneId: string | null;
+  ids: WorkspaceLayoutIdSource;
+}): WorkspaceLayout {
+  const originalFocusedPane = findPaneById(input.layout.root, input.layout.focusedPaneId);
+  const originalFocusedTabId = originalFocusedPane?.focusedTabId ?? null;
+  const initialTabs = collectAllTabs(input.layout.root);
+  const conversationTabs = initialTabs.filter((tab) => isWorkspaceConversationTarget(tab.target));
+  const terminalTabs = initialTabs.filter((tab) => tab.target.kind === "terminal");
+  if (conversationTabs.length === 0 && terminalTabs.length === 0) {
+    return input.layout;
+  }
+
+  const mainPane = ensureMainWorkspacePane(input);
+  if (!mainPane) {
+    return input.layout;
+  }
+
+  const preservedPaneIds = new Set(
+    [mainPane.paneId, input.sidePanelPaneId].filter((paneId): paneId is string => Boolean(paneId)),
+  );
+  let nextLayout = moveTabsToCanonicalPane({
+    layout: mainPane.layout,
+    tabs: conversationTabs,
+    paneId: mainPane.paneId,
+    preservedPaneIds,
+  });
+
+  if (terminalTabs.length > 0) {
+    const terminalPane = ensureBottomTerminalPane({
+      layout: nextLayout,
+      mainPaneId: mainPane.paneId,
+      sidePanelPaneId: input.sidePanelPaneId,
+      ids: input.ids,
+    });
+    if (terminalPane) {
+      nextLayout = moveTabsToCanonicalPane({
+        layout: terminalPane.layout,
+        tabs: terminalTabs,
+        paneId: terminalPane.paneId,
+        preservedPaneIds,
+      });
+    } else {
+      for (const tab of terminalTabs) {
+        const sourcePane = findPaneContainingTab(nextLayout.root, tab.tabId);
+        nextLayout =
+          closeTabInLayout({
+            layout: nextLayout,
+            tabId: tab.tabId,
+            preserveEmptyPaneId:
+              sourcePane && preservedPaneIds.has(sourcePane.id) ? sourcePane.id : null,
+          }) ?? nextLayout;
+      }
+    }
+  }
+
+  if (originalFocusedTabId && findPaneContainingTab(nextLayout.root, originalFocusedTabId)) {
+    return focusTabInLayout({ layout: nextLayout, tabId: originalFocusedTabId }) ?? nextLayout;
+  }
+  const originalPane = findPaneById(nextLayout.root, originalFocusedPane?.id);
+  if (originalPane && originalPane.hidden !== true) {
+    return focusPaneInLayout({ layout: nextLayout, paneId: originalPane.id }) ?? nextLayout;
+  }
+  return nextLayout;
 }
 
 function migrateLegacyWorkingDiffDocumentIds(layout: WorkspaceLayout): WorkspaceLayout {
@@ -472,18 +667,52 @@ function ensurePersistedSidePanelPane(input: {
 function getOpenTabPlacement(
   state: WorkspaceLayoutStore,
   workspaceKey: string,
+  target: WorkspaceTabTarget,
   placement: WorkspaceTabPlacement | undefined,
+  ids: WorkspaceLayoutIdSource,
 ): {
   layout: WorkspaceLayout;
   placement: WorkspaceTabPlacement;
   sidePanelPaneId: string | null;
-} {
+} | null {
   const layout = getWorkspaceLayout(state.layoutByWorkspace, workspaceKey);
-  return {
+  const sidePanelPaneId = resolveSidePanelPaneId(
     layout,
-    placement: placement ?? AMBIENT_PLACEMENT,
-    sidePanelPaneId: resolveSidePanelPaneId(layout, state.sidePanelPaneIdByWorkspace[workspaceKey]),
-  };
+    state.sidePanelPaneIdByWorkspace[workspaceKey],
+  );
+  if (!isWorkspaceConversationTarget(target) && target.kind !== "terminal") {
+    return {
+      layout,
+      placement: placement ?? AMBIENT_PLACEMENT,
+      sidePanelPaneId,
+    };
+  }
+
+  const mainPane = ensureMainWorkspacePane({ layout, sidePanelPaneId, ids });
+  if (!mainPane) {
+    return null;
+  }
+  if (target.kind !== "terminal") {
+    return {
+      layout: mainPane.layout,
+      placement: { mode: "prefer", paneId: mainPane.paneId },
+      sidePanelPaneId,
+    };
+  }
+
+  const terminalPane = ensureBottomTerminalPane({
+    layout: mainPane.layout,
+    mainPaneId: mainPane.paneId,
+    sidePanelPaneId,
+    ids,
+  });
+  return terminalPane
+    ? {
+        layout: terminalPane.layout,
+        placement: { mode: "prefer", paneId: terminalPane.paneId },
+        sidePanelPaneId,
+      }
+    : null;
 }
 
 function withoutFocusRestoration(
@@ -556,7 +785,16 @@ export function createWorkspaceLayoutStore(
           if (!normalizedWorkspaceKey || !normalizedTarget) {
             return null;
           }
-          const placement = getOpenTabPlacement(get(), normalizedWorkspaceKey, input.placement);
+          const placement = getOpenTabPlacement(
+            get(),
+            normalizedWorkspaceKey,
+            normalizedTarget,
+            input.placement,
+            ids,
+          );
+          if (!placement) {
+            return null;
+          }
           let result;
           if (input.intent === "new") {
             result = createTabInLayout({
@@ -580,6 +818,18 @@ export function createWorkspaceLayoutStore(
               createTabId: createWorkspaceTabInstanceId,
             });
           }
+          const zonedLayout = enforceWorkspaceTabZones({
+            layout: result.layout,
+            sidePanelPaneId: placement.sidePanelPaneId,
+            ids,
+          });
+          const nextLayout = input.parentTabId
+            ? attachParentTab({
+                layout: zonedLayout,
+                childTabId: result.tabId,
+                parentTabId: input.parentTabId,
+              })
+            : zonedLayout;
           set((state) => ({
             ...withoutFocusRestoration(state, normalizedWorkspaceKey),
             hiddenAgentIdsByWorkspace:
@@ -592,13 +842,7 @@ export function createWorkspaceLayoutStore(
                   ),
             layoutByWorkspace: {
               ...state.layoutByWorkspace,
-              [normalizedWorkspaceKey]: input.parentTabId
-                ? attachParentTab({
-                    layout: result.layout,
-                    childTabId: result.tabId,
-                    parentTabId: input.parentTabId,
-                  })
-                : result.layout,
+              [normalizedWorkspaceKey]: nextLayout,
             },
           }));
           return result.tabId;
@@ -773,14 +1017,17 @@ export function createWorkspaceLayoutStore(
           const normalizedTabId = trimNonEmpty(tabId);
           const normalizedTarget = normalizeWorkspaceTabTarget(target);
           if (!normalizedWorkspaceKey || !normalizedTabId || !normalizedTarget) return null;
-          const currentLayout = getWorkspaceLayout(get().layoutByWorkspace, normalizedWorkspaceKey);
-          const sidePanelPaneId = resolveSidePanelPaneId(
-            currentLayout,
-            get().sidePanelPaneIdByWorkspace[normalizedWorkspaceKey],
+          const prepared = getOpenTabPlacement(
+            get(),
+            normalizedWorkspaceKey,
+            normalizedTarget,
+            undefined,
+            ids,
           );
-          const sourcePane = findPaneContainingTab(currentLayout.root, normalizedTabId);
+          if (!prepared) return null;
+          const sourcePane = findPaneContainingTab(prepared.layout.root, normalizedTabId);
           const result = replaceTabTargetInLayout({
-            layout: currentLayout,
+            layout: prepared.layout,
             tabId: normalizedTabId,
             target: normalizedTarget,
             createTabId: createWorkspaceTabInstanceId,
@@ -789,21 +1036,29 @@ export function createWorkspaceLayoutStore(
           if (!result) return null;
           let nextLayout = result.layout;
           if (
-            sidePanelPaneId &&
-            sourcePane?.id === sidePanelPaneId &&
+            prepared.sidePanelPaneId &&
+            sourcePane?.id === prepared.sidePanelPaneId &&
             !isWorkspaceSidePanelToolTarget(normalizedTarget)
           ) {
-            const mainPaneId = findMainWorkspacePaneId(nextLayout, sidePanelPaneId);
+            const mainPaneId = findMainWorkspacePaneId(
+              nextLayout,
+              prepared.sidePanelPaneId,
+            );
             if (mainPaneId) {
               nextLayout =
                 moveTabToPaneInLayout({
                   layout: nextLayout,
                   tabId: result.tabId,
                   toPaneId: mainPaneId,
-                  preserveEmptyPaneId: sidePanelPaneId,
+                  preserveEmptyPaneId: prepared.sidePanelPaneId,
                 }) ?? nextLayout;
             }
           }
+          nextLayout = enforceWorkspaceTabZones({
+            layout: nextLayout,
+            sidePanelPaneId: prepared.sidePanelPaneId,
+            ids,
+          });
           set((state) => ({
             ...withoutFocusRestoration(state, normalizedWorkspaceKey),
             hiddenAgentIdsByWorkspace:
@@ -848,17 +1103,32 @@ export function createWorkspaceLayoutStore(
             return null;
           }
 
+          const prepared = getOpenTabPlacement(
+            get(),
+            normalizedWorkspaceKey,
+            { kind: "agent", agentId: normalizedAgentId },
+            undefined,
+            ids,
+          );
+          if (!prepared) {
+            return null;
+          }
           const result = convertDraftToAgentInLayout({
-            layout: getWorkspaceLayout(get().layoutByWorkspace, normalizedWorkspaceKey),
+            layout: prepared.layout,
             tabId: normalizedTabId,
             agentId: normalizedAgentId,
           });
           if (!result) {
             return null;
           }
+          const nextLayout = enforceWorkspaceTabZones({
+            layout: result.layout,
+            sidePanelPaneId: prepared.sidePanelPaneId,
+            ids,
+          });
 
           set((state) => ({
-            ...(result.layout.focusedPaneId !== null
+            ...(nextLayout.focusedPaneId !== null
               ? (withoutFocusRestoration(state, normalizedWorkspaceKey) ?? {})
               : {}),
             hiddenAgentIdsByWorkspace: removeAgentIdFromWorkspaceSet(
@@ -868,7 +1138,7 @@ export function createWorkspaceLayoutStore(
             ),
             layoutByWorkspace: {
               ...state.layoutByWorkspace,
-              [normalizedWorkspaceKey]: result.layout,
+              [normalizedWorkspaceKey]: nextLayout,
             },
           }));
 
@@ -885,27 +1155,33 @@ export function createWorkspaceLayoutStore(
               state.layoutByWorkspace,
               normalizedWorkspaceKey,
             );
+            const sidePanelPaneId = resolveSidePanelPaneId(
+              currentLayout,
+              state.sidePanelPaneIdByWorkspace[normalizedWorkspaceKey],
+            );
             const nextState = reconcileWorkspaceTabs(
               {
                 layout: currentLayout,
                 pinnedAgentIds: state.pinnedAgentIdsByWorkspace[normalizedWorkspaceKey] ?? null,
                 pendingAgentIds: state.pendingAgentIdsByWorkspace[normalizedWorkspaceKey] ?? null,
                 hiddenAgentIds: state.hiddenAgentIdsByWorkspace[normalizedWorkspaceKey] ?? null,
-                sidePanelPaneId: resolveSidePanelPaneId(
-                  currentLayout,
-                  state.sidePanelPaneIdByWorkspace[normalizedWorkspaceKey],
-                ),
+                sidePanelPaneId,
               },
               snapshot,
             );
-            if (nextState.layout === currentLayout) {
+            const nextLayout = enforceWorkspaceTabZones({
+              layout: nextState.layout,
+              sidePanelPaneId,
+              ids,
+            });
+            if (nextLayout === currentLayout) {
               return state;
             }
 
             return {
               layoutByWorkspace: {
                 ...state.layoutByWorkspace,
-                [normalizedWorkspaceKey]: nextState.layout,
+                [normalizedWorkspaceKey]: nextLayout,
               },
             };
           });
@@ -969,8 +1245,12 @@ export function createWorkspaceLayoutStore(
             return null;
           }
 
+          const currentLayout = getWorkspaceLayout(
+            get().layoutByWorkspace,
+            normalizedWorkspaceKey,
+          );
           const result = splitPaneInLayout({
-            layout: getWorkspaceLayout(get().layoutByWorkspace, normalizedWorkspaceKey),
+            layout: currentLayout,
             tabId: normalizedTabId,
             targetPaneId: normalizedTargetPaneId,
             position: input.position,
@@ -1457,12 +1737,16 @@ export function createWorkspaceLayoutStore(
               registeredPaneId: sidePanelPaneIdByWorkspace[workspaceKey],
               ids,
             });
-            if (!sidePanel) {
-              layoutByWorkspace[workspaceKey] = restoredLayout;
-              continue;
+            const nextSidePanelPaneId = sidePanel?.paneId ?? null;
+            const nextLayout = enforceWorkspaceTabZones({
+              layout: sidePanel?.layout ?? restoredLayout,
+              sidePanelPaneId: nextSidePanelPaneId,
+              ids,
+            });
+            layoutByWorkspace[workspaceKey] = nextLayout;
+            if (sidePanel) {
+              sidePanelPaneIdByWorkspace[workspaceKey] = sidePanel.paneId;
             }
-            layoutByWorkspace[workspaceKey] = sidePanel.layout;
-            sidePanelPaneIdByWorkspace[workspaceKey] = sidePanel.paneId;
           }
           return {
             ...currentState,

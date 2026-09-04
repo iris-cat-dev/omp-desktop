@@ -56,6 +56,27 @@ export interface NavigateToSidebarWorkspaceDeps extends NavigateToWorkspaceDeps 
     workspaceId: string,
   ) => Promise<readonly WorkspaceHistoryAgent[]>;
 }
+export function resolveSidebarActiveWorkspaceSelection(input: {
+  routeSelection: ActiveWorkspaceSelection | null;
+  focusedTarget: WorkspaceTabTarget | null;
+  focusedAgent: Pick<Agent, "id" | "workspaceId"> | null;
+}): ActiveWorkspaceSelection | null {
+  const { routeSelection, focusedTarget, focusedAgent } = input;
+  if (
+    !routeSelection ||
+    focusedTarget?.kind !== "agent" ||
+    !focusedAgent ||
+    focusedAgent.id !== focusedTarget.agentId
+  ) {
+    return routeSelection;
+  }
+  const workspaceId = normalizeWorkspaceOpaqueId(focusedAgent.workspaceId);
+  if (!workspaceId) {
+    return routeSelection;
+  }
+  return { serverId: routeSelection.serverId, workspaceId };
+}
+
 
 export interface NavigateToLastWorkspaceDeps extends NavigateToWorkspaceDeps {
   getLastWorkspaceSelection: () => ActiveWorkspaceSelection | null;
@@ -234,6 +255,17 @@ export async function navigateToSidebarWorkspace(
       null;
     if (agentId && tabHost) {
       return revealSidebarAgentInTabHost(tabHost, agentId, deps);
+    }
+    if (agentId) {
+      return navigateToWorkspace(
+        {
+          ...input,
+          target: { kind: "agent", agentId },
+          pin: true,
+          deferAgentTargetUntilNavigation: true,
+        },
+        deps,
+      );
     }
     return navigateToWorkspace(input, deps);
   }

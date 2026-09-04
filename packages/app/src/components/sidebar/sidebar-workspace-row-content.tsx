@@ -516,7 +516,7 @@ const styles = StyleSheet.create((theme) => ({
   workspaceTitleText: {
     color: theme.colors.foreground,
     fontSize: theme.fontSize.base,
-    fontWeight: "400",
+    fontWeight: theme.fontWeight.normal,
     lineHeight: 20,
     opacity: 0.76,
     flex: 1,

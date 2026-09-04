@@ -7,6 +7,7 @@ import {
   navigateToSidebarWorkspace,
   navigateToWorkspace,
   parseActiveWorkspaceSelection,
+  resolveSidebarActiveWorkspaceSelection,
   type NavigateToLastWorkspaceDeps,
   type NavigateToSidebarWorkspaceDeps,
   type NavigateToWorkspaceDeps,
@@ -77,6 +78,35 @@ function createLastSelectionDeps(
 }
 
 describe("workspace navigation", () => {
+  it("selects the focused agent's owning conversation in a shared tab host", () => {
+    expect(
+      resolveSidebarActiveWorkspaceSelection({
+        routeSelection: { serverId: "server-1", workspaceId: "workspace-host" },
+        focusedTarget: { kind: "agent", agentId: "agent-conversation" },
+        focusedAgent: { id: "agent-conversation", workspaceId: "workspace-conversation" },
+      }),
+    ).toEqual({ serverId: "server-1", workspaceId: "workspace-conversation" });
+  });
+
+  it("keeps the route workspace selected for non-agent and unresolved tabs", () => {
+    const routeSelection = { serverId: "server-1", workspaceId: "workspace-host" };
+
+    expect(
+      resolveSidebarActiveWorkspaceSelection({
+        routeSelection,
+        focusedTarget: { kind: "files" },
+        focusedAgent: null,
+      }),
+    ).toBe(routeSelection);
+    expect(
+      resolveSidebarActiveWorkspaceSelection({
+        routeSelection,
+        focusedTarget: { kind: "agent", agentId: "missing" },
+        focusedAgent: null,
+      }),
+    ).toBe(routeSelection);
+  });
+
   it("reports when no last workspace is known", () => {
     const { deps } = createLastSelectionDeps(null);
 
@@ -195,7 +225,7 @@ describe("workspace navigation", () => {
     expect(navigations).toEqual(["/h/server-1/workspace/workspace-a?open=agent%3Aagent-archived"]);
   });
 
-  it("keeps the saved workspace tab when an active agent exists", async () => {
+  it("navigates with the active agent open intent when no tab host is available", async () => {
     const workspace = {
       id: "workspace-a",
       workspaceDirectory: "/repo/workspace-a",
@@ -205,15 +235,22 @@ describe("workspace navigation", () => {
       workspaceId: "workspace-a",
       archivedAt: null,
     } as Agent;
-    const { deps, historyRequests, openedTabs } = createSidebarFakeDeps({
-      getSessionWorkspaces: () => new Map([[workspace.id, workspace]]),
-      getSessionAgents: () => [activeAgent],
-    });
+    const { deps, historyRequests, openedTabs, navigations, remembered } =
+      createSidebarFakeDeps({
+        getSessionWorkspaces: () => new Map([[workspace.id, workspace]]),
+        getSessionAgents: () => [activeAgent],
+      });
 
-    await navigateToSidebarWorkspace({ serverId: "server-1", workspaceId: "workspace-a" }, deps);
+    const route = await navigateToSidebarWorkspace(
+      { serverId: "server-1", workspaceId: "workspace-a" },
+      deps,
+    );
 
+    expect(route).toBe("/h/server-1/workspace/workspace-a?open=agent%3Aagent-active");
     expect(historyRequests).toEqual([]);
     expect(openedTabs).toEqual([]);
+    expect(navigations).toEqual([route]);
+    expect(remembered).toEqual([{ serverId: "server-1", workspaceId: "workspace-a" }]);
   });
 
   it("opens a sidebar conversation in the current center tab host without navigating", async () => {
@@ -374,7 +411,9 @@ describe("workspace navigation", () => {
     );
 
     expect(openedTabs).toEqual([]);
-    expect(navigations).toEqual(["/h/server-1/workspace/workspace-conversation"]);
+    expect(navigations).toEqual([
+      "/h/server-1/workspace/workspace-conversation?open=agent%3Aagent-active",
+    ]);
   });
 
   it("reads the active workspace from the current route", () => {
@@ -427,6 +466,7 @@ describe("workspace navigation", () => {
 
     expect(selection).toBeNull();
   });
+
 
   it("navigates to the last workspace once a route observation has been remembered", () => {
     const { deps, navigations } = createLastSelectionDeps(null);

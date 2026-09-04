@@ -1567,6 +1567,7 @@ const styles = StyleSheet.create((theme) => ({
     color: theme.colors.foregroundMuted,
     fontSize: theme.fontSize.base,
     fontWeight: theme.fontWeight.normal,
+    lineHeight: 20,
     userSelect: "none",
   },
   tabLabelMeasurements: {

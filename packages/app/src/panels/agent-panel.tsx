@@ -64,6 +64,7 @@ import {
 import { useArchiveAgent } from "@/hooks/use-archive-agent";
 import { useKeyboardShiftStyle } from "@/hooks/use-keyboard-shift-style";
 import { useContainerWidthBelow } from "@/hooks/use-container-width";
+import { useAppSettings } from "@/hooks/use-settings";
 import { reconcileMissingAgentStateWithPresentAgent } from "@/panels/agent-panel-load-state";
 import {
   reconcileReconnectToastState,
@@ -71,6 +72,7 @@ import {
 } from "@/panels/reconnect-toast-state";
 import { usePaneContext, usePaneFocus } from "@/panels/pane-context";
 import type { PanelDescriptor, PanelRegistration } from "@/panels/panel-registry";
+import { resolveAgentTabPrimaryLabel } from "@/components/sidebar/sidebar-workspace-title";
 import { RenderProfile } from "@/utils/render-profiler";
 import { buildDraftPanelDescriptor } from "@/panels/draft-panel-descriptor";
 import {
@@ -342,15 +344,25 @@ function useAgentPanelDescriptor(
   target: { kind: "agent"; agentId: string },
   context: { serverId: string },
 ): PanelDescriptor {
+  const {
+    settings: { workspaceTitleSource },
+  } = useAppSettings();
   const descriptorState = useSessionStore(
     useShallow((state) => {
       const session = state.sessions[context.serverId];
       const agent =
         session?.agents?.get(target.agentId) ?? session?.agentDetails?.get(target.agentId) ?? null;
+      const workspace = agent?.workspaceId
+        ? (session?.workspaces?.get(agent.workspaceId) ?? null)
+        : null;
+      const isRootAgent = Boolean(agent && !agent.parentAgentId);
       return {
         provider: agent?.provider ?? "codex",
         title: agent?.title ?? null,
         status: agent?.status ?? null,
+        workspaceName: isRootAgent ? (workspace?.name ?? null) : null,
+        workspaceBranch: isRootAgent ? (workspace?.gitRuntime?.currentBranch ?? null) : null,
+        isRootAgent,
         pendingPermissionCount: agent?.pendingPermissions.length ?? 0,
         requiresAttention: agent?.requiresAttention ?? false,
         attentionReason: agent?.attentionReason ?? null,
@@ -359,7 +371,18 @@ function useAgentPanelDescriptor(
     }),
   );
   const provider = descriptorState.provider;
-  const label = resolveWorkspaceAgentTabLabel(descriptorState.title);
+  const labelSource = resolveAgentTabPrimaryLabel({
+    agentTitle: descriptorState.title,
+    isRootAgent: descriptorState.isRootAgent,
+    workspace: descriptorState.workspaceName
+      ? {
+          name: descriptorState.workspaceName,
+          currentBranch: descriptorState.workspaceBranch,
+        }
+      : null,
+    workspaceTitleSource,
+  });
+  const label = resolveWorkspaceAgentTabLabel(labelSource);
   const icon = getProviderIcon(provider);
 
   return {

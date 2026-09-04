@@ -1082,6 +1082,51 @@ export function collectAllPanes(root: SplitNode): SplitPane[] {
   return internalRoot.group.children.flatMap((child) => collectAllPanes(child));
 }
 
+export function findBottomTerminalPaneId(input: {
+  layout: WorkspaceLayout | null;
+  tabs: WorkspaceTab[];
+}): string | null {
+  if (!input.layout) {
+    return null;
+  }
+
+  const tabsById = new Map(input.tabs.map((tab) => [tab.tabId, tab]));
+  const findTerminalPane = (node: SplitNode): string | null => {
+    if (node.kind === "pane") {
+      return !node.pane.hidden &&
+        node.pane.tabIds.some((tabId) => tabsById.get(tabId)?.target.kind === "terminal")
+        ? node.pane.id
+        : null;
+    }
+    for (const child of node.group.children) {
+      const paneId = findTerminalPane(child);
+      if (paneId) {
+        return paneId;
+      }
+    }
+    return null;
+  };
+
+  const pendingNodes: SplitNode[] = [input.layout.root];
+  while (pendingNodes.length > 0) {
+    const node = pendingNodes.pop();
+    if (!node || node.kind === "pane") {
+      continue;
+    }
+    if (node.group.direction === "vertical") {
+      for (let index = node.group.children.length - 1; index >= 1; index -= 1) {
+        const child = node.group.children[index];
+        const paneId = child ? findTerminalPane(child) : null;
+        if (paneId) {
+          return paneId;
+        }
+      }
+    }
+    pendingNodes.push(...node.group.children);
+  }
+  return null;
+}
+
 function isEphemeralTab(tab: WorkspaceTab): boolean {
   return tab.target.kind === "commit_diff" || tab.target.kind === "new_tab";
 }

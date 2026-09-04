@@ -1,6 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useLocalSearchParams, usePathname } from "expo-router";
-import { useEffect, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useSyncExternalStore } from "react";
 import {
   createLastWorkspaceSelectionStore,
   LAST_WORKSPACE_SELECTION_STORAGE_KEY,
@@ -12,16 +12,22 @@ import {
   navigateToSidebarWorkspace as navigateToSidebarWorkspacePure,
   navigateToWorkspace as navigateToWorkspacePure,
   parseActiveWorkspaceSelection,
+  resolveSidebarActiveWorkspaceSelection,
   type NavigateToSidebarWorkspaceDeps,
   type NavigateToSidebarWorkspaceInput,
   type NavigateToWorkspaceDeps,
   type NavigateToWorkspaceInput,
 } from "./navigation";
 import { useSessionStore } from "@/stores/session-store";
-import { useWorkspaceLayoutStore } from "@/stores/workspace-layout-store";
+import {
+  collectAllTabs,
+  findPaneById,
+  useWorkspaceLayoutStore,
+} from "@/stores/workspace-layout-store";
 import { stripHostWorkspaceRouteEchoSearchFromBrowserUrlAfterCommit } from "@/utils/host-route-browser";
 import { navigateToHostWorkspaceRoute } from "@/navigation/workspace-route-navigation";
 import { getParentAgentIdFromLabels } from "@omp-desktop/protocol/agent-labels";
+import { buildWorkspaceTabPersistenceKey } from "@/workspace-tabs/model";
 
 export type { ActiveWorkspaceSelection } from "@/stores/last-workspace-selection";
 export type { NavigateToWorkspaceInput } from "./navigation";
@@ -121,6 +127,46 @@ export function useActiveWorkspaceSelection(): ActiveWorkspaceSelection | null {
   }, [serverId, workspaceId]);
   return selection;
 }
+export function useSidebarActiveWorkspaceSelection(): ActiveWorkspaceSelection | null {
+  const routeSelection = useActiveWorkspaceSelection();
+  const workspaceKey = routeSelection ? buildWorkspaceTabPersistenceKey(routeSelection) : null;
+  const focusedTarget = useWorkspaceLayoutStore((state) => {
+    const layout = workspaceKey ? state.layoutByWorkspace[workspaceKey] : null;
+    if (!layout) {
+      return null;
+    }
+    const focusedPane = findPaneById(layout.root, layout.focusedPaneId);
+    if (!focusedPane?.focusedTabId || focusedPane.hidden === true) {
+      return null;
+    }
+    return (
+      collectAllTabs(layout.root).find((tab) => tab.tabId === focusedPane.focusedTabId)?.target ??
+      null
+    );
+  });
+  const focusedAgent = useSessionStore((state) => {
+    if (!routeSelection || focusedTarget?.kind !== "agent") {
+      return null;
+    }
+    const session = state.sessions[routeSelection.serverId];
+    return (
+      session?.agents.get(focusedTarget.agentId) ??
+      session?.agentDetails.get(focusedTarget.agentId) ??
+      null
+    );
+  });
+
+  return useMemo(
+    () =>
+      resolveSidebarActiveWorkspaceSelection({
+        routeSelection,
+        focusedTarget,
+        focusedAgent,
+      }),
+    [focusedAgent, focusedTarget, routeSelection],
+  );
+}
+
 
 export function useLastWorkspaceSelection(): ActiveWorkspaceSelection | null {
   return useSyncExternalStore(

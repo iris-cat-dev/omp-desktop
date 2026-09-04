@@ -557,7 +557,7 @@ const styles = StyleSheet.create((theme) => ({
     ...theme.shadow.md,
   },
   sidebarRowSelected: {
-    backgroundColor: theme.colors.surfaceSidebarSelected,
+    backgroundColor: theme.colors.surface2,
   },
   workspaceCreatingText: {
     color: theme.colors.foregroundMuted,

@@ -22,7 +22,7 @@ export function getSidebarRowBackdrop({
   isHovered?: boolean;
 }): SidebarSurfaceBackdrop {
   if (isDragging || isPressed) return "surface2";
-  if (selected) return "surfaceSidebarSelected";
+  if (selected) return "surface2";
   if (isHovered) return "surfaceSidebarHover";
   return "surfaceSidebar";
 }
