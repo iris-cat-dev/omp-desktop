@@ -33,11 +33,40 @@ export function resolveOmpAccountSelectorOptions(
   featureOptions: readonly OmpAccountFeatureOption[] | null | undefined,
   accounts: readonly { credentialId: number }[],
 ): OmpAccountFeatureOption[] {
-  if (featureOptions) return orderOmpAccountFeatureOptions(featureOptions);
+  if (featureOptions) {
+    const orderedFeatureOptions = orderOmpAccountFeatureOptions(featureOptions);
+    const optionsById = new Map(orderedFeatureOptions.map((option) => [option.id, option]));
+    const ordered: OmpAccountFeatureOption[] = [];
+    const automatic = orderedFeatureOptions.find(isOmpAutomaticAccountOption);
+    if (automatic) {
+      ordered.push(automatic);
+      optionsById.delete(automatic.id);
+    }
+    for (const account of accounts) {
+      const id = String(account.credentialId);
+      const option = optionsById.get(id);
+      if (!option) continue;
+      ordered.push(option);
+      optionsById.delete(id);
+    }
+    for (const option of orderedFeatureOptions) {
+      if (!optionsById.has(option.id)) continue;
+      ordered.push(option);
+      optionsById.delete(option.id);
+    }
+    return ordered;
+  }
   return accounts.map((account) => {
     const id = String(account.credentialId);
     return { id, label: id };
   });
+}
+
+export function isOmpAutomaticAccountSelectionPending(
+  isRunning: boolean,
+  effectiveValue: string,
+): boolean {
+  return isRunning && effectiveValue.length === 0;
 }
 
 export function resolveOmpAccountFeatureSelection(feature: OmpAccountFeatureSelection): {

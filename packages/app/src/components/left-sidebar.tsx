@@ -55,6 +55,7 @@ import {
   formatOmpAccountIdentity,
   formatOmpAccountSelectionLabel,
   isOmpAutomaticAccountOption,
+  isOmpAutomaticAccountSelectionPending,
   resolveOmpAccountFeatureSelection,
   resolveOmpAccountSelectorOptions,
 } from "@/components/omp-provider-accounts";
@@ -772,12 +773,14 @@ function resolveSidebarAccountCopy({
   selectedAccount,
   accountOptions,
   selectedAccountId,
+  isRunning,
   t,
 }: {
   accountSelection: { isAutomatic: boolean } | null;
   selectedAccount: SidebarAccount | null;
   accountOptions: ComboboxOption[];
   selectedAccountId: string;
+  isRunning: boolean;
   t: TFunction;
 }) {
   const accountIdentity = formatOmpAccountIdentity(selectedAccount?.identityKey);
@@ -789,11 +792,15 @@ function resolveSidebarAccountCopy({
     t("agentControls.features.oauthAccount.title");
   const accountPlan = selectedAccount?.quota?.planLabel?.trim();
   if (accountSelection?.isAutomatic === true) {
+    let secondary = "";
+    if (selectedAccount) {
+      secondary = [accountSelectionLabel, accountIdentity.secondary].filter(Boolean).join(" · ");
+    } else if (isOmpAutomaticAccountSelectionPending(isRunning, selectedAccountId)) {
+      secondary = t("agentControls.quota.automaticSelecting");
+    }
     return {
       primary: [t("agentControls.quota.automatic"), accountPlan].filter(Boolean).join(" · "),
-      secondary: selectedAccount
-        ? [accountSelectionLabel, accountIdentity.secondary].filter(Boolean).join(" · ")
-        : t("agentControls.quota.automaticSelecting"),
+      secondary,
     };
   }
   return {
@@ -913,6 +920,7 @@ function useSidebarAccountModel({
     selectedAccount,
     accountOptions,
     selectedAccountId,
+    isRunning: controls.isRunning === true,
     t,
   });
   const hasAccountSwitcher =

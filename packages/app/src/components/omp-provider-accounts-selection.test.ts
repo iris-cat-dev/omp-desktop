@@ -2,6 +2,7 @@ import { describe, expect, test } from "vitest";
 import {
   isOmpAutomaticAccountOption,
   orderOmpAccountFeatureOptions,
+  isOmpAutomaticAccountSelectionPending,
   resolveOmpAccountFeatureSelection,
   resolveOmpAccountSelectorOptions,
 } from "./omp-provider-accounts";
@@ -27,6 +28,26 @@ describe("OMP account feature selection", () => {
     const ordered = orderOmpAccountFeatureOptions(options);
     expect(ordered[0]?.id).toBe("automatic");
     expect(ordered.map((opt) => opt.id)).toEqual(["automatic", "41", "42"]);
+  });
+
+  test("orders account options by the management account order", () => {
+    const options = [
+      { id: "1", label: "Account 1" },
+      { id: "automatic", label: "Automatic", metadata: { selectionMode: "automatic" } },
+      { id: "2", label: "Account 2" },
+    ];
+
+    expect(
+      resolveOmpAccountSelectorOptions(options, [{ credentialId: 2 }, { credentialId: 1 }]).map(
+        (option) => option.id,
+      ),
+    ).toEqual(["automatic", "2", "1"]);
+  });
+
+  test("only reports automatic account selection as pending during an unresolved turn", () => {
+    expect(isOmpAutomaticAccountSelectionPending(false, "")).toBe(false);
+    expect(isOmpAutomaticAccountSelectionPending(true, "")).toBe(true);
+    expect(isOmpAutomaticAccountSelectionPending(true, "42")).toBe(false);
   });
 
   test("falls back to management accounts before the selector feature loads", () => {
