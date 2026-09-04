@@ -16,7 +16,48 @@ import {
   readWindowDragPoint,
   resolveRuntimeTitleBarOverlayOptions,
   resolveWindowBounds,
+  setupWindowResizeEvents,
 } from "./window-manager";
+
+function createWindowListenerRecorder(listeners: Map<string, () => void>) {
+  return (event: string, listener: () => void) => {
+    listeners.set(event, listener);
+  };
+}
+
+function createAsyncUnmaximizeTarget() {
+  let maximized = true;
+  let unmaximizeListener: (() => void) | undefined;
+  const once = vi.fn((_event: "unmaximize", listener: () => void) => {
+    unmaximizeListener = listener;
+  });
+  const removeListener = vi.fn();
+  const unmaximize = vi.fn(() => {
+    queueMicrotask(() => {
+      maximized = false;
+      unmaximizeListener?.();
+    });
+  });
+  const setPosition = vi.fn();
+  const getBounds = vi
+    .fn()
+    .mockReturnValueOnce({ x: 0, y: 38, width: 1646, height: 1079 })
+    .mockReturnValue({ x: 264, y: 103, width: 1200, height: 800 });
+
+  return {
+    win: {
+      isMaximized: () => maximized,
+      unmaximize,
+      getBounds,
+      setPosition,
+      once,
+      removeListener,
+    },
+    unmaximize,
+    removeListener,
+    setPosition,
+  };
+}
 
 describe("window-manager", () => {
   describe("readBadgeCount", () => {
@@ -242,6 +283,38 @@ describe("window-manager", () => {
       });
     });
   });
+  describe("window state notifications", () => {
+    it("notifies the renderer for maximize changes even without a resize event", () => {
+      const listeners = new Map<string, () => void>();
+      const send = vi.fn();
+      const win = {
+        isDestroyed: () => false,
+        webContents: {
+          isDestroyed: () => false,
+          send,
+        },
+        on: vi.fn(createWindowListenerRecorder(listeners)),
+      };
+
+      setupWindowResizeEvents(win as unknown as Parameters<typeof setupWindowResizeEvents>[0]);
+
+      expect([...listeners.keys()]).toEqual([
+        "resize",
+        "maximize",
+        "unmaximize",
+        "enter-full-screen",
+        "leave-full-screen",
+      ]);
+
+      listeners.get("maximize")?.();
+      listeners.get("unmaximize")?.();
+
+      expect(send).toHaveBeenCalledTimes(2);
+      expect(send).toHaveBeenNthCalledWith(1, "paseo:window:resized", {});
+      expect(send).toHaveBeenNthCalledWith(2, "paseo:window:resized", {});
+    });
+  });
+
   describe("manual titlebar drag", () => {
     it("validates and rounds renderer screen coordinates", () => {
       expect(readWindowDragPoint({ screenX: 120.4, screenY: 80.6 })).toEqual({
@@ -252,40 +325,32 @@ describe("window-manager", () => {
       expect(readWindowDragPoint({ screenX: "120", screenY: 80 })).toBeNull();
     });
 
-    it("restores a maximized window under the pointer before moving it", () => {
-      const unmaximize = vi.fn();
-      const setPosition = vi.fn();
-      const getBounds = vi
-        .fn()
-        .mockReturnValueOnce({ x: 0, y: 38, width: 1646, height: 1079 })
-        .mockReturnValue({ x: 264, y: 103, width: 1200, height: 800 });
-      const win = {
-        isMaximized: () => true,
-        unmaximize,
-        getBounds,
-        setPosition,
-      };
+    it("waits for an asynchronous unmaximize before reading restored bounds", async () => {
+      const { win, unmaximize, removeListener, setPosition } = createAsyncUnmaximizeTarget();
 
-      const state = beginWindowDrag(win, { x: 900, y: 92 });
+      const state = await beginWindowDrag(win, { x: 900, y: 92 });
 
       expect(state).toEqual({ offsetX: 656, offsetY: 54 });
       expect(unmaximize).toHaveBeenCalledOnce();
+      expect(removeListener).toHaveBeenCalledWith("unmaximize", expect.any(Function));
       expect(setPosition).toHaveBeenNthCalledWith(1, 244, 38, false);
 
       moveWindowDrag(win, state, { x: 1000, y: 170 });
       expect(setPosition).toHaveBeenNthCalledWith(2, 344, 116, false);
     });
 
-    it("keeps a normal window's current pointer offset", () => {
+    it("keeps a normal window's current pointer offset", async () => {
       const setPosition = vi.fn();
       const win = {
         isMaximized: () => false,
         unmaximize: vi.fn(),
         getBounds: () => ({ x: 300, y: 140, width: 1200, height: 800 }),
         setPosition,
+        once: vi.fn(),
+        removeListener: vi.fn(),
       };
 
-      const state = beginWindowDrag(win, { x: 900, y: 194 });
+      const state = await beginWindowDrag(win, { x: 900, y: 194 });
 
       expect(state).toEqual({ offsetX: 600, offsetY: 54 });
       expect(win.unmaximize).not.toHaveBeenCalled();

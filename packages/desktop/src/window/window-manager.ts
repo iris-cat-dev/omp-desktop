@@ -31,6 +31,8 @@ interface WindowDragTarget {
   unmaximize(): void;
   getBounds(): Electron.Rectangle;
   setPosition(x: number, y: number, animate?: boolean): void;
+  once(event: "unmaximize", listener: () => void): unknown;
+  removeListener(event: "unmaximize", listener: () => void): unknown;
 }
 
 export function readWindowDragPoint(input: unknown): WindowDragPoint | null {
@@ -50,7 +52,32 @@ export function readWindowDragPoint(input: unknown): WindowDragPoint | null {
   return { x: Math.round(x), y: Math.round(y) };
 }
 
-export function beginWindowDrag(win: WindowDragTarget, point: WindowDragPoint): WindowDragState {
+async function waitForWindowUnmaximize(win: WindowDragTarget): Promise<void> {
+  await new Promise<void>((resolve, reject) => {
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      win.removeListener("unmaximize", finish);
+      resolve();
+    };
+
+    win.once("unmaximize", finish);
+    try {
+      win.unmaximize();
+    } catch (error) {
+      win.removeListener("unmaximize", finish);
+      reject(error);
+      return;
+    }
+    if (!win.isMaximized()) finish();
+  });
+}
+
+export async function beginWindowDrag(
+  win: WindowDragTarget,
+  point: WindowDragPoint,
+): Promise<WindowDragState> {
   const initialBounds = win.getBounds();
   if (!win.isMaximized()) {
     return {
@@ -64,7 +91,7 @@ export function beginWindowDrag(win: WindowDragTarget, point: WindowDragPoint): 
     Math.max(0, (point.x - initialBounds.x) / initialBounds.width),
   );
   const offsetY = Math.max(0, point.y - initialBounds.y);
-  win.unmaximize();
+  await waitForWindowUnmaximize(win);
   const restoredBounds = win.getBounds();
   const state = {
     offsetX: Math.round(restoredBounds.width * horizontalRatio),
@@ -288,11 +315,11 @@ export function registerWindowManager(): void {
     }
   });
 
-  ipcMain.handle("paseo:window:beginDrag", (event, input: unknown) => {
+  ipcMain.handle("paseo:window:beginDrag", async (event, input: unknown) => {
     const win = BrowserWindow.fromWebContents(event.sender);
     const point = readWindowDragPoint(input);
     if (!win || !point) return;
-    windowDragStateByWindow.set(win, beginWindowDrag(win, point));
+    windowDragStateByWindow.set(win, await beginWindowDrag(win, point));
   });
 
   ipcMain.on("paseo:window:moveDrag", (event, input: unknown) => {
@@ -383,6 +410,8 @@ export function setupWindowResizeEvents(win: BrowserWindow): void {
   };
 
   win.on("resize", notifyResized);
+  win.on("maximize", notifyResized);
+  win.on("unmaximize", notifyResized);
   win.on("enter-full-screen", notifyResized);
   win.on("leave-full-screen", notifyResized);
 }
