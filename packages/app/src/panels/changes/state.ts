@@ -13,6 +13,7 @@ export const changesStateSchema = z
     collapsedFilePaths: z.array(z.string()),
     collapsedFolderPaths: z.array(z.string()),
     commitsCollapsed: z.boolean(),
+    commitsHeight: z.number().optional(),
   })
   .transform(({ mode: _mode, baseRef: _baseRef, ...presentation }) => presentation);
 

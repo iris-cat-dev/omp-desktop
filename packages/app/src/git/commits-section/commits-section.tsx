@@ -1,11 +1,15 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { FlatList, Pressable, Text, View } from "react-native";
+import { Gesture, GestureDetector } from "react-native-gesture-handler";
+import Animated, { runOnJS, useAnimatedStyle, useSharedValue } from "react-native-reanimated";
+import { scheduleOnRN } from "react-native-worklets";
 import { StyleSheet } from "react-native-unistyles";
 import { useTranslation } from "react-i18next";
 import { useRetainedPanelActive } from "@/components/retained-panel";
 import { useCheckoutCommitsQuery, type CheckoutCommitsQueryResult } from "@/git/use-commits-query";
 import { ThemedChevron, chevronColorMapping } from "@/git/themed-chevron";
 import { CommitRow, COMMIT_ROW_HEIGHT } from "./commit-row";
+import { isWeb } from "@/constants/platform";
 
 interface CommitsSectionProps {
   serverId: string;
@@ -14,12 +18,30 @@ interface CommitsSectionProps {
   onCommitPress: (sha: string) => void;
   collapsed?: boolean;
   onCollapsedChange?: (collapsed: boolean) => void;
+  height?: number;
+  availableHeight: number;
+  onHeightChange: (height: number) => void;
 }
 
 type LoadedCommitsQuery = Extract<
   Exclude<CheckoutCommitsQueryResult, { status: "unsupported" }>,
   { status: "loaded" }
 >;
+const DEFAULT_SECTION_HEIGHT = 320;
+const MIN_SECTION_HEIGHT = 120;
+const MIN_CHANGES_HEIGHT = 96;
+const RESIZE_ACTIVATION_OFFSET = 6;
+const RESIZE_FAIL_OFFSET = 12;
+
+function resolveSectionHeight(requestedHeight: number, availableHeight: number): number {
+  const maximumHeight =
+    availableHeight > 0
+      ? Math.max(MIN_SECTION_HEIGHT, availableHeight - MIN_CHANGES_HEIGHT)
+      : requestedHeight;
+  return Math.min(Math.max(requestedHeight, MIN_SECTION_HEIGHT), maximumHeight);
+}
+
+const webResizeCursorStyle = isWeb ? ({ cursor: "row-resize" } as object) : null;
 type Commit = LoadedCommitsQuery["data"]["commits"][number];
 
 function commitKey(commit: Commit): string {
@@ -142,16 +164,30 @@ export function CommitsSection({
   onCommitPress,
   collapsed = true,
   onCollapsedChange,
+  height,
+  availableHeight,
+  onHeightChange,
 }: CommitsSectionProps) {
   const { t } = useTranslation();
   const isPanelActive = useRetainedPanelActive();
   const [now, setNow] = useState(() => new Date());
+  const [resizePressed, setResizePressed] = useState(false);
   const displayNow = useMemo(() => (isPanelActive ? new Date() : now), [isPanelActive, now]);
   const query = useCheckoutCommitsQuery({
     serverId,
     cwd,
     enabled: !collapsed,
   });
+  const visibleSectionHeight = resolveSectionHeight(
+    height ?? DEFAULT_SECTION_HEIGHT,
+    availableHeight,
+  );
+  const startHeightRef = useRef(visibleSectionHeight);
+  const resizeHeight = useSharedValue(visibleSectionHeight);
+
+  useEffect(() => {
+    resizeHeight.value = visibleSectionHeight;
+  }, [resizeHeight, visibleSectionHeight]);
 
   const handleToggleSection = useCallback(() => {
     if (collapsed) {
@@ -159,6 +195,47 @@ export function CommitsSection({
     }
     onCollapsedChange?.(!collapsed);
   }, [collapsed, onCollapsedChange]);
+  const expandForResize = useCallback(() => {
+    if (!collapsed) return;
+    setNow(new Date());
+    onCollapsedChange?.(false);
+  }, [collapsed, onCollapsedChange]);
+  const showResizeGrip = useCallback(() => setResizePressed(true), []);
+  const hideResizeGrip = useCallback(() => setResizePressed(false), []);
+  const resizeGesture = useMemo(
+    () =>
+      Gesture.Pan()
+        .hitSlop({ left: 0, right: 0, top: 8, bottom: 8 })
+        .activeOffsetY([-RESIZE_ACTIVATION_OFFSET, RESIZE_ACTIVATION_OFFSET])
+        .failOffsetX([-RESIZE_FAIL_OFFSET, RESIZE_FAIL_OFFSET])
+        .onBegin(() => scheduleOnRN(showResizeGrip))
+        .onStart((event) => {
+          startHeightRef.current = visibleSectionHeight + event.translationY;
+          resizeHeight.value = visibleSectionHeight;
+          if (collapsed) {
+            scheduleOnRN(expandForResize);
+          }
+        })
+        .onUpdate((event) => {
+          resizeHeight.value = resolveSectionHeight(
+            startHeightRef.current - event.translationY,
+            availableHeight,
+          );
+        })
+        .onEnd(() => runOnJS(onHeightChange)(resizeHeight.value))
+        .onFinalize(() => scheduleOnRN(hideResizeGrip)),
+    [
+      availableHeight,
+      collapsed,
+      expandForResize,
+      hideResizeGrip,
+      onHeightChange,
+      resizeHeight,
+      showResizeGrip,
+      visibleSectionHeight,
+    ],
+  );
+  const sectionHeightStyle = useAnimatedStyle(() => ({ height: resizeHeight.value }));
 
   useEffect(() => {
     if (collapsed || !isPanelActive) {
@@ -179,7 +256,21 @@ export function CommitsSection({
   const commitCount = query.status === "loaded" ? query.data.commits.length : null;
 
   return (
-    <View style={styles.container}>
+    <Animated.View style={[styles.container, !collapsed && sectionHeightStyle]}>
+      <GestureDetector gesture={resizeGesture} touchAction="none">
+        <View
+          collapsable={false}
+          role="separator"
+          aria-orientation="horizontal"
+          style={[styles.resizeHandle, webResizeCursorStyle]}
+          testID="commits-section-resize-handle"
+        >
+          <View
+            pointerEvents="none"
+            style={[styles.resizeGrip, resizePressed && styles.resizeGripPressed]}
+          />
+        </View>
+      </GestureDetector>
       <Pressable
         accessibilityRole="button"
         testID="commits-section-header"
@@ -211,7 +302,7 @@ export function CommitsSection({
           onCommitPress={onCommitPress}
         />
       )}
-    </View>
+    </Animated.View>
   );
 }
 
@@ -220,6 +311,27 @@ const styles = StyleSheet.create((theme) => ({
     borderTopWidth: theme.borderWidth[1],
     borderTopColor: theme.colors.border,
     flexShrink: 0,
+    position: "relative",
+  },
+  resizeHandle: {
+    position: "absolute",
+    top: -8,
+    left: 0,
+    right: 0,
+    height: 16,
+    zIndex: 10,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  resizeGrip: {
+    width: 32,
+    height: 3,
+    borderRadius: theme.borderRadius.full,
+    backgroundColor: theme.colors.foregroundMuted,
+    opacity: 0.35,
+  },
+  resizeGripPressed: {
+    opacity: 0.7,
   },
   header: {
     flexDirection: "row",
@@ -253,8 +365,8 @@ const styles = StyleSheet.create((theme) => ({
     flex: 1,
   },
   list: {
-    maxHeight: 320,
-    flexGrow: 0,
+    flex: 1,
+    minHeight: 0,
   },
   listContent: {
     paddingBottom: theme.spacing[1],

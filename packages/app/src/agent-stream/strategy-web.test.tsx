@@ -106,51 +106,95 @@ describe("createWebStreamStrategy", () => {
     vi.restoreAllMocks();
   });
 
-  it("mounts virtualized history without recursive row measurement updates", () => {
-    const rowRenderCount = vi.fn();
+  it("preserves upward scrolling while older history loads and settles", async () => {
     const strategy = createWebStreamStrategy({ isMobileBreakpoint: true });
-    const viewportRef = React.createRef<StreamViewportHandle>();
-    const historyVirtualized = Array.from({ length: 16 }, (_, index) => userMessage(index));
+    const onNearHistoryStart = vi.fn().mockResolvedValue(true);
+    const renderInput: StreamRenderInput = {
+      agentId: "agent",
+      segments: { historyVirtualized: [], historyMounted: [userMessage(2)], liveHead: [] },
+      boundary: { hasVirtualizedHistory: false, hasMountedHistory: true, hasLiveHead: false },
+      renderers: createRenderers(vi.fn()),
+      listEmptyComponent: null,
+      viewportRef: React.createRef<StreamViewportHandle>(),
+      routeBottomAnchorRequest: null,
+      isAuthoritativeHistoryReady: true,
+      onNearBottomChange: vi.fn(),
+      onNearHistoryStart,
+      isLoadingOlderHistory: false,
+      hasOlderHistory: true,
+      olderHistoryProgressKey: "epoch:20",
+      scrollEnabled: true,
+      listStyle: null,
+      baseListContentContainerStyle: null,
+      forwardListContentContainerStyle: null,
+    };
     container = document.createElement("div");
     document.body.appendChild(container);
     root = createRoot(container);
+    act(() => root?.render(strategy.render(renderInput)));
 
+    const scrollContainer = container.querySelector<HTMLElement>(
+      '[data-testid="agent-chat-scroll"]',
+    )!;
+    const anchor = container.querySelector<HTMLElement>('[data-history-row-id="message-2"]')!;
+    let anchorContentTop = 1200;
+    Object.defineProperty(scrollContainer, "clientHeight", { configurable: true, value: 400 });
+    Object.defineProperty(scrollContainer, "scrollHeight", { configurable: true, value: 1400 });
+    scrollContainer.scrollTop = 800;
+    vi.spyOn(anchor, "getBoundingClientRect").mockImplementation(
+      () => ({ top: anchorContentTop - scrollContainer.scrollTop }) as DOMRect,
+    );
+    act(() => scrollContainer.dispatchEvent(new Event("scroll")));
+    await act(async () => {
+      const frame = Promise.withResolvers<number>();
+      requestAnimationFrame(frame.resolve);
+      await frame.promise;
+    });
+    act(() => {
+      scrollContainer.dispatchEvent(new WheelEvent("wheel", { deltaY: -740 }));
+      scrollContainer.scrollTop = 60;
+      scrollContainer.dispatchEvent(new Event("scroll"));
+    });
+    expect(onNearHistoryStart).toHaveBeenCalledOnce();
+
+    // Another wheel step arrives while the history request is in flight.
+    act(() => {
+      scrollContainer.scrollTop = 20;
+      scrollContainer.dispatchEvent(new Event("scroll"));
+    });
+    const readingOffset = anchor.getBoundingClientRect().top;
+    anchorContentTop += 160;
     act(() => {
       root?.render(
-        <>
-          {strategy.render({
-            agentId: "agent",
-            segments: {
-              historyVirtualized,
-              historyMounted: [],
-              liveHead: [],
-            },
-            boundary: {
-              hasVirtualizedHistory: true,
-              hasMountedHistory: false,
-              hasLiveHead: false,
-            },
-            renderers: createRenderers(rowRenderCount),
-            listEmptyComponent: null,
-            viewportRef,
-            routeBottomAnchorRequest: null,
-            isAuthoritativeHistoryReady: true,
-            onNearBottomChange: vi.fn(),
-            onNearHistoryStart: vi.fn().mockReturnValue(true),
-            isLoadingOlderHistory: false,
-            hasOlderHistory: false,
-            olderHistoryProgressKey: null,
-            scrollEnabled: true,
-            listStyle: null,
-            baseListContentContainerStyle: null,
-            forwardListContentContainerStyle: null,
-          })}
-        </>,
+        strategy.render({
+          ...renderInput,
+          segments: {
+            historyVirtualized: [],
+            historyMounted: [userMessage(1), renderInput.segments.historyMounted[0]!],
+            liveHead: [],
+          },
+          hasOlderHistory: false,
+          olderHistoryProgressKey: "epoch:10",
+        }),
       );
     });
+    expect(anchor.getBoundingClientRect().top).toBe(readingOffset);
+    expect(scrollContainer.scrollTop).toBe(180);
 
-    expect(rowRenderCount.mock.calls.length).toBeGreaterThan(0);
-    expect(rowRenderCount.mock.calls.length).toBeLessThanOrEqual(historyVirtualized.length);
+    // The settling frames must not undo subsequent wheel movement either.
+    act(() => {
+      scrollContainer.scrollTop = 140;
+      scrollContainer.dispatchEvent(new Event("scroll"));
+    });
+    await act(async () => {
+      for (let index = 0; index < 2; index += 1) {
+        const frame = Promise.withResolvers<number>();
+        requestAnimationFrame(frame.resolve);
+        await frame.promise;
+      }
+    });
+    expect(scrollContainer.scrollTop).toBe(140);
+    expect(anchor.getBoundingClientRect().top).toBe(readingOffset + 40);
   });
 
   it("keeps the timeline width stable with an overlay scrollbar", () => {

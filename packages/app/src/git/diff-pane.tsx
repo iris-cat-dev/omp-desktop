@@ -1777,6 +1777,17 @@ export function ChangesSurface({
     (commitsCollapsed: boolean) => updateState({ ...instanceState, commitsCollapsed }),
     [instanceState, updateState],
   );
+  const handleCommitsHeightChange = useCallback(
+    (commitsHeight: number) => updateState({ ...instanceState, commitsHeight }),
+    [instanceState, updateState],
+  );
+  const [changesAndCommitsHeight, setChangesAndCommitsHeight] = useState(0);
+  const handleChangesAndCommitsLayout = useCallback(
+    (event: { nativeEvent: { layout: { height: number } } }) => {
+      setChangesAndCommitsHeight(event.nativeEvent.layout.height);
+    },
+    [],
+  );
   const handleChangesTreeWidth = useCallback(
     (treeWidth: number) => updateState({ ...instanceState, treeWidth }),
     [instanceState, updateState],
@@ -2195,16 +2206,21 @@ export function ChangesSurface({
           </View>
         ) : null}
 
-        <View style={styles.diffContainer}>{bodyContent}</View>
+        <View style={styles.changesAndCommitsContainer} onLayout={handleChangesAndCommitsLayout}>
+          <View style={styles.diffContainer}>{bodyContent}</View>
 
-        <CommitsSection
-          serverId={serverId}
-          cwd={cwd}
-          currentBranchName={currentBranchName}
-          onCommitPress={handleCommitPress}
-          collapsed={instanceState.commitsCollapsed}
-          onCollapsedChange={handleCommitsCollapsedChange}
-        />
+          <CommitsSection
+            serverId={serverId}
+            cwd={cwd}
+            currentBranchName={currentBranchName}
+            onCommitPress={handleCommitPress}
+            collapsed={instanceState.commitsCollapsed}
+            onCollapsedChange={handleCommitsCollapsedChange}
+            height={instanceState.commitsHeight}
+            availableHeight={changesAndCommitsHeight}
+            onHeightChange={handleCommitsHeightChange}
+          />
+        </View>
       </View>
     );
   }
@@ -2351,6 +2367,10 @@ const styles = StyleSheet.create((theme) => ({
   changesCountText: {
     color: theme.colors.foregroundMuted,
     fontSize: theme.fontSize.sm,
+  },
+  changesAndCommitsContainer: {
+    flex: 1,
+    minHeight: 0,
   },
   diffContainer: {
     flex: 1,

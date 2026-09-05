@@ -69,7 +69,7 @@ export function estimateStreamItemHeight(item: StreamItem): number {
     case "thought":
       return COLLAPSED_TOOL_SEQUENCE_ROW_HEIGHT_ESTIMATE;
     case "todo_list":
-      return 144;
+      return COLLAPSED_TOOL_SEQUENCE_ROW_HEIGHT_ESTIMATE;
     case "activity_log":
       return 88;
     case "compaction":

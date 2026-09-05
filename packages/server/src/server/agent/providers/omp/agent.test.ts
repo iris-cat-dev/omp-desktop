@@ -1032,6 +1032,16 @@ describe("OMP agent client and session", () => {
           "</system-notice>",
         ].join("\n"),
       );
+    omp
+      .runtime()
+      .acceptCustomMessage(
+        [
+          "<irc>",
+          "Incoming IRC message from agent DataflowRepair:",
+          "All writes released for build.",
+          "</irc>",
+        ].join("\n"),
+      );
     omp.runtime().acceptCustomMessage("plain custom status text");
 
     expect(omp.timeline().filter((item) => item.type === "tool_call")).toMatchObject([
@@ -1039,6 +1049,12 @@ describe("OMP agent client and session", () => {
         callId: "omp-notice:DocsSmokeTwo",
         name: "task_notification",
         status: "completed",
+      },
+      {
+        callId: expect.stringMatching(/^omp-irc:[0-9a-f]{12}$/),
+        name: "irc_notification",
+        status: "completed",
+        detail: { label: "Message from DataflowRepair" },
       },
     ]);
     // Non-notice custom messages still fall through as assistant messages.
@@ -1406,6 +1422,39 @@ describe("OMP agent client and session", () => {
     expect(omp.timeline().filter((item) => item.type === "user_message")).toEqual([
       { type: "user_message", text: "hello OMP", messageId: "user-1" },
     ]);
+  });
+
+  test("image-only user frames retain bytes and resolve native and client identities", async () => {
+    const omp = new OmpHarness();
+    await omp.start();
+    await omp.requireStartTurn("", { clientMessageId: "client-image-only" });
+    const runtime = omp.runtime();
+    const image = {
+      data: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aShoAAAAASUVORK5CYII=",
+      mimeType: "image/png",
+    };
+    runtime.branchMessages = [{ entryId: "native-image-only", text: "" }];
+    runtime.beginTurn();
+    runtime.emit({
+      type: "message_end",
+      message: { role: "user", content: [{ type: "image", ...image }] },
+    });
+    await waitForImmediate();
+    runtime.emit({
+      type: "message_end",
+      message: { role: "user", content: [{ type: "image", ...image }] },
+    });
+    await waitForImmediate();
+    expect(omp.timeline().filter((item) => item.type === "user_message")).toEqual([
+      {
+        type: "user_message",
+        text: "",
+        images: [image],
+        messageId: "native-image-only",
+        clientMessageId: "client-image-only",
+      },
+    ]);
+    await omp.close();
   });
 
   test("late duplicate user frames dedupe by prompt text after a turn completes", async () => {

@@ -17,6 +17,35 @@ vi.mock("@/git/use-commits-query", () => ({
   useCheckoutCommitsQuery: mocks.useCheckoutCommitsQuery,
 }));
 
+vi.mock("react-native-gesture-handler", () => {
+  const pan = {
+    hitSlop: () => pan,
+    activeOffsetY: () => pan,
+    failOffsetX: () => pan,
+    onBegin: () => pan,
+    onStart: () => pan,
+    onUpdate: () => pan,
+    onEnd: () => pan,
+    onFinalize: () => pan,
+  };
+  return {
+    Gesture: { Pan: () => pan },
+    GestureDetector: ({ children }: { children: React.ReactNode }) => children,
+  };
+});
+
+vi.mock("react-native-reanimated", () => ({
+  default: { View: "div" },
+  runOnJS: <T extends (...args: never[]) => unknown>(callback: T) => callback,
+  useAnimatedStyle: (callback: () => object) => callback(),
+  useSharedValue: (value: number) => ({ value }),
+}));
+
+vi.mock("react-native-worklets", () => ({
+  scheduleOnRN: <T extends (...args: never[]) => unknown>(callback: T, ...args: Parameters<T>) =>
+    callback(...args),
+}));
+
 vi.mock("@/git/themed-chevron", () => ({
   ThemedChevron: () => <span data-testid="chevron" />,
   chevronColorMapping: {},
@@ -86,6 +115,8 @@ describe("CommitsSection", () => {
         currentBranchName="feature"
         collapsed={false}
         onCommitPress={onCommitPress}
+        availableHeight={640}
+        onHeightChange={vi.fn()}
       />,
     );
 
@@ -118,6 +149,8 @@ describe("CommitsSection", () => {
         currentBranchName="main"
         collapsed={false}
         onCommitPress={vi.fn()}
+        availableHeight={640}
+        onHeightChange={vi.fn()}
       />,
     );
 
@@ -135,6 +168,8 @@ describe("CommitsSection", () => {
         currentBranchName="main"
         collapsed={false}
         onCommitPress={vi.fn()}
+        availableHeight={640}
+        onHeightChange={vi.fn()}
       />,
     );
 
@@ -161,6 +196,8 @@ describe("CommitsSection", () => {
         currentBranchName="main"
         collapsed
         onCommitPress={vi.fn()}
+        availableHeight={640}
+        onHeightChange={vi.fn()}
       />,
     );
 

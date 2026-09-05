@@ -1,5 +1,5 @@
 import { readFile } from "node:fs/promises";
-import { basename, extname, join } from "node:path";
+import { basename, dirname, extname, join } from "node:path";
 import type { AgentProvider, AgentStreamEvent } from "../../agent-sdk-types.js";
 import { normalizeProviderReplayTimestamp } from "../../provider-history-timestamps.js";
 import { OmpHistoryMapper, type OmpCapturedUserMessageEntry } from "./message-history.js";
@@ -7,6 +7,7 @@ import type { OmpAgentMessage } from "./rpc-types.js";
 import type { OmpRuntimeSession } from "./runtime.js";
 import { OMP_HISTORY_MAPPER_HOOKS } from "./history-hooks.js";
 import { formatOmpSubagentTitle } from "./subagent-title.js";
+import { resolveOmpDiagnosticPaths } from "./provider-config.js";
 
 interface OmpSessionEntry {
   type?: string;
@@ -46,6 +47,7 @@ export async function* streamOmpHistory(input: {
   runtimeSession?: OmpRuntimeSession;
   provider: AgentProvider;
   visitedSessionFiles?: Set<string>;
+  blobDir?: string;
 }): AsyncGenerator<AgentStreamEvent> {
   if (!input.sessionFile) {
     return;
@@ -95,12 +97,24 @@ export async function* streamOmpHistory(input: {
     }
     const message = mapEntryMessage(entry);
     if (!message) continue;
+    await resolveMessageImageBlobs(message, input.blobDir);
     for (const event of mapper.mapMessages([message])) {
       yield timestamp && event.type === "timeline" ? { ...event, timestamp } : event;
     }
   }
   for (const transcript of readSubagentTranscripts(messages, input.sessionFile)) {
-    yield* replaySubagentTranscript(transcript, input.provider, visitedSessionFiles);
+    yield* replaySubagentTranscript(transcript, input.provider, visitedSessionFiles, input.blobDir);
+  }
+}
+
+async function resolveMessageImageBlobs(message: OmpAgentMessage, blobDir?: string): Promise<void> {
+  if (message.role !== "user" || !Array.isArray(message.content)) return;
+  for (const block of message.content) {
+    if (block.type !== "image") continue;
+    const match = /^blob:sha256:([a-f0-9]{64})$/.exec(block.data);
+    if (!match) continue;
+    blobDir ??= join(dirname(resolveOmpDiagnosticPaths().agentDb), "blobs");
+    block.data = (await readFile(join(blobDir, match[1]!))).toString("base64");
   }
 }
 
@@ -108,6 +122,7 @@ async function* replaySubagentTranscript(
   transcript: OmpSubagentTranscript,
   provider: AgentProvider,
   visitedSessionFiles: Set<string>,
+  blobDir?: string,
 ): AsyncGenerator<AgentStreamEvent> {
   const childEntries = await readActiveOmpEntryChain(transcript.sessionFile).catch(
     (error: unknown) => {
@@ -122,6 +137,7 @@ async function* replaySubagentTranscript(
     sessionFile: transcript.sessionFile,
     provider,
     visitedSessionFiles,
+    blobDir,
   })) {
     if (event.type === "timeline") {
       yield {

@@ -4,6 +4,8 @@ import type { AgentTimelineItem } from "../../agent-sdk-types.js";
 
 const SYSTEM_NOTICE_OPEN_TAG = "<system-notice>";
 const SYSTEM_NOTICE_CLOSE_TAG = "</system-notice>";
+const IRC_OPEN_TAG = "<irc>";
+const IRC_CLOSE_TAG = "</irc>";
 const TASK_RESULT_TAG_PATTERN = /<task-result\b([^>]*)>/i;
 // The omp harness emits straight quotes, but transcripts have been observed
 // with typographic quotes after copy/paste round-trips; accept both.
@@ -24,6 +26,10 @@ type OmpNoticeLifecycle =
 
 export function isOmpSystemNotice(text: string): boolean {
   return text.trimStart().startsWith(SYSTEM_NOTICE_OPEN_TAG);
+}
+
+export function isOmpIrcMessage(text: string): boolean {
+  return text.trimStart().startsWith(IRC_OPEN_TAG);
 }
 
 function readTaskResult(text: string): OmpTaskResultSummary | null {
@@ -62,6 +68,24 @@ function readNoticeFirstLine(text: string): string | null {
   return null;
 }
 
+function readIrcSender(text: string): string | null {
+  const openIndex = text.indexOf(IRC_OPEN_TAG);
+  const closeIndex = text.indexOf(IRC_CLOSE_TAG);
+  const body = text.slice(
+    openIndex + IRC_OPEN_TAG.length,
+    closeIndex === -1 ? undefined : closeIndex,
+  );
+  const firstLine = body
+    .split("\n")
+    .map((line) => line.trim())
+    .find(Boolean);
+  if (!firstLine) {
+    return null;
+  }
+  const match = /^Incoming IRC message from agent (.+?)(?: \(reply to [^)]+\))?:$/.exec(firstLine);
+  return match?.[1]?.trim() || null;
+}
+
 function buildLifecycle(
   taskResult: OmpTaskResultSummary | null,
   label: string,
@@ -89,6 +113,50 @@ function buildCallId(taskResult: OmpTaskResultSummary | null, text: string): str
   }
   const digest = createHash("sha1").update(text.trim()).digest("hex").slice(0, 12);
   return `omp-notice:${digest}`;
+}
+
+export function mapOmpIrcMessageToToolCall(text: string): OmpSystemNoticeToolCallItem | null {
+  if (!isOmpIrcMessage(text)) {
+    return null;
+  }
+
+  const taskResult = readTaskResult(text);
+  const sender = readIrcSender(text);
+  let label = "IRC message";
+  if (taskResult) {
+    label = `${taskResult.id ?? sender ?? "Background job"} ${taskResult.status ?? "completed"}`;
+  } else if (sender) {
+    label = `Message from ${sender}`;
+  }
+  const lifecycle = buildLifecycle(taskResult, label);
+  const digest = createHash("sha1").update(text.trim()).digest("hex").slice(0, 12);
+  const base = {
+    type: "tool_call" as const,
+    callId: `omp-irc:${digest}`,
+    name: "irc_notification",
+    detail: {
+      type: "plain_text" as const,
+      label,
+      text,
+      icon: "bot" as const,
+    },
+    metadata: {
+      synthetic: true,
+      source: "omp_irc",
+      ...(sender ? { sender } : {}),
+      ...(taskResult?.id ? { taskId: taskResult.id } : {}),
+      ...(taskResult?.agent ? { subagentType: taskResult.agent } : {}),
+      ...(taskResult?.status ? { status: taskResult.status } : {}),
+    },
+  };
+
+  if (lifecycle.status === "failed") {
+    return { ...base, status: "failed", error: lifecycle.error };
+  }
+  if (lifecycle.status === "canceled") {
+    return { ...base, status: "canceled", error: null };
+  }
+  return { ...base, status: "completed", error: null };
 }
 
 export function mapOmpSystemNoticeToToolCall(text: string): OmpSystemNoticeToolCallItem | null {

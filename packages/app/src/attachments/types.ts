@@ -4,7 +4,11 @@ import type {
   UploadedFileAttachment,
 } from "@omp-desktop/protocol/messages";
 
-export type AttachmentStorageType = "web-indexeddb" | "desktop-file" | "native-file";
+export type AttachmentStorageType =
+  | "web-indexeddb"
+  | "desktop-file"
+  | "native-file"
+  | "inline-data";
 
 export interface AttachmentMetadata {
   id: string;
@@ -14,6 +18,7 @@ export interface AttachmentMetadata {
    * Platform-specific location key.
    * - web-indexeddb: object store key
    * - desktop-file/native-file: absolute file path without preview URL indirection
+   * - inline-data: base64-encoded bytes from a canonical timeline image
    */
   storageKey: string;
   fileName?: string | null;

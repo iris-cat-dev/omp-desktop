@@ -1,10 +1,14 @@
 import { afterEach, describe, expect, it } from "vitest";
 import type { AttachmentMetadata, AttachmentStore, SaveAttachmentInput } from "@/attachments/types";
+import { hydrateStreamState } from "@/types/stream";
 import { __setAttachmentStoreForTests } from "./store";
 import {
+  deleteAttachments,
   encodeAttachmentsForSend,
   garbageCollectAttachments,
   persistAttachmentFromBytes,
+  releaseAttachmentPreviewUrl,
+  resolveAttachmentPreviewUrl,
 } from "./service";
 
 function createAttachment(input: Partial<AttachmentMetadata> = {}): AttachmentMetadata {
@@ -56,6 +60,78 @@ function createRecordingStore(): AttachmentStore & {
 describe("attachment service", () => {
   afterEach(() => {
     __setAttachmentStoreForTests(null);
+  });
+
+  it.each(["Review this screenshot", ""])(
+    "previews canonical screenshots after fresh history hydration with text %j",
+    async (text) => {
+      const store = createRecordingStore();
+      store.resolvePreviewUrl = async () => {
+        throw new Error("The previous session's local attachment is unavailable");
+      };
+      __setAttachmentStoreForTests(store);
+      const images = [
+        {
+          data: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aS1sAAAAASUVORK5CYII=",
+          mimeType: "image/png",
+        },
+        {
+          data: "R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7",
+          mimeType: "image/gif",
+        },
+      ];
+      const state = hydrateStreamState([
+        {
+          event: {
+            type: "timeline",
+            provider: "pi",
+            item: { type: "user_message", messageId: "persisted-user", text, images },
+          },
+          timestamp: new Date("2026-09-05T10:00:00Z"),
+        },
+      ]);
+
+      expect(state).toHaveLength(1);
+      const message = state[0];
+      if (message?.kind !== "user_message") throw new Error("Expected a hydrated user message");
+      expect(message.text).toBe(text);
+      expect(message.images).toHaveLength(2);
+      const attachments = message.images!;
+      expect(attachments[0]!.id).not.toBe(attachments[1]!.id);
+      await expect(Promise.all(attachments.map(resolveAttachmentPreviewUrl))).resolves.toEqual(
+        images.map((image) => `data:${image.mimeType};base64,${image.data}`),
+      );
+      await expect(encodeAttachmentsForSend(attachments)).resolves.toEqual(images);
+    },
+  );
+
+  it("keeps inline image encoding and cleanup independent of local attachments", async () => {
+    const store = createRecordingStore();
+    const deletedIds: string[] = [];
+    store.delete = async ({ attachment }) => {
+      deletedIds.push(attachment.id);
+    };
+    __setAttachmentStoreForTests(store);
+    const inline = createAttachment({
+      id: "history-image",
+      storageType: "inline-data",
+      storageKey: "AAEC",
+    });
+    const local = createAttachment({ id: "local-image", storageKey: inline.storageKey });
+    const inlineUrl = await resolveAttachmentPreviewUrl(inline);
+    const localUrl = await resolveAttachmentPreviewUrl(local);
+
+    await expect(encodeAttachmentsForSend([inline, local])).resolves.toEqual([
+      { data: "AAEC", mimeType: "image/png" },
+      { data: "local-image:base64", mimeType: "image/png" },
+    ]);
+    await releaseAttachmentPreviewUrl({ attachment: inline, url: inlineUrl });
+    await releaseAttachmentPreviewUrl({ attachment: local, url: localUrl });
+    await deleteAttachments([inline, local]);
+
+    expect(store.releasedUrls).toEqual([localUrl]);
+    expect(deletedIds).toEqual(["local-image"]);
+    await expect(resolveAttachmentPreviewUrl(inline)).resolves.toBe("data:image/png;base64,AAEC");
   });
 
   it("persists raw bytes without requiring a base64 wrapper", async () => {

@@ -721,6 +721,7 @@ export const AgentTimelineItemPayloadSchema: z.ZodType<AgentTimelineItem, unknow
     text: z.string(),
     messageId: z.string().optional(),
     clientMessageId: z.string().optional(),
+    images: z.array(z.object({ data: z.string(), mimeType: z.string() })).optional(),
   }),
   z.object({
     type: z.literal("assistant_message"),

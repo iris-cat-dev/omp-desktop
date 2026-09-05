@@ -80,8 +80,8 @@ import {
 export { formatOmpVersionSupport, resolveOmpDiagnosticPaths } from "./provider-config.js";
 import { OmpSubagentCardTracker, type OmpSubagentCardScheduler } from "./subagent-card-tracker.js";
 import { shouldDisplayOmpCustomMessage } from "./custom-message.js";
-import { getUserMessageText } from "./message-history.js";
-import { mapOmpSystemNoticeToToolCall } from "./system-notice.js";
+import { getUserMessageImages, getUserMessageText } from "./message-history.js";
+import { mapOmpIrcMessageToToolCall, mapOmpSystemNoticeToToolCall } from "./system-notice.js";
 import { materializeProviderImage } from "../provider-image-output.js";
 import {
   cancelOmpInstall,
@@ -522,6 +522,7 @@ interface OmpAgentSessionOptions {
   noTurnScheduler?: OmpNoTurnScheduler;
   usagePollScheduler?: OmpUsagePollScheduler;
   paseoTools?: PaseoToolCatalog;
+  blobDir?: string;
   /**
    * When false (resumed sessions), replayed session events are dropped until
    * the first prompt or agent_start so history is not re-emitted as live
@@ -1452,6 +1453,7 @@ export class OmpAgentSession implements AgentSession {
   readonly features: AgentFeature[];
 
   private readonly subscribers = new Set<(event: AgentStreamEvent) => void>();
+  private readonly blobDir: string | undefined;
   private readonly activeToolCalls = new Map<string, OmpTrackedToolCall>();
   private readonly pendingExtensionUiRequests = new Map<string, AgentPermissionRequest>();
   private activeAskUserDialog: ActiveAskUserDialog | null = null;
@@ -1508,6 +1510,7 @@ export class OmpAgentSession implements AgentSession {
   constructor(options: OmpAgentSessionOptions) {
     this.runtimeSession = options.runtimeSession;
     this.config = options.config;
+    this.blobDir = options.blobDir;
     this.oauthAccounts = [...(options.oauthAccounts ?? [])];
     this.automaticCredentialId = options.automaticCredentialId;
     this.automaticCredentialResolver = options.automaticCredentialResolver;
@@ -1732,6 +1735,7 @@ export class OmpAgentSession implements AgentSession {
       sessionFile: this.state.sessionFile,
       runtimeSession: this.runtimeSession,
       provider: this.provider,
+      blobDir: this.blobDir,
     });
     for (const item of mapOmpTodoState(this.state)) {
       yield {
@@ -3225,7 +3229,8 @@ export class OmpAgentSession implements AgentSession {
         if (text) {
           const item =
             mapOmpAdvisorMessageToToolCall(event.message, text) ??
-            mapOmpSystemNoticeToToolCall(text);
+            mapOmpSystemNoticeToToolCall(text) ??
+            mapOmpIrcMessageToToolCall(text);
           this.emit({
             type: "timeline",
             provider: this.provider,
@@ -3244,7 +3249,8 @@ export class OmpAgentSession implements AgentSession {
       return;
     }
     const text = getUserMessageText(event.message.content);
-    if (!text) {
+    const images = getUserMessageImages(event.message.content);
+    if (!text && !images) {
       return;
     }
     // Image prompts can produce a second, late user message_end frame after the
@@ -3284,6 +3290,7 @@ export class OmpAgentSession implements AgentSession {
         item: {
           type: "user_message",
           text,
+          ...(images ? { images } : {}),
           ...(resolvedMessageId ? { messageId: resolvedMessageId } : {}),
           ...(clientMessageId ? { clientMessageId } : {}),
         },
@@ -3684,6 +3691,16 @@ export class OmpAgentClient implements AgentClient {
           automaticCredentialScheduler: this.automaticCredentialScheduler,
           usagePollScheduler: this.usagePollScheduler,
           paseoTools: launchContext?.paseoTools,
+          blobDir: join(
+            dirname(
+              resolveOmpDiagnosticPaths({
+                ...process.env,
+                ...this.runtimeSettings?.env,
+                ...launchContext?.env,
+              }).agentDb,
+            ),
+            "blobs",
+          ),
         },
         oauthAccounts,
       );
@@ -3749,6 +3766,16 @@ export class OmpAgentClient implements AgentClient {
           automaticCredentialScheduler: this.automaticCredentialScheduler,
           usagePollScheduler: this.usagePollScheduler,
           paseoTools: launchContext?.paseoTools,
+          blobDir: join(
+            dirname(
+              resolveOmpDiagnosticPaths({
+                ...process.env,
+                ...this.runtimeSettings?.env,
+                ...launchContext?.env,
+              }).agentDb,
+            ),
+            "blobs",
+          ),
           live: false,
         },
         oauthAccounts,

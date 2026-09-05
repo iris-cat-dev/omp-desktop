@@ -267,6 +267,9 @@ function produceUserMessage(
     clientMessageId: incoming.clientMessageId ?? existing.clientMessageId,
     messageId: incoming.messageId ?? existing.messageId,
     timelineCursor: incoming.timelineCursor ?? existing.timelineCursor,
+    images:
+      presentation.images ??
+      (presentationPolicy === "incoming" ? existing.images : incoming.images),
   });
   if (
     existing.id === merged.id &&
@@ -854,6 +857,21 @@ export function handoffCreatedAgentUserMessageToStream(params: {
   });
 }
 
+function timelineImagesToAttachments(
+  images: Array<{ data: string; mimeType: string }> | undefined,
+  messageId: string,
+  timestamp: Date,
+): UserMessageImageAttachment[] | undefined {
+  if (!images?.length) return undefined;
+  return images.map((image, index) => ({
+    id: `${messageId}:image:${index}`,
+    mimeType: image.mimeType,
+    storageType: "inline-data",
+    storageKey: image.data,
+    createdAt: timestamp.getTime(),
+  }));
+}
+
 function appendUserMessage(
   state: StreamItem[],
   text: string,
@@ -863,21 +881,24 @@ function appendUserMessage(
   clientMessageId?: string,
   timelineCursor?: TimelinePosition,
   turnId?: string,
+  images?: Array<{ data: string; mimeType: string }>,
 ): StreamItem[] {
   const { chunk, hasContent } = normalizeChunk(text);
-  if (!hasContent) {
+  if (!hasContent && !images?.length) {
     return state;
   }
 
   const chunkSeed = chunk.trim() || chunk;
+  const id = messageId ?? createUniqueTimelineId(state, "user", chunkSeed, timestamp);
   const nextItem = createUserMessage({
-    id: messageId ?? createUniqueTimelineId(state, "user", chunkSeed, timestamp),
+    id,
     clientMessageId,
     messageId,
     timelineCursor,
     turnId,
     text: chunk,
     timestamp,
+    images: timelineImagesToAttachments(images, id, timestamp),
   });
   return upsertUserMessage(state, nextItem);
 }
@@ -1450,6 +1471,7 @@ function reduceTimelineEvent(
           item.clientMessageId,
           timelineCursor,
           event.turnId,
+          item.images,
         ),
       );
     case "assistant_message":
@@ -1564,9 +1586,10 @@ function applyTimelineTurnId(
 
 function reconcileCanonicalUserTurnMembership(
   items: StreamItem[],
-  clientMessageId: string,
+  clientMessageId: string | undefined,
   turnId: string | undefined,
 ): StreamItem[] {
+  if (!clientMessageId) return items;
   const index = items.findIndex(
     (item) => item.kind === "user_message" && item.clientMessageId === clientMessageId,
   );
@@ -1872,42 +1895,41 @@ function applyCanonicalUserMessageEvent(params: {
   const { tail, head, event, timestamp, timelineCursor, unmatchedInsert = "tail" } = params;
   if (event.type !== "timeline" || event.item.type !== "user_message") return null;
   const normalized = normalizeChunk(event.item.text);
+  const hasContent = normalized.hasContent || Boolean(event.item.images?.length);
+  const id =
+    event.item.messageId ??
+    createUniqueTimelineId([...tail, ...head], "user", normalized.chunk.trim(), timestamp);
 
   const flushedTail = head.length > 0 ? flushHeadToTail(tail, head) : tail;
   const flushedHead = head.length > 0 ? [] : head;
   const canonical = createUserMessage({
-    id:
-      event.item.messageId ??
-      createUniqueTimelineId([...tail, ...head], "user", normalized.chunk.trim(), timestamp),
+    id,
     messageId: event.item.messageId,
     clientMessageId: event.item.clientMessageId,
     turnId: event.turnId,
     timelineCursor,
     text: normalized.chunk,
     timestamp,
+    images: timelineImagesToAttachments(event.item.images, id, timestamp),
   });
   if (unmatchedInsert === "head") {
     const reconciled = upsertUserMessageAcrossStream({
       tail,
       head,
       message: canonical,
-      insert: normalized.hasContent ? "head" : "none",
+      insert: hasContent ? "head" : "none",
       presentation: "existing",
     });
-    const reconciledTail = canonical.clientMessageId
-      ? reconcileCanonicalUserTurnMembership(
-          reconciled.tail,
-          canonical.clientMessageId,
-          event.turnId,
-        )
-      : reconciled.tail;
-    const reconciledHead = canonical.clientMessageId
-      ? reconcileCanonicalUserTurnMembership(
-          reconciled.head,
-          canonical.clientMessageId,
-          event.turnId,
-        )
-      : reconciled.head;
+    const reconciledTail = reconcileCanonicalUserTurnMembership(
+      reconciled.tail,
+      canonical.clientMessageId,
+      event.turnId,
+    );
+    const reconciledHead = reconcileCanonicalUserTurnMembership(
+      reconciled.head,
+      canonical.clientMessageId,
+      event.turnId,
+    );
     return {
       tail: reconciledTail,
       head: reconciledHead,
@@ -1919,14 +1941,12 @@ function applyCanonicalUserMessageEvent(params: {
           : [],
     };
   }
-  const reconciled = placeCanonicalUserMessageAtTail(flushedTail, canonical, normalized.hasContent);
-  const reconciledTail = canonical.clientMessageId
-    ? reconcileCanonicalUserTurnMembership(
-        reconciled.items,
-        canonical.clientMessageId,
-        event.turnId,
-      )
-    : reconciled.items;
+  const reconciled = placeCanonicalUserMessageAtTail(flushedTail, canonical, hasContent);
+  const reconciledTail = reconcileCanonicalUserTurnMembership(
+    reconciled.items,
+    canonical.clientMessageId,
+    event.turnId,
+  );
   return {
     tail: reconciledTail,
     head: flushedHead,

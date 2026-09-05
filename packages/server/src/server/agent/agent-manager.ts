@@ -4355,9 +4355,18 @@ export class AgentManager {
     }
     this.touchUpdatedAt(agent);
     agent.lastUserMessageAt = new Date();
+    let images: Array<{ data: string; mimeType: string }> | undefined;
+    if (typeof prompt !== "string") {
+      for (const block of prompt) {
+        if (block.type === "image") {
+          (images ??= []).push({ data: block.data, mimeType: block.mimeType });
+        }
+      }
+    }
     const item: AgentTimelineItem = {
       type: "user_message",
       text: submittedPromptText(prompt),
+      ...(images ? { images } : {}),
       clientMessageId,
       ...(options?.messageId ? { messageId: options.messageId } : {}),
     };
@@ -4373,7 +4382,13 @@ export class AgentManager {
     if (!clientMessageId) return null;
     let existing = this.timelineStore.getSubmittedUserMessage(agent.id, clientMessageId);
     if (!existing) {
-      this.recordSubmittedPrompt(agent, item.text, clientMessageId, {
+      const prompt: AgentPromptInput = item.images?.length
+        ? [
+            { type: "text", text: item.text },
+            ...item.images.map((image) => ({ type: "image" as const, ...image })),
+          ]
+        : item.text;
+      this.recordSubmittedPrompt(agent, prompt, clientMessageId, {
         messageId: clientMessageId,
         ...(messageId ? { providerMessageId: messageId } : {}),
         ...(turnId ? { turnId } : {}),

@@ -1,4 +1,5 @@
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, test } from "vitest";
@@ -166,6 +167,47 @@ describe("OMP history mapper", () => {
           type: "user_message",
           text: "second prompt",
           messageId: "entry-user-2",
+        },
+      },
+    ]);
+  });
+
+  test("renders replayed IRC messages as synthetic tool-call blocks", async () => {
+    const message = [
+      "<irc>",
+      "Incoming IRC message from agent NativeDefaultApply (reply to 15732a2de67fceec):",
+      '<task-result id="NativeDefaultApply" agent="task" status="completed" duration="4.6s">',
+      "<output>All assigned changes are submitted.</output>",
+      "</task-result>",
+      "</irc>",
+    ].join("\n");
+
+    const events = await collectHistory([{ role: "custom", content: message }]);
+
+    expect(events).toMatchObject([
+      {
+        type: "timeline",
+        provider: "omp",
+        item: {
+          type: "tool_call",
+          callId: expect.stringMatching(/^omp-irc:[0-9a-f]{12}$/),
+          name: "irc_notification",
+          status: "completed",
+          detail: {
+            type: "plain_text",
+            label: "NativeDefaultApply completed",
+            text: message,
+            icon: "bot",
+          },
+          metadata: {
+            synthetic: true,
+            source: "omp_irc",
+            sender: "NativeDefaultApply",
+            taskId: "NativeDefaultApply",
+            subagentType: "task",
+            status: "completed",
+          },
+          error: null,
         },
       },
     ]);
@@ -443,6 +485,85 @@ describe("OMP history mapper", () => {
         },
       },
     });
+  });
+
+  test("replays screenshot bytes and stable user IDs from disk without a runtime session", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "omp-image-history-"));
+    const sessionFile = join(dir, "session.jsonl");
+    const screenshot = {
+      data: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aShoAAAAASUVORK5CYII=",
+      mimeType: "image/png",
+    };
+    const secondImage = {
+      data: "R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7",
+      mimeType: "image/gif",
+    };
+    const blobDir = join(dir, "blobs");
+    mkdirSync(blobDir);
+    const screenshotBytes = Buffer.from(screenshot.data, "base64");
+    const hash = createHash("sha256").update(screenshotBytes).digest("hex");
+    writeFileSync(join(blobDir, hash), screenshotBytes);
+    try {
+      writeFileSync(
+        sessionFile,
+        [
+          { type: "session", id: "root", parentId: null },
+          {
+            type: "message",
+            id: "user-text-image",
+            parentId: "root",
+            message: {
+              role: "user",
+              content: [
+                { type: "text", text: "Compare these screenshots" },
+                { type: "image", ...screenshot, data: `blob:sha256:${hash}` },
+                { type: "text", text: "Keep the original bytes" },
+                { type: "image", ...secondImage },
+              ],
+            },
+          },
+          {
+            type: "message",
+            id: "user-image-only",
+            parentId: "user-text-image",
+            message: {
+              role: "user",
+              content: [{ type: "image", ...screenshot, data: `blob:sha256:${hash}` }],
+            },
+          },
+          {
+            type: "message",
+            id: "user-text-only",
+            parentId: "user-image-only",
+            message: { role: "user", content: "Continue" },
+          },
+        ]
+          .map((entry) => JSON.stringify(entry))
+          .join("\n"),
+      );
+
+      const events: AgentStreamEvent[] = [];
+      for await (const event of streamOmpHistory({ sessionFile, provider: "omp", blobDir })) {
+        events.push(event);
+      }
+      expect(events.flatMap((event) => (event.type === "timeline" ? [event.item] : []))).toEqual([
+        {
+          type: "user_message",
+          text: "Compare these screenshots\n\nKeep the original bytes",
+          images: [screenshot, secondImage],
+          messageId: "user-text-image",
+        },
+        {
+          type: "user_message",
+          text: "",
+          images: [screenshot],
+          messageId: "user-image-only",
+        },
+        { type: "user_message", text: "Continue", messageId: "user-text-only" },
+      ]);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 
   test("maps only the active JSONL chain while hiding internal control records", async () => {

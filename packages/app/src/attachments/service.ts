@@ -99,10 +99,13 @@ export async function encodeAttachmentsForSend(
     return undefined;
   }
 
-  const store = await getAttachmentStore();
   return await Promise.all(
     attachments.map(async (attachment) => {
+      if (attachment.storageType === "inline-data") {
+        return { data: attachment.storageKey, mimeType: attachment.mimeType };
+      }
       try {
+        const store = await getAttachmentStore();
         const data = await store.encodeBase64({ attachment });
         return {
           data,
@@ -121,6 +124,9 @@ export async function encodeAttachmentsForSend(
 }
 
 export async function resolveAttachmentPreviewUrl(attachment: AttachmentMetadata): Promise<string> {
+  if (attachment.storageType === "inline-data") {
+    return `data:${attachment.mimeType};base64,${attachment.storageKey}`;
+  }
   const store = await getAttachmentStore();
   return await store.resolvePreviewUrl({ attachment });
 }
@@ -129,6 +135,9 @@ export async function releaseAttachmentPreviewUrl(input: {
   attachment: AttachmentMetadata;
   url: string;
 }): Promise<void> {
+  if (input.attachment.storageType === "inline-data") {
+    return;
+  }
   const store = await getAttachmentStore();
   if (!store.releasePreviewUrl) {
     return;
@@ -142,10 +151,13 @@ export async function deleteAttachments(
   if (!attachments || attachments.length === 0) {
     return;
   }
-  const store = await getAttachmentStore();
   await Promise.all(
     attachments.map(async (attachment) => {
+      if (attachment.storageType === "inline-data") {
+        return;
+      }
       try {
+        const store = await getAttachmentStore();
         await store.delete({ attachment });
       } catch (error) {
         console.warn("[attachments] Failed to delete attachment", {

@@ -1,5 +1,6 @@
 import React, {
   type CSSProperties,
+  memo,
   useCallback,
   useEffect,
   useLayoutEffect,
@@ -44,7 +45,7 @@ interface CreateWebStreamStrategyInput {
 interface HistoryStartPrependAnchor {
   progressKey: string;
   rowId: string;
-  viewportOffset: number;
+  contentOffset: number;
 }
 
 type ScrollBehaviorLike = "auto" | "smooth";
@@ -277,6 +278,21 @@ function isScrollContainerOverscrolledPastBottom(
   return getScrollContainerDistanceFromBottom(scrollContainer) < -BOTTOM_OVERSCROLL_TOLERANCE_PX;
 }
 
+// Keep row content out of virtualizer scroll updates; only its position changes.
+const VirtualHistoryRowContent = memo(function VirtualHistoryRowContent({
+  item,
+  index,
+  items,
+  renderRow,
+}: {
+  item: StreamRenderInput["segments"]["historyVirtualized"][number];
+  index: number;
+  items: StreamRenderInput["segments"]["historyVirtualized"];
+  renderRow: StreamRenderInput["renderers"]["renderHistoryVirtualizedRow"];
+}) {
+  return <>{renderRow(item, index, items)}</>;
+});
+
 function WebStreamViewport(props: StreamRenderInput & { isMobileBreakpoint: boolean }) {
   const {
     segments,
@@ -357,12 +373,16 @@ function WebStreamViewport(props: StreamRenderInput & { isMobileBreakpoint: bool
   const hasRouteBottomAnchorRequest = routeBottomAnchorRequest !== null;
   const activationKey = routeBottomAnchorRequest?.requestKey ?? props.agentId;
   const isActivationReady = !hasRouteBottomAnchorRequest || isAuthoritativeHistoryReady;
+  const getVirtualItemKey = useCallback(
+    (index: number) => segments.historyVirtualized[index]?.id ?? index,
+    [segments.historyVirtualized],
+  );
 
   const rowVirtualizer = useVirtualizer({
     count: segments.historyVirtualized.length,
     enabled: shouldUseVirtualizer,
     getScrollElement: () => scrollContainerRef.current,
-    getItemKey: (index: number) => segments.historyVirtualized[index]?.id ?? index,
+    getItemKey: getVirtualItemKey,
     estimateSize: (index: number) => {
       const row = segments.historyVirtualized[index];
       return row ? estimateStreamItemHeight(row) : 120;
@@ -429,8 +449,10 @@ function WebStreamViewport(props: StreamRenderInput & { isMobileBreakpoint: bool
         historyStartPrependAnchorRef.current = {
           progressKey: olderHistoryProgressKey,
           rowId: anchorRow.id,
-          viewportOffset:
-            anchorElement.getBoundingClientRect().top - scrollContainer.getBoundingClientRect().top,
+          contentOffset:
+            anchorElement.getBoundingClientRect().top -
+            scrollContainer.getBoundingClientRect().top +
+            scrollContainer.scrollTop,
         };
       } else {
         historyStartPrependAnchorRef.current = null;
@@ -488,9 +510,18 @@ function WebStreamViewport(props: StreamRenderInput & { isMobileBreakpoint: bool
     if (!anchorElement) {
       return;
     }
-    const viewportOffset =
-      anchorElement.getBoundingClientRect().top - scrollContainer.getBoundingClientRect().top;
-    scrollContainer.scrollTop += viewportOffset - anchor.viewportOffset;
+    const contentOffset =
+      anchorElement.getBoundingClientRect().top -
+      scrollContainer.getBoundingClientRect().top +
+      scrollContainer.scrollTop;
+    const delta = contentOffset - anchor.contentOffset;
+    if (delta === 0) {
+      return;
+    }
+    // Compensate only for inserted content, never movement made by the reader
+    // while the request or its settling frames were in flight.
+    anchor.contentOffset = contentOffset;
+    scrollContainer.scrollTop += delta;
     lastKnownScrollTopRef.current = scrollContainer.scrollTop;
   });
   const scheduleHistoryStartPrependSettle = useStableEvent(() => {
@@ -1148,6 +1179,8 @@ function WebStreamViewport(props: StreamRenderInput & { isMobileBreakpoint: bool
       overflowX: "hidden",
       overflowY: scrollEnabled ? "auto" : "hidden",
       overscrollBehaviorY: "contain",
+      // The history/virtualizer controllers own scroll compensation.
+      overflowAnchor: "none",
       scrollbarWidth: overlayScrollbarEnabled ? "none" : undefined,
     };
   }, [isMobileBreakpoint, scrollEnabled]);
@@ -1245,11 +1278,12 @@ function WebStreamViewport(props: StreamRenderInput & { isMobileBreakpoint: bool
                     ref={measureVirtualizedRowElement}
                     style={renderVirtualRowStyle(virtualRow.start)}
                   >
-                    {renderHistoryVirtualizedRow(
-                      item,
-                      virtualRow.index,
-                      segments.historyVirtualized,
-                    )}
+                    <VirtualHistoryRowContent
+                      item={item}
+                      index={virtualRow.index}
+                      items={segments.historyVirtualized}
+                      renderRow={renderHistoryVirtualizedRow}
+                    />
                   </div>
                 );
               })}

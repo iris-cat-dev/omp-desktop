@@ -657,6 +657,40 @@ test("uses an injected timeline store without making it a production requirement
   }
 });
 
+test("retains submitted screenshot bytes in canonical timeline history", async () => {
+  const workdir = mkdtempSync(join(tmpdir(), "agent-manager-image-history-"));
+  const store = new RecordingTimelineStore();
+  const manager = new AgentManager({
+    clients: { codex: new TestAgentClient() },
+    durableTimelineStore: store,
+    logger,
+  });
+  let agentId: string | null = null;
+  const image = { data: "iVBORw0KGgo=", mimeType: "image/png" };
+  try {
+    const agent = await manager.createAgent({ provider: "codex", cwd: workdir }, undefined, {
+      workspaceId: undefined,
+    });
+    agentId = agent.id;
+    for await (const _event of manager.streamAgent(agent.id, [{ type: "image", ...image }], {
+      clientMessageId: "screenshot-only",
+    })) {
+    }
+    await manager.flush();
+    const rows = await manager.getTimelineRows(agent.id);
+    expect(rows.filter((row) => row.item.type === "user_message").map((row) => row.item)).toEqual([
+      expect.objectContaining({
+        type: "user_message",
+        clientMessageId: "screenshot-only",
+        images: [image],
+      }),
+    ]);
+  } finally {
+    if (agentId) await manager.closeAgent(agentId).catch(() => undefined);
+    rmSync(workdir, { recursive: true, force: true });
+  }
+});
+
 test("retries provider history hydration after a stream failure", async () => {
   const workdir = mkdtempSync(join(tmpdir(), "agent-manager-history-retry-"));
   let attempts = 0;

@@ -10,6 +10,24 @@ import {
 } from "./messages.js";
 
 describe("shared messages stream parsing", () => {
+  it("preserves screenshot-only user messages through wire parsing", () => {
+    const item = {
+      type: "user_message",
+      text: "",
+      messageId: "screenshot-message",
+      images: [{ data: "iVBORw0KGgo=", mimeType: "image/png" }],
+    };
+    const parsed = AgentStreamMessageSchema.parse({
+      type: "agent_stream",
+      payload: {
+        agentId: "agent_live",
+        timestamp: "2026-02-08T20:10:00.000Z",
+        event: { type: "timeline", provider: "omp", item },
+      },
+    });
+    expect(parsed.payload.event).toMatchObject({ item });
+  });
+
   it("parses a full timeline prompt index response", () => {
     const parsed = AgentTimelineListPromptsResponseMessageSchema.parse({
       type: "agent.timeline.list_prompts.response",

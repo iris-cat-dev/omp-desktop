@@ -1,6 +1,11 @@
 import { describe, expect, test } from "vitest";
 
-import { isOmpSystemNotice, mapOmpSystemNoticeToToolCall } from "./system-notice.js";
+import {
+  isOmpIrcMessage,
+  isOmpSystemNotice,
+  mapOmpIrcMessageToToolCall,
+  mapOmpSystemNoticeToToolCall,
+} from "./system-notice.js";
 
 const COMPLETED_NOTICE = [
   "<system-notice>",
@@ -105,5 +110,63 @@ describe("omp system notice tool call mapping", () => {
       },
     });
     expect(first?.callId).toMatch(/^omp-notice:[0-9a-f]{12}$/);
+  });
+});
+
+describe("omp IRC message tool call mapping", () => {
+  test("maps a completed task result to a compact process card", () => {
+    const message = [
+      "<irc>",
+      "Incoming IRC message from agent NativeDefaultApply (reply to 15732a2de67fceec):",
+      "<task-result id=“NativeDefaultApply” agent=“task” status=“completed” duration=“4.6s”>",
+      "<output>All assigned changes are submitted.</output>",
+      "</task-result>",
+      "Sent while waiting/working.",
+      "</irc>",
+    ].join("\n");
+
+    expect(isOmpIrcMessage(message)).toBe(true);
+    expect(mapOmpIrcMessageToToolCall(message)).toMatchObject({
+      type: "tool_call",
+      callId: expect.stringMatching(/^omp-irc:[0-9a-f]{12}$/),
+      name: "irc_notification",
+      status: "completed",
+      detail: {
+        type: "plain_text",
+        label: "NativeDefaultApply completed",
+        text: message,
+        icon: "bot",
+      },
+      metadata: {
+        synthetic: true,
+        source: "omp_irc",
+        sender: "NativeDefaultApply",
+        taskId: "NativeDefaultApply",
+        subagentType: "task",
+        status: "completed",
+      },
+      error: null,
+    });
+  });
+
+  test("maps a peer message without a task result to a message card", () => {
+    const message = [
+      "<irc>",
+      "Incoming IRC message from agent DataflowRepair:",
+      "All writes released for build.",
+      "</irc>",
+    ].join("\n");
+
+    expect(mapOmpIrcMessageToToolCall(message)).toMatchObject({
+      name: "irc_notification",
+      status: "completed",
+      detail: { label: "Message from DataflowRepair" },
+      metadata: { source: "omp_irc", sender: "DataflowRepair" },
+    });
+  });
+
+  test("ignores regular messages that mention IRC markup", () => {
+    expect(isOmpIrcMessage("why is <irc> visible?")).toBe(false);
+    expect(mapOmpIrcMessageToToolCall("why is <irc> visible?")).toBeNull();
   });
 });

@@ -398,7 +398,13 @@ export interface CompactionTimelineItem {
 export type AssistantMessagePresentation = "plan";
 
 export type AgentTimelineItem =
-  | { type: "user_message"; text: string; messageId?: string; clientMessageId?: string }
+  | {
+      type: "user_message";
+      text: string;
+      messageId?: string;
+      clientMessageId?: string;
+      images?: Array<{ data: string; mimeType: string }>;
+    }
   | {
       type: "assistant_message";
       text: string;

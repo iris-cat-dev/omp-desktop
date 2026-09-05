@@ -22,6 +22,105 @@ import { buildToolCallDisplayModel } from "@omp-desktop/protocol/tool-call-displ
 type CanonicalToolStatus = "running" | "completed" | "failed" | "canceled";
 
 describe("user message identity", () => {
+  it.each(["tail", "head"] as const)(
+    "retains image-only canonical messages inserted into the %s",
+    (unmatchedUserMessageInsert) => {
+      const result = applyStreamEvent({
+        tail: [],
+        head: [],
+        unmatchedUserMessageInsert,
+        event: {
+          type: "timeline",
+          provider: "pi",
+          item: {
+            type: "user_message",
+            messageId: "image-only",
+            text: "",
+            images: [{ data: "AAEC", mimeType: "image/png" }],
+          },
+        },
+        timestamp: new Date("2026-09-05T10:00:00Z"),
+      });
+
+      expect([...result.tail, ...result.head]).toHaveLength(1);
+      const message = result[unmatchedUserMessageInsert][0];
+      invariant(message?.kind === "user_message");
+      expect(message.text).toBe("");
+      expect(message.images).toEqual([
+        expect.objectContaining({
+          mimeType: "image/png",
+          storageType: "inline-data",
+          storageKey: "AAEC",
+        }),
+      ]);
+    },
+  );
+
+  it("preserves optimistic image-only thumbnails without duplicating canonical images", () => {
+    const timestamp = new Date("2026-09-05T10:00:00Z");
+    const optimistic = createUserMessage({
+      clientMessageId: "screenshot-client",
+      text: "",
+      timestamp,
+      images: [
+        {
+          id: "local-screenshot",
+          mimeType: "image/png",
+          storageType: "desktop-file",
+          storageKey: "/cache/screenshot.png",
+          createdAt: timestamp.getTime(),
+        },
+      ],
+    });
+    const event: AgentStreamEventPayload = {
+      type: "timeline",
+      provider: "pi",
+      item: {
+        type: "user_message",
+        messageId: "screenshot-provider",
+        clientMessageId: optimistic.clientMessageId,
+        text: "",
+        images: [{ data: "AAEC", mimeType: "image/png" }],
+      },
+    };
+    const first = applyStreamEvent({ tail: [], head: [optimistic], event, timestamp });
+    const repeated = applyStreamEvent({ tail: first.tail, head: first.head, event, timestamp });
+
+    expect(repeated.head).toEqual([]);
+    expect(repeated.tail).toEqual([{ ...optimistic, messageId: "screenshot-provider" }]);
+  });
+
+  it("fills missing images when an existing user message receives its canonical image", () => {
+    const timestamp = new Date("2026-09-05T10:00:00Z");
+    const existing = createUserMessage({
+      messageId: "screenshot-provider",
+      text: "Review this",
+      timestamp,
+    });
+    const result = applyStreamEvent({
+      tail: [existing],
+      head: [],
+      timestamp,
+      event: {
+        type: "timeline",
+        provider: "pi",
+        item: {
+          type: "user_message",
+          messageId: existing.messageId,
+          text: existing.text,
+          images: [{ data: "AAEC", mimeType: "image/png" }],
+        },
+      },
+    });
+
+    expect(result.tail).toHaveLength(1);
+    const message = result.tail[0];
+    invariant(message?.kind === "user_message");
+    expect(message.images).toEqual([
+      expect.objectContaining({ storageType: "inline-data", storageKey: "AAEC" }),
+    ]);
+  });
+
   it("replaces provisional optimistic turn membership with canonical membership", () => {
     const optimistic = createUserMessage({
       clientMessageId: "hello-client",
@@ -1495,6 +1594,7 @@ describe("turn lifecycle events", () => {
             text: "server-owned rendered text",
             messageId: "provider-owned-id",
             clientMessageId: "msg_submitted",
+            images: [{ data: "AAEC", mimeType: "image/png" }],
           },
         },
         serverTimestamp,
