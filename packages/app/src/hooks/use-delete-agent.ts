@@ -2,6 +2,8 @@ import { useCallback } from "react";
 import { useMutation, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import type { DaemonClient } from "@omp-desktop/client/internal/daemon-client";
 import { useSessionStore } from "@/stores/session-store";
+import { collectAllTabs, useWorkspaceLayoutStore } from "@/stores/workspace-layout-store";
+import { buildWorkspaceTabPersistenceKey } from "@/workspace-tabs/model";
 import {
   removeAgentFromCachedLists,
   type AgentHistoryQueryData,
@@ -23,11 +25,29 @@ export async function deleteAgentOrWorkspace(
 ): Promise<void> {
   if (!input.workspaceId) {
     await client.deleteAgent(input.agentId);
+    const layoutStore = useWorkspaceLayoutStore.getState();
+    const serverPrefix = `${input.serverId.trim()}:`;
+    for (const [workspaceKey, layout] of Object.entries(layoutStore.layoutByWorkspace)) {
+      if (!workspaceKey.startsWith(serverPrefix)) continue;
+      for (const tab of collectAllTabs(layout.root)) {
+        if (tab.target.kind === "agent" && tab.target.agentId === input.agentId) {
+          layoutStore.closeTab(workspaceKey, tab.tabId);
+        }
+      }
+      layoutStore.unpinAgent(workspaceKey, input.agentId);
+    }
     return;
   }
   const result = await client.deleteWorkspace(input.workspaceId);
   if (result.error) {
     throw new Error(result.error);
+  }
+  const workspaceKey = buildWorkspaceTabPersistenceKey({
+    serverId: input.serverId,
+    workspaceId: input.workspaceId,
+  });
+  if (workspaceKey) {
+    useWorkspaceLayoutStore.getState().purgeWorkspace(workspaceKey);
   }
 }
 
