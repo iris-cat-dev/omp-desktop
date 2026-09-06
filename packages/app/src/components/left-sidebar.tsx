@@ -692,14 +692,95 @@ function SidebarAccountTriggerContent({
   );
 }
 
-function SidebarProviderAccountPanel({ detailsExpanded }: { detailsExpanded: boolean }) {
+function SidebarProviderSelector({
+  compact,
+  anchorRef,
+  canSwitch,
+  onToggle,
+  triggerStyle,
+  label,
+  theme,
+  options,
+  value,
+  onSelect,
+  open,
+  onOpenChange,
+}: {
+  compact: boolean;
+  anchorRef: RefObject<View | null>;
+  canSwitch: boolean;
+  onToggle: () => void;
+  triggerStyle: ComponentProps<typeof ComboboxTrigger>["style"];
+  label: string;
+  theme: SidebarTheme;
+  options: ComboboxOption[];
+  value: string;
+  onSelect: (providerId: string) => void;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const { t } = useTranslation();
+  const selector = (
+    <>
+      <ComboboxTrigger
+        ref={anchorRef}
+        collapsable={false}
+        disabled={!canSwitch}
+        onPress={onToggle}
+        style={triggerStyle}
+        accessibilityRole="button"
+        accessibilityLabel={t("agentControls.provider.select")}
+        testID="sidebar-provider-selector"
+        chevron={null}
+      >
+        <View style={compact ? styles.sidebarProviderCopyCompact : styles.sidebarProviderCopy}>
+          <Text style={styles.sidebarProviderName} numberOfLines={1}>
+            {label}
+          </Text>
+        </View>
+        {canSwitch ? (
+          <ChevronDown size={compact ? 12 : 14} color={theme.colors.foregroundMuted} />
+        ) : null}
+      </ComboboxTrigger>
+      <Combobox
+        options={options}
+        value={value}
+        onSelect={onSelect}
+        searchable={options.length > 6}
+        open={open}
+        onOpenChange={onOpenChange}
+        anchorRef={anchorRef}
+        desktopPlacement="top-start"
+        desktopMinWidth={240}
+      />
+    </>
+  );
+  if (!compact) return selector;
+  return <View style={styles.footerProviderSelector}>{selector}</View>;
+}
+
+function SidebarProviderAccountPanel({
+  detailsExpanded,
+  onToggleDetails,
+  detailsToggleLabel,
+  children,
+}: {
+  detailsExpanded: boolean;
+  onToggleDetails: () => void;
+  detailsToggleLabel: string;
+  children: ReactNode;
+}) {
   const active = useActiveAgentControls();
   if (!active) return null;
   return (
     <SidebarProviderAccountPanelContent
       controls={active.controls}
       detailsExpanded={detailsExpanded}
-    />
+      onToggleDetails={onToggleDetails}
+      detailsToggleLabel={detailsToggleLabel}
+    >
+      {children}
+    </SidebarProviderAccountPanelContent>
   );
 }
 
@@ -1131,9 +1212,15 @@ function SidebarProviderAccountDetails({
 function SidebarProviderAccountPanelContent({
   controls,
   detailsExpanded,
+  onToggleDetails,
+  detailsToggleLabel,
+  children,
 }: {
   controls: AgentControlCommandCenterSource;
   detailsExpanded: boolean;
+  onToggleDetails: () => void;
+  detailsToggleLabel: string;
+  children: ReactNode;
 }) {
   const { t } = useTranslation();
   const { theme } = useUnistyles();
@@ -1182,10 +1269,10 @@ function SidebarProviderAccountPanelContent({
 
   const providerTriggerStyle = useCallback(
     ({ hovered, pressed }: PressableStateCallbackType & { hovered?: boolean }) => [
-      styles.sidebarProviderTrigger,
+      detailsExpanded ? styles.sidebarProviderTrigger : styles.sidebarProviderTriggerCompact,
       (hovered || pressed || providerOpen) && styles.sidebarProviderTriggerActive,
     ],
-    [providerOpen],
+    [detailsExpanded, providerOpen],
   );
   const accountTriggerStyle = useCallback(
     ({ hovered, pressed }: PressableStateCallbackType & { hovered?: boolean }) => [
@@ -1256,70 +1343,76 @@ function SidebarProviderAccountPanelContent({
     setAccountOpen((open) => !open);
   }, [controls.isRunning]);
   useEffect(() => {
+    setProviderOpen(false);
     if (controls.isRunning || !detailsExpanded) setAccountOpen(false);
   }, [controls.isRunning, detailsExpanded]);
 
-  if (providers.length === 0) return null;
   const accountSwitchHint = t("agentControls.quota.switchAfterTurn");
-
-  return (
-    <View style={styles.sidebarProviderCard} testID="sidebar-provider-account-panel">
-      <ComboboxTrigger
-        ref={providerAnchorRef}
-        collapsable={false}
-        disabled={!canSwitchProvider}
-        onPress={handleProviderToggle}
-        style={providerTriggerStyle}
-        accessibilityRole="button"
-        accessibilityLabel={t("agentControls.provider.select")}
-        testID="sidebar-provider-selector"
-        chevron={null}
-      >
-        <View style={styles.sidebarProviderCopy}>
-          <Text style={styles.sidebarProviderName} numberOfLines={1}>
-            {selectedProvider?.label ?? t("agentControls.provider.fallback")}
-          </Text>
-        </View>
-        {canSwitchProvider ? <ChevronDown size={14} color={theme.colors.foregroundMuted} /> : null}
-      </ComboboxTrigger>
-      <Combobox
+  const selector =
+    providers.length === 0 ? null : (
+      <SidebarProviderSelector
+        compact={!detailsExpanded}
+        anchorRef={providerAnchorRef}
+        canSwitch={canSwitchProvider}
+        onToggle={handleProviderToggle}
+        triggerStyle={providerTriggerStyle}
+        label={selectedProvider?.label ?? t("agentControls.provider.fallback")}
+        theme={theme}
         options={providerOptions}
         value={selectedProviderId}
         onSelect={handleProviderSelect}
-        searchable={providerOptions.length > 6}
         open={providerOpen}
         onOpenChange={setProviderOpen}
-        anchorRef={providerAnchorRef}
-        desktopPlacement="top-start"
-        desktopMinWidth={240}
       />
+    );
 
-      <SidebarProviderAccountDetails
-        visible={detailsExpanded}
-        showProviderUsage={showProviderUsage}
-        selectedProviderUsageId={selectedProviderUsageId}
-        providerUsageView={providerUsageView}
-        showAccountLoading={showAccountLoading}
-        showAccountSelector={showAccountSelector}
-        accountLocked={accountLocked}
-        accountSwitchHint={accountSwitchHint}
-        accountAnchorRef={accountAnchorRef}
-        hasAccountSwitcher={hasAccountSwitcher}
-        onAccountToggle={handleAccountToggle}
-        accountAccessibilityState={accountAccessibilityState}
-        accountTriggerStyle={accountTriggerStyle}
-        accountPrimary={accountPrimary}
-        accountSecondary={accountSecondary}
-        canSwitchAccount={canSwitchAccount}
-        theme={theme}
-        accountOptions={accountOptions}
-        accountValue={accountSelection?.configuredValue ?? ""}
-        onAccountSelect={handleAccountSelect}
-        renderAccountOption={renderAccountOption}
-        accountOpen={accountOpen}
-        onAccountOpenChange={setAccountOpen}
-        selectedAccount={selectedAccount}
-      />
+  return (
+    <View style={styles.sidebarFooterPanel} testID="sidebar-provider-account-panel">
+      {detailsExpanded && selector ? (
+        <View style={styles.sidebarProviderCard}>
+          {selector}
+          <SidebarProviderAccountDetails
+            visible
+            showProviderUsage={showProviderUsage}
+            selectedProviderUsageId={selectedProviderUsageId}
+            providerUsageView={providerUsageView}
+            showAccountLoading={showAccountLoading}
+            showAccountSelector={showAccountSelector}
+            accountLocked={accountLocked}
+            accountSwitchHint={accountSwitchHint}
+            accountAnchorRef={accountAnchorRef}
+            hasAccountSwitcher={hasAccountSwitcher}
+            onAccountToggle={handleAccountToggle}
+            accountAccessibilityState={accountAccessibilityState}
+            accountTriggerStyle={accountTriggerStyle}
+            accountPrimary={accountPrimary}
+            accountSecondary={accountSecondary}
+            canSwitchAccount={canSwitchAccount}
+            theme={theme}
+            accountOptions={accountOptions}
+            accountValue={accountSelection?.configuredValue ?? ""}
+            onAccountSelect={handleAccountSelect}
+            renderAccountOption={renderAccountOption}
+            accountOpen={accountOpen}
+            onAccountOpenChange={setAccountOpen}
+            selectedAccount={selectedAccount}
+          />
+        </View>
+      ) : null}
+      <View style={[styles.footerIconRow, styles.footerIconRowInPanel]}>
+        {children}
+        <View style={styles.footerCollapseSlot}>
+          {!detailsExpanded ? selector : null}
+          <FooterIconButton
+            onPress={onToggleDetails}
+            testID="sidebar-provider-panel-toggle"
+            label={detailsToggleLabel}
+            icon={detailsExpanded ? ChevronDown : ChevronUp}
+            expanded={detailsExpanded}
+            theme={theme}
+          />
+        </View>
+      </View>
     </View>
   );
 }
@@ -1355,8 +1448,8 @@ function SidebarFooter({
     ? t("providerUsage.collapseDetails")
     : t("providerUsage.expandDetails");
 
-  const iconRow = (
-    <View style={[styles.footerIconRow, active && styles.footerIconRowInPanel]}>
+  const footerIcons = (
+    <>
       <SidebarHostPicker
         theme={theme}
         label={labels.hosts}
@@ -1378,30 +1471,21 @@ function SidebarFooter({
         shortcutKeys={settingsKeys}
         theme={theme}
       />
-      {active ? (
-        <View style={styles.footerCollapseSlot}>
-          <FooterIconButton
-            onPress={toggleProviderPanel}
-            testID="sidebar-provider-panel-toggle"
-            label={providerPanelToggleLabel}
-            icon={providerPanelExpanded ? ChevronDown : ChevronUp}
-            expanded={providerPanelExpanded}
-            theme={theme}
-          />
-        </View>
-      ) : null}
-    </View>
+    </>
   );
 
   return (
     <View style={styles.sidebarFooter}>
       {active ? (
-        <View style={styles.sidebarFooterPanel}>
-          <SidebarProviderAccountPanel detailsExpanded={providerPanelExpanded} />
-          {iconRow}
-        </View>
+        <SidebarProviderAccountPanel
+          detailsExpanded={providerPanelExpanded}
+          onToggleDetails={toggleProviderPanel}
+          detailsToggleLabel={providerPanelToggleLabel}
+        >
+          {footerIcons}
+        </SidebarProviderAccountPanel>
       ) : (
-        iconRow
+        <View style={styles.footerIconRow}>{footerIcons}</View>
       )}
     </View>
   );
@@ -1979,6 +2063,16 @@ const styles = StyleSheet.create((theme) => ({
   },
   footerCollapseSlot: {
     marginLeft: "auto",
+    minWidth: 0,
+    flexDirection: "row",
+    alignItems: "center",
+    flexShrink: 1,
+    gap: theme.spacing[1],
+  },
+  footerProviderSelector: {
+    minWidth: 0,
+    flexShrink: 1,
+    maxWidth: 148,
   },
   sidebarProviderCard: {
     width: "100%",
@@ -1996,12 +2090,25 @@ const styles = StyleSheet.create((theme) => ({
     paddingVertical: theme.spacing[1],
     borderRadius: theme.borderRadius.md,
   },
+  sidebarProviderTriggerCompact: {
+    minWidth: 0,
+    minHeight: 28,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: theme.spacing[1],
+    paddingHorizontal: theme.spacing[2],
+    borderRadius: theme.borderRadius.md,
+  },
   sidebarProviderTriggerActive: {
     backgroundColor: theme.colors.surfaceSidebarSelected,
   },
   sidebarProviderCopy: {
     minWidth: 0,
     flex: 1,
+  },
+  sidebarProviderCopyCompact: {
+    minWidth: 0,
+    flexShrink: 1,
   },
   sidebarProviderName: {
     color: theme.colors.foreground,
