@@ -1,6 +1,6 @@
 {
   "name": "omp-desktop",
-  "version": "0.1.14",
+  "version": "0.2.0",
   "private": true,
   "description": "Desktop client for local Oh My Pi coding agents",
   "keywords": [
@@ -14,6 +14,7 @@
   "workspaces": [
     "packages/highlight",
     "packages/protocol",
+    "packages/relay",
     "packages/client",
     "packages/server",
     "packages/app",
@@ -34,6 +35,8 @@
     "build:highlight:clean": "npm run build:clean --workspace=@omp-desktop/highlight",
     "build:protocol": "npm run build --workspace=@omp-desktop/protocol",
     "build:protocol:clean": "npm run build:clean --workspace=@omp-desktop/protocol",
+    "build:relay": "npm run build --workspace=@omp-desktop/relay",
+    "build:relay:clean": "npm run build:clean --workspace=@omp-desktop/relay",
     "build:client": "npm run build --workspace=@omp-desktop/client",
     "build:client:clean": "npm run build:protocol:clean && npm run build:clean --workspace=@omp-desktop/client",
     "build:server-deps": "npm run build:client && npm run build:highlight",
@@ -46,7 +49,7 @@
     "watch:protocol": "npm run watch --workspace=@omp-desktop/protocol",
     "watch:client": "tsc -p packages/client/tsconfig.json --watch --preserveWatchOutput",
     "typecheck": "npm run typecheck --workspaces --if-present",
-    "typecheck:server": "npm run typecheck --workspace=@omp-desktop/protocol && npm run typecheck --workspace=@omp-desktop/client && npm run typecheck --workspace=@omp-desktop/server && npm run typecheck --workspace=@omp-desktop/cli",
+    "typecheck:server": "npm run typecheck --workspace=@omp-desktop/relay && npm run typecheck --workspace=@omp-desktop/protocol && npm run typecheck --workspace=@omp-desktop/client && npm run typecheck --workspace=@omp-desktop/server && npm run typecheck --workspace=@omp-desktop/cli",
     "test": "npm run test --workspaces --if-present",
     "format": "oxfmt .",
     "format:files": "oxfmt",
@@ -57,6 +60,7 @@
     "knip": "knip",
     "start": "npm run start --workspace=@omp-desktop/server",
     "web": "npm run web --workspace=@omp-desktop/app",
+    "deploy:web": "npm run deploy --workspace=@omp-desktop/app",
     "dev:desktop": "cross-env PASEO_LISTEN=127.0.0.1:6770 npm run dev --workspace=@omp-desktop/desktop",
     "dev:win:desktop": "npm run dev:win --workspace=@omp-desktop/desktop",
     "build:desktop": "npm run build:app-deps:clean && npm run clean --workspace=@omp-desktop/app && cd packages/app && cross-env PASEO_WEB_PLATFORM=electron npx expo export --platform web && cd ../.. && npm run build --workspace=@omp-desktop/desktop --",

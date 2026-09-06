@@ -88,6 +88,13 @@ describe("loadAppSettingsFromStorage", () => {
 
     expect(result.theme).toBe("dark");
   });
+  it("defaults the Relay address to the hosted WSS endpoint", async () => {
+    const deps = makeDeps();
+
+    const result = await loadAppSettingsFromStorage(deps);
+
+    expect(result.relayServerAddress).toBe("wss://relay.paseo.sh:443");
+  });
 
   it.each(THEME_OPTIONS)("loads the persisted $name theme", async ({ name }) => {
     const deps = makeDeps({

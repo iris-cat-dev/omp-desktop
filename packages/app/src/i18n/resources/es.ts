@@ -1666,6 +1666,7 @@ export const es: TranslationResources = {
     },
   },
   pairing: {
+    desktopWaiting: "Esperando al daemon local de OMP Desktop…",
     connectionMethods: {
       title: "Agregar conexión",
       direct: {
@@ -1734,6 +1735,8 @@ export const es: TranslationResources = {
         emptyOffer: "La carga útil de la oferta está vacía",
         invalid: "Enlace de emparejamiento no válido",
         unableToPair: "No se puede emparejar el host",
+        relayConnectionFailed:
+          "No se pudo conectar mediante {{relay}}. La aplicación web y el daemon deben usar el mismo servidor; este enlace anuncia {{advertisedRelay}}. Comprueba el estado del relay del daemon o borra el ajuste de la aplicación para usar la dirección del enlace. Detalles: {{detail}}",
       },
       alert: {
         failedTitle: "El emparejamiento falló",
@@ -1758,6 +1761,16 @@ export const es: TranslationResources = {
       unableToPair: "No se puede emparejar el host",
       errorTitle: "Error",
     },
+    relayAddress: {
+      label: "Dirección del servidor de retransmisión",
+      description:
+        "Se usa al añadir hosts desde enlaces de emparejamiento. La aplicación web y el daemon deben conectarse al mismo servidor. Usa ws:// o wss://, o déjalo vacío para usar la dirección del enlace. El tráfico sigue cifrado de extremo a extremo.",
+      invalid:
+        "Introduce una dirección ws:// o wss:// válida sin credenciales, consulta ni fragmento. Solo se admiten las rutas / o /ws.",
+      save: "Guardar dirección",
+      saving: "Guardando...",
+      saved: "La configuración se guardó y se aplicará la próxima vez que añadas un host.",
+    },
     device: {
       loadingOffer: "Cargando oferta de maridaje...",
       failedToLoadOffer: "No se pudo cargar la oferta de emparejamiento.",
@@ -1774,7 +1787,7 @@ export const es: TranslationResources = {
         "Sin relé, conéctese directamente por TCP, Tailscale u otra VPN. No se crea ningún código QR.",
       updateRequired: "Actualice el host para habilitar el relé desde OMP Desktop Desktop.",
       unavailable: "Oferta de maridaje no disponible.",
-      hint: "Escanee este códigoQRconOMP Desktopen su teléfono o copie el enlace a continuación.",
+      hint: "Copia este enlace, abre OMP Desktop Web en otro dispositivo y elige Añadir host → Pegar enlace de emparejamiento.",
       securityWarning:
         "Trata este enlace de emparejamiento como una contraseña. Cualquiera que lo tenga puede acceder a este daemon.",
       qrUnavailable: "CódigoQRno disponible.",

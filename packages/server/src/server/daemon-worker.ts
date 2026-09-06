@@ -109,6 +109,11 @@ function applyCliFlagOverrides(config: ReturnType<typeof loadConfig>): void {
     cli.relayUseTls = true;
     override("daemon.relay.useTls");
   }
+  if (process.argv.includes("--no-relay-use-tls")) {
+    config.relayUseTls = false;
+    cli.relayUseTls = false;
+    override("daemon.relay.useTls");
+  }
   if (process.argv.includes("--no-mcp")) {
     config.mcpEnabled = false;
     cli.mcpEnabled = false;

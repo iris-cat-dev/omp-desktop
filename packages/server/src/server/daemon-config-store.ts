@@ -9,6 +9,9 @@ import {
   MutableDaemonConfigPatchSchema,
 } from "@omp-desktop/protocol/messages";
 import type { AgentSkillSelection } from "@omp-desktop/protocol/messages";
+import { parseRelayAddress } from "@omp-desktop/protocol/connection-offer";
+import { shouldUseTlsForDefaultHostedRelay } from "@omp-desktop/protocol/daemon-endpoints";
+import { DEFAULT_RELAY_ENDPOINT } from "./config.js";
 import { normalizeImageGenerationBaseUrl } from "./image-generation/base-url.js";
 
 export type { MutableDaemonConfig, MutableDaemonConfigPatch } from "@omp-desktop/protocol/messages";
@@ -18,7 +21,13 @@ type MutableDaemonConfigPatch = import("@omp-desktop/protocol/messages").Mutable
 type ProviderOverride = import("./agent/provider-launch-config.js").ProviderOverride;
 
 interface SupportedMutableConfigPatch {
-  relay?: { enabled?: boolean };
+  relay?: {
+    enabled?: boolean;
+    endpoint?: string;
+    useTls?: boolean;
+    publicEndpoint?: string;
+    publicUseTls?: boolean;
+  };
   mcp?: { injectIntoAgents?: boolean };
   browserTools?: { enabled?: boolean };
   providers?: MutableDaemonConfig["providers"];
@@ -231,6 +240,10 @@ function applyImageGenerationPatchToPublicConfig(
 
 const RELOADABLE_PATHS = [
   "daemon.relay.enabled",
+  "daemon.relay.endpoint",
+  "daemon.relay.useTls",
+  "daemon.relay.publicEndpoint",
+  "daemon.relay.publicUseTls",
   "daemon.mcp.enabled",
   "daemon.mcp.injectIntoAgents",
   "daemon.browserTools.enabled",
@@ -255,6 +268,10 @@ const RELOADABLE_PATHS = [
 
 const PERSISTED_TO_MUTABLE_PATH: Record<string, string> = {
   "daemon.relay.enabled": "relay.enabled",
+  "daemon.relay.endpoint": "relay.endpoint",
+  "daemon.relay.useTls": "relay.useTls",
+  "daemon.relay.publicEndpoint": "relay.publicEndpoint",
+  "daemon.relay.publicUseTls": "relay.publicUseTls",
   "daemon.mcp.enabled": "mcp.enabled",
   "daemon.mcp.injectIntoAgents": "mcp.injectIntoAgents",
   "daemon.browserTools.enabled": "browserTools.enabled",
@@ -314,7 +331,21 @@ function compactOwnedPaths(paths: readonly string[], owners: readonly string[]):
 
 function pickSupportedPatchFields(patch: MutableDaemonConfigPatch): SupportedMutableConfigPatch {
   return {
-    ...(patch.relay?.enabled !== undefined ? { relay: { enabled: patch.relay.enabled } } : {}),
+    ...(patch.relay !== undefined
+      ? {
+          relay: {
+            ...(patch.relay.enabled !== undefined ? { enabled: patch.relay.enabled } : {}),
+            ...(patch.relay.endpoint !== undefined ? { endpoint: patch.relay.endpoint } : {}),
+            ...(patch.relay.useTls !== undefined ? { useTls: patch.relay.useTls } : {}),
+            ...(patch.relay.publicEndpoint !== undefined
+              ? { publicEndpoint: patch.relay.publicEndpoint }
+              : {}),
+            ...(patch.relay.publicUseTls !== undefined
+              ? { publicUseTls: patch.relay.publicUseTls }
+              : {}),
+          },
+        }
+      : {}),
     ...(patch.mcp?.injectIntoAgents !== undefined
       ? { mcp: { injectIntoAgents: patch.mcp.injectIntoAgents } }
       : {}),
@@ -371,6 +402,7 @@ export class DaemonConfigStore {
   private readonly fieldChangeHandlers = new Map<string, Set<FieldChangeHandler>>();
   private readonly env: NodeJS.ProcessEnv;
   private readonly relayEnabledMutable: boolean;
+  private readonly relayOverrideControlledPaths: readonly string[];
   private readonly reloadSource: DaemonConfigReloadSource | undefined;
   private readonly startupPersisted: PersistedConfig;
   private lastKnownPersisted: PersistedConfig;
@@ -381,6 +413,7 @@ export class DaemonConfigStore {
     logger?: LoggerLike,
     options: {
       relayEnabledMutable?: boolean;
+      relayOverrideControlledPaths?: readonly string[];
       reloadSource?: DaemonConfigReloadSource;
       startupPersisted?: PersistedConfig;
       env?: NodeJS.ProcessEnv;
@@ -390,12 +423,20 @@ export class DaemonConfigStore {
     this.logger = getLogger(logger);
     this.current = MutableDaemonConfigSchema.parse({
       ...initial,
-      relay: initial.relay ?? { enabled: true },
+      relay: initial.relay ?? { enabled: false },
     });
     this.relayEnabledMutable = options.relayEnabledMutable ?? true;
     this.reloadSource = options.reloadSource;
     this.startupPersisted = options.startupPersisted ?? loadPersistedConfig(paseoHome, this.logger);
     this.env = options.env ?? process.env;
+    this.relayOverrideControlledPaths = options.relayOverrideControlledPaths ?? [
+      ...(this.env.PASEO_RELAY_ENDPOINT !== undefined ? ["daemon.relay.endpoint"] : []),
+      ...(this.env.PASEO_RELAY_USE_TLS !== undefined ? ["daemon.relay.useTls"] : []),
+      ...(this.env.PASEO_RELAY_PUBLIC_ENDPOINT !== undefined
+        ? ["daemon.relay.publicEndpoint"]
+        : []),
+      ...(this.env.PASEO_RELAY_PUBLIC_USE_TLS !== undefined ? ["daemon.relay.publicUseTls"] : []),
+    ];
     this.lastKnownPersisted = this.startupPersisted;
   }
 
@@ -432,9 +473,44 @@ export class DaemonConfigStore {
         "Relay is controlled by a daemon launch override. Remove PASEO_RELAY_ENABLED or the relay CLI flag before changing it here.",
       );
     }
+    if (parsedPatch.relay) {
+      parsedPatch = { ...parsedPatch, relay: this.normalizeRelayPatch(parsedPatch.relay) };
+    }
     const { removeProviders = [], imageGeneration, ...configPatch } = parsedPatch;
     const removedProviders = Array.from(new Set(removeProviders));
     const merged = deepMerge(this.current, configPatch);
+    if (parsedPatch.relay && Object.keys(parsedPatch.relay).some((field) => field !== "enabled")) {
+      const persistedRelay = this.lastKnownPersisted.daemon?.relay;
+      const relay = merged.relay!;
+      const endpoint = relay.endpoint ?? DEFAULT_RELAY_ENDPOINT;
+      const useTls = relay.useTls ?? shouldUseTlsForDefaultHostedRelay(endpoint);
+      const publicEndpointExplicit =
+        parsedPatch.relay.publicEndpoint !== undefined ||
+        persistedRelay?.publicEndpoint !== undefined ||
+        this.env.PASEO_RELAY_PUBLIC_ENDPOINT !== undefined;
+      const publicTlsExplicit =
+        parsedPatch.relay.publicUseTls !== undefined ||
+        persistedRelay?.publicUseTls !== undefined ||
+        this.env.PASEO_RELAY_PUBLIC_USE_TLS !== undefined;
+      merged.relay = {
+        ...relay,
+        endpoint,
+        useTls,
+        publicEndpoint: publicEndpointExplicit ? (relay.publicEndpoint ?? endpoint) : endpoint,
+        publicUseTls: publicTlsExplicit
+          ? (relay.publicUseTls ?? useTls)
+          : parseRelayAddress(
+              publicEndpointExplicit
+                ? (parsedPatch.relay.publicEndpoint ??
+                    this.env.PASEO_RELAY_PUBLIC_ENDPOINT ??
+                    persistedRelay?.publicEndpoint ??
+                    relay.publicEndpoint ??
+                    endpoint)
+                : endpoint,
+              useTls,
+            ).useTls,
+      };
+    }
     if (imageGeneration !== undefined) {
       merged.imageGeneration = applyImageGenerationPatchToPublicConfig(
         this.current.imageGeneration,
@@ -455,7 +531,9 @@ export class DaemonConfigStore {
 
     const configChanged = !isEqualValue(this.current, next);
 
-    if (!configChanged && removedProviders.length === 0) {
+    const hasRelayAddressPatch =
+      parsedPatch.relay && Object.keys(parsedPatch.relay).some((field) => field !== "enabled");
+    if (!configChanged && removedProviders.length === 0 && !hasRelayAddressPatch) {
       return this.current;
     }
 
@@ -477,6 +555,39 @@ export class DaemonConfigStore {
     }
 
     return this.current;
+  }
+
+  private normalizeRelayPatch(
+    patch: NonNullable<SupportedMutableConfigPatch["relay"]>,
+  ): NonNullable<SupportedMutableConfigPatch["relay"]> {
+    const normalized = { ...patch };
+    if (patch.endpoint !== undefined) {
+      const address = parseRelayAddress(
+        patch.endpoint,
+        patch.useTls ?? this.current.relay?.useTls ?? false,
+      );
+      normalized.endpoint = address.endpoint;
+      normalized.useTls = patch.useTls ?? address.useTls;
+    }
+    if (patch.publicEndpoint !== undefined) {
+      const address = parseRelayAddress(
+        patch.publicEndpoint,
+        patch.publicUseTls ?? normalized.useTls ?? this.current.relay?.useTls ?? false,
+      );
+      normalized.publicEndpoint = address.endpoint;
+      // A URL scheme is an explicit public TLS selection; bare authorities inherit.
+      if (patch.publicUseTls !== undefined || /^wss?:\/\//iu.test(patch.publicEndpoint.trim())) {
+        normalized.publicUseTls = patch.publicUseTls ?? address.useTls;
+      }
+    }
+    for (const field of Object.keys(normalized)) {
+      if (this.relayOverrideControlledPaths.includes(`daemon.relay.${field}`)) {
+        throw new Error(
+          `Relay ${field} is controlled by a daemon launch override. Remove its environment or CLI override before changing it here.`,
+        );
+      }
+    }
+    return normalized;
   }
 
   public reload(): DaemonConfigReloadResult {
@@ -757,6 +868,10 @@ function mergeMutableDaemonPatch(
   const next = { ...persistedDaemon } as NonNullable<PersistedConfig["daemon"]>;
   if (persistRelayEnabled && patch.relay?.enabled !== undefined) {
     next.relay = { ...next.relay, enabled: patch.relay.enabled };
+  }
+  if (patch.relay) {
+    const { enabled: _enabled, ...address } = patch.relay;
+    if (Object.keys(address).length > 0) next.relay = { ...next.relay, ...address };
   }
   if (patch.mcp?.injectIntoAgents !== undefined) {
     next.mcp = { ...next.mcp, injectIntoAgents: patch.mcp.injectIntoAgents };

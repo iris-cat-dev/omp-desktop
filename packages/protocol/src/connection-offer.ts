@@ -1,5 +1,44 @@
 import { z } from "zod";
 
+const RELAY_HOST_LABEL_PATTERN = /^[a-z\d](?:[a-z\d-]{0,61}[a-z\d])?$/iu;
+
+function isValidRelayHostname(hostname: string): boolean {
+  if (hostname.startsWith("[")) return true;
+  const normalized = hostname.replace(/\.$/u, "");
+  return (
+    normalized.length <= 253 &&
+    normalized.split(".").every((label) => RELAY_HOST_LABEL_PATTERN.test(label))
+  );
+}
+
+/** Parse a relay authority or WebSocket URL without accepting non-relay URL components. */
+export function parseRelayAddress(
+  input: string,
+  fallbackUseTls: boolean,
+): { endpoint: string; useTls: boolean } {
+  const address = input.trim();
+  const invalid = () =>
+    new Error(
+      "Invalid relay address: use ws://host[:port] or wss://host[:port], optionally ending in /ws",
+    );
+  if (!address || /[\s\\?#@]/u.test(address)) throw invalid();
+  const scheme = /^([a-z][a-z\d+.-]*):\/\//iu.exec(address);
+  if (scheme && !/^wss?$/iu.test(scheme[1])) throw invalid();
+  const authorityAndPath = scheme ? address.slice(scheme[0].length) : address;
+  const match = /^(\[[^\]]+\]|[^:/]+)(?::(\d+))?(\/.*)?$/u.exec(authorityAndPath);
+  if (!match || (match[3] && match[3] !== "/" && match[3] !== "/ws")) throw invalid();
+  if (match[2] && (Number(match[2]) < 1 || Number(match[2]) > 65535)) throw invalid();
+  const useTls = scheme ? scheme[1].toLowerCase() === "wss" : fallbackUseTls;
+  let url: URL;
+  try {
+    url = new URL(`${useTls ? "wss" : "ws"}://${authorityAndPath}`);
+  } catch {
+    throw invalid();
+  }
+  if (!isValidRelayHostname(url.hostname)) throw invalid();
+  return { endpoint: `${url.hostname}:${url.port || (useTls ? "443" : "80")}`, useTls };
+}
+
 /**
  * Relay-only pairing offer.
  *

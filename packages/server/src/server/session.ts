@@ -2307,15 +2307,19 @@ export class Session {
         return this.daemonSession.handleDiagnosticsRequest(msg);
       case "daemon.update.request":
         return this.daemonSession.handleUpdateRequest(msg);
-      case "set_daemon_config_request":
+      case "set_daemon_config_request": {
+        const config = this.daemonConfigStore.patch(msg.config);
+        // Keep this response in the same dispatch as the mutation. Relay rotation
+        // starts at the next dispatch boundary and drains this encrypted send.
         this.emit({
           type: "set_daemon_config_response",
           payload: {
             requestId: msg.requestId,
-            config: this.daemonConfigStore.patch(msg.config),
+            config,
           },
         });
         return undefined;
+      }
       case "read_project_config_request":
         return this.projectConfigSession.handleReadProjectConfigRequest(msg);
       case "write_project_config_request":

@@ -3507,7 +3507,7 @@ test("transitions out of connecting when connect timeout elapses", async () => {
   }
 });
 
-test("reconnects after relay close with replaced-by-new-connection reason", async () => {
+test("reconnects after close with replaced-by-new-connection reason", async () => {
   useHeartbeatClock();
   try {
     const logger = createMockLogger();
@@ -3517,7 +3517,7 @@ test("reconnects after relay close with replaced-by-new-connection reason", asyn
     let transportIndex = 0;
 
     const client = new DaemonClient({
-      url: "ws://relay.test/ws?role=client&serverId=srv_test&v=2",
+      url: "ws://daemon.test/ws",
       clientId: "clsk_test",
       logger,
       reconnect: {
@@ -3550,6 +3550,30 @@ test("reconnects after relay close with replaced-by-new-connection reason", asyn
     vi.useRealTimers();
   }
 });
+
+test.each([
+  undefined,
+  { enabled: false },
+  { enabled: true },
+  { enabled: false, daemonPublicKeyB64: "" },
+  { enabled: false, daemonPublicKeyB64: "malformed-key" },
+  { enabled: true, daemonPublicKeyB64: "YWJj" },
+])(
+  "rejects relay connections with missing or malformed keys before opening a socket: %j",
+  async (e2ee) => {
+    const transportFactory = vi.fn(() => createMockTransport().transport);
+    const client = new DaemonClient({
+      url: "wss://relay.test/ws?role=client&serverId=srv_test&v=2",
+      clientId: "relay_fail_closed_test",
+      e2ee,
+      transportFactory,
+      reconnect: { enabled: false },
+    });
+    clients.push(client);
+    await expect(client.connect()).rejects.toThrow();
+    expect(transportFactory).not.toHaveBeenCalled();
+  },
+);
 
 test("requires non-empty clientId", () => {
   expect(() => {

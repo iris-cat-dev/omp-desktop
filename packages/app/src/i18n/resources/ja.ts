@@ -1636,6 +1636,7 @@ export const ja: TranslationResources = {
     },
   },
   pairing: {
+    desktopWaiting: "ローカルの OMP Desktop デーモンを待機中…",
     connectionMethods: {
       title: "接続を追加",
       direct: {
@@ -1703,6 +1704,8 @@ export const ja: TranslationResources = {
         emptyOffer: "オファーのペイロードが空です",
         invalid: "無効なペアリングリンク",
         unableToPair: "ホストをペアリングできません",
+        relayConnectionFailed:
+          "{{relay}} 経由で接続できません。Web アプリとデーモンは同じリレーを使用する必要があります。このリンクは {{advertisedRelay}} を指定しています。デーモンのリレー状態を確認するか、アプリの設定を空にしてリンクのアドレスを使用してください。詳細: {{detail}}",
       },
       alert: {
         failedTitle: "ペアリングに失敗しました",
@@ -1727,6 +1730,16 @@ export const ja: TranslationResources = {
       unableToPair: "ホストをペアリングできません",
       errorTitle: "エラー",
     },
+    relayAddress: {
+      label: "リレーサーバーのアドレス",
+      description:
+        "ペアリングリンクからホストを追加するときに使用します。Web アプリとデーモンは同じリレーに接続する必要があります。ws:// または wss:// を入力するか、空欄にしてリンク内のアドレスを使用します。通信はエンドツーエンドで暗号化されます。",
+      invalid:
+        "認証情報、クエリ、フラグメントを含まない有効な ws:// または wss:// アドレスを入力してください。パスは / または /ws のみ対応しています。",
+      save: "リレーアドレスを保存",
+      saving: "保存中...",
+      saved: "リレー設定を保存しました。次回ホストを追加するときに適用されます。",
+    },
     device: {
       loadingOffer: "ペアリングオファーを読み込み中...",
       failedToLoadOffer: "ペアリングオファーの読み込みに失敗しました。",
@@ -1744,7 +1757,7 @@ export const ja: TranslationResources = {
         "リレーを使わない場合は、TCP、Tailscale、または別の VPN で直接接続してください。QR コードは作成されません。",
       updateRequired: "OMP Desktop Desktop からリレーを有効にするにはホストを更新してください。",
       unavailable: "ペアリングオファーが利用できません。",
-      hint: "スマートフォンのOMP DesktopでこのQRコードをスキャンするか、以下のリンクをコピーしてください。",
+      hint: "このリンクをコピーし、別のデバイスで OMP Desktop Web を開いて、ホストを追加 → ペアリングリンクを貼り付けを選択してください。",
       securityWarning:
         "このペアリングリンクはパスワードと同様に扱ってください。リンクを知っている人は誰でもこのデーモンにアクセスできます。",
       qrUnavailable: "QRコードが利用できません。",

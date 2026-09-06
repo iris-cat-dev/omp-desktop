@@ -52,6 +52,42 @@ describe("daemon-client transport helpers", () => {
     });
   });
 
+  test("does not announce readiness until the encrypted channel can send", async () => {
+    createClientChannelMock.mockReset();
+    const encryptedSend = vi.fn().mockResolvedValue(undefined);
+    createClientChannelMock.mockImplementationOnce(async (_transport, _key, events) => {
+      // A fast relay can acknowledge before createClientChannel resolves.
+      events.onopen();
+      return { send: encryptedSend, close: vi.fn() };
+    });
+    let openBase = () => {};
+    const plaintextSend = vi.fn();
+    const transport = createEncryptedTransport(
+      {
+        send: plaintextSend,
+        close: vi.fn(),
+        onOpen: (handler) => {
+          openBase = handler;
+          return () => {};
+        },
+        onClose: () => () => {},
+        onError: () => () => {},
+        onMessage: () => () => {},
+      },
+      "daemon-public-key",
+      { warn: vi.fn() },
+    );
+    transport.onOpen(() => transport.send("application hello"));
+    expect(() => transport.send("too early")).toThrow("Encrypted channel not ready");
+    openBase();
+    await vi.waitFor(() => {
+      expect(encryptedSend).toHaveBeenCalledWith("application hello");
+    });
+    expect(plaintextSend).not.toHaveBeenCalled();
+    transport.close();
+    expect(() => transport.send("too late")).toThrow("Encrypted channel not ready");
+  });
+
   test("createWebSocketTransportFactory forwards sends when socket is open", () => {
     const addEventListener = vi.fn();
     const removeEventListener = vi.fn();

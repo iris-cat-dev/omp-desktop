@@ -1450,7 +1450,7 @@ export class HostRuntimeStore {
 
     if (override) {
       this.bootstrapConfiguredOverride(override);
-    } else {
+    } else if (!isWeb) {
       await this.bootstrapDefaultLocalhost();
     }
   }

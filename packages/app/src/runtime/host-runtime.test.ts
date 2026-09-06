@@ -3370,7 +3370,7 @@ describe("readInitialDaemonConnectionHint", () => {
 });
 
 describe("HostRuntimeStore initial connection hint bootstrap", () => {
-  it("attempts the explicit initial connection hint before default localhost bootstrap", async () => {
+  it("bootstraps the explicit initial connection hint", async () => {
     const seenProbes: { endpoint: string; useTls?: boolean }[] = [];
     const store = new HostRuntimeStore({
       deps: {
@@ -3410,9 +3410,8 @@ describe("HostRuntimeStore initial connection hint bootstrap", () => {
     store.syncHosts([]);
   });
 
-  it("does not infer window.location.host when no explicit hint is present", async () => {
+  it("boots standalone Web without probing localhost or the static asset origin", async () => {
     const seenProbes: { endpoint: string; useTls?: boolean }[] = [];
-    const firstProbe = createDeferred<void>();
     const store = new HostRuntimeStore({
       deps: {
         createClient: () => new FakeDaemonClient() as unknown as DaemonClient,
@@ -3420,7 +3419,6 @@ describe("HostRuntimeStore initial connection hint bootstrap", () => {
           if (connection.type === "directTcp") {
             seenProbes.push({ endpoint: connection.endpoint, useTls: connection.useTls });
           }
-          firstProbe.resolve();
           throw new Error("probe unavailable");
         },
         getClientId: async () => "cid_test_runtime",
@@ -3432,10 +3430,10 @@ describe("HostRuntimeStore initial connection hint bootstrap", () => {
     (globalThis as { window?: unknown }).window = {
       location: { host: "metro-host:8081", protocol: "http:" },
     };
-    store.boot();
-    await firstProbe.promise;
+    await store.boot();
 
-    expect(seenProbes).not.toContainEqual(expect.objectContaining({ endpoint: "metro-host:8081" }));
+    expect(seenProbes).toEqual([]);
+    expect(store.isHostRegistryLoaded()).toBe(true);
     expect(store.getHosts()).toHaveLength(0);
   });
 });

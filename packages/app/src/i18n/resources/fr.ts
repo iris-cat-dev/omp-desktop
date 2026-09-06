@@ -1669,6 +1669,7 @@ export const fr: TranslationResources = {
     },
   },
   pairing: {
+    desktopWaiting: "En attente du daemon local OMP Desktop…",
     connectionMethods: {
       title: "Ajouter une connexion",
       direct: {
@@ -1737,6 +1738,8 @@ export const fr: TranslationResources = {
         emptyOffer: "La charge utile de l'offre est vide",
         invalid: "Lien d'association invalide",
         unableToPair: "Impossible de coupler l'hôte",
+        relayConnectionFailed:
+          "Connexion impossible via {{relay}}. L'application Web et le daemon doivent utiliser le même relais ; ce lien annonce {{advertisedRelay}}. Vérifiez l'état du relais du daemon ou effacez le réglage de l'application pour utiliser l'adresse du lien. Détails : {{detail}}",
       },
       alert: {
         failedTitle: "Échec du couplage",
@@ -1761,6 +1764,16 @@ export const fr: TranslationResources = {
       unableToPair: "Impossible de coupler l'hôte",
       errorTitle: "Erreur",
     },
+    relayAddress: {
+      label: "Adresse du serveur relais",
+      description:
+        "Utilisée lors de l'ajout d'hôtes depuis des liens d'appairage. L'application Web et le daemon doivent se connecter au même relais. Utilisez ws:// ou wss://, ou laissez vide pour employer l'adresse du lien. Le trafic reste chiffré de bout en bout.",
+      invalid:
+        "Saisissez une adresse ws:// ou wss:// valide, sans identifiants, paramètres de requête ni fragment. Seuls les chemins / et /ws sont acceptés.",
+      save: "Enregistrer l'adresse",
+      saving: "Enregistrement...",
+      saved: "Le réglage est enregistré et sera appliqué lors du prochain ajout d'hôte.",
+    },
     device: {
       loadingOffer: "Chargement de l'offre d'association...",
       failedToLoadOffer: "Échec du chargement de l'offre d'association.",
@@ -1777,7 +1790,7 @@ export const fr: TranslationResources = {
         "Sans relais, connectez-vous directement via TCP, Tailscale ou un autre VPN. Aucun code QR n’est créé.",
       updateRequired: "Mettez à jour l’hôte pour activer le relais depuis OMP Desktop Desktop.",
       unavailable: "Offre de jumelage indisponible.",
-      hint: "Scannez ce codeQRavecOMP Desktopsur votre téléphone ou copiez le lien ci-dessous.",
+      hint: "Copiez ce lien, ouvrez OMP Desktop Web sur un autre appareil et choisissez Ajouter un hôte → Coller un lien d’appairage.",
       securityWarning:
         "Traitez ce lien d’association comme un mot de passe. Toute personne qui le possède peut accéder à ce daemon.",
       qrUnavailable: "CodeQRindisponible.",

@@ -1620,6 +1620,7 @@ export const ar: TranslationResources = {
     },
   },
   pairing: {
+    desktopWaiting: "في انتظار خدمة OMP Desktop المحلية…",
     connectionMethods: {
       title: "إضافة اتصال",
       direct: {
@@ -1688,6 +1689,8 @@ export const ar: TranslationResources = {
         emptyOffer: "حمولة العرض فارغة",
         invalid: "رابط الاقتران غير صالح",
         unableToPair: "غير قادر على إقران المضيف",
+        relayConnectionFailed:
+          "تعذّر الاتصال عبر {{relay}}. يجب أن يستخدم تطبيق الويب والبرنامج الخفي خادم الترحيل نفسه؛ يعلن رابط الاقتران عن {{advertisedRelay}}. تحقق من حالة ترحيل البرنامج الخفي أو امسح إعداد الترحيل في التطبيق لاستخدام عنوان الرابط. التفاصيل: {{detail}}",
       },
       alert: {
         failedTitle: "فشل الاقتران",
@@ -1710,6 +1713,16 @@ export const ar: TranslationResources = {
       unableToPair: "غير قادر على إقران المضيف",
       errorTitle: "خطأ",
     },
+    relayAddress: {
+      label: "عنوان خادم الترحيل",
+      description:
+        "يُستخدم عند إضافة مضيفين من روابط الاقتران. يجب أن يتصل تطبيق الويب والبرنامج الخفي بخادم الترحيل نفسه. استخدم ws:// أو wss://، أو اتركه فارغًا لاستخدام العنوان الموجود في الرابط. تظل حركة الاقتران مشفّرة من طرف إلى طرف.",
+      invalid:
+        "أدخل عنوان ws:// أو wss:// صالحًا دون بيانات اعتماد أو استعلام أو جزء رابط. المسارات المدعومة هي / أو /ws فقط.",
+      save: "حفظ عنوان الترحيل",
+      saving: "جارٍ الحفظ...",
+      saved: "تم حفظ إعداد الترحيل وسيُستخدم عند إضافة المضيف التالي.",
+    },
     device: {
       loadingOffer: "جارٍ تحميل عرض الإقران...",
       failedToLoadOffer: "فشل تحميل عرض الاقتران.",
@@ -1726,7 +1739,7 @@ export const ar: TranslationResources = {
         "بدون التتابع، اتصل مباشرة عبر TCP أو Tailscale أو شبكة VPN أخرى. لن يتم إنشاء رمز QR.",
       updateRequired: "حدّث المضيف لتمكين التتابع من OMP Desktop Desktop.",
       unavailable: "عرض الاقتران غير متاح.",
-      hint: "قم بمسح رمز QR هذا باستخدام OMP Desktop على هاتفك، أو انسخ الرابط أدناه.",
+      hint: "انسخ هذا الرابط، ثم افتح OMP Desktop Web على جهاز آخر واختر إضافة مضيف ثم لصق رابط الاقتران.",
       securityWarning:
         "تعامل مع رابط الاقتران هذا ككلمة مرور. يمكن لأي شخص يملكه الوصول إلى هذا البرنامج الخفي.",
       qrUnavailable: "رمز QR غير متاح.",

@@ -3,6 +3,10 @@ import { existsSync, readFileSync, unlinkSync } from "node:fs";
 import { createRequire } from "node:module";
 import path from "node:path";
 import { loadConfig, resolvePaseoHome, spawnProcess } from "@omp-desktop/server";
+import {
+  DEFAULT_RELAY_ENDPOINT,
+  shouldUseTlsForDefaultHostedRelay,
+} from "@omp-desktop/protocol/daemon-endpoints";
 import treeKill from "tree-kill";
 import { tryConnectToDaemon } from "../../utils/client.js";
 
@@ -137,6 +141,9 @@ function buildRunnerArgs(options: DaemonStartOptions): string[] {
   if (options.relayUseTls === true) {
     args.push("--relay-use-tls");
   }
+  if (options.relayUseTls === false) {
+    args.push("--no-relay-use-tls");
+  }
 
   if (options.mcp === false) {
     args.push("--no-mcp");
@@ -167,8 +174,8 @@ function buildChildEnv(options: DaemonStartOptions): NodeJS.ProcessEnv {
   if (options.hostnames) {
     childEnv.PASEO_HOSTNAMES = options.hostnames;
   }
-  if (options.relayUseTls === true) {
-    childEnv.PASEO_RELAY_USE_TLS = "true";
+  if (options.relayUseTls !== undefined) {
+    childEnv.PASEO_RELAY_USE_TLS = String(options.relayUseTls);
   }
   if (options.webUi === true) {
     childEnv.PASEO_WEB_UI_ENABLED = "true";
@@ -559,10 +566,17 @@ export function resolveLocalDaemonState(options: { home?: string } = {}): LocalD
   return {
     home,
     listen,
-    relayEnabled: config.relayEnabled ?? true,
-    relayEndpoint: config.relayPublicEndpoint ?? config.relayEndpoint ?? "relay.paseo.sh:443",
-    relayUseTls: config.relayUseTls ?? false,
-    relayPublicUseTls: config.relayPublicUseTls ?? config.relayUseTls ?? false,
+    relayEnabled: config.relayEnabled ?? false,
+    relayEndpoint: config.relayPublicEndpoint ?? config.relayEndpoint ?? DEFAULT_RELAY_ENDPOINT,
+    relayUseTls:
+      config.relayUseTls ??
+      shouldUseTlsForDefaultHostedRelay(config.relayEndpoint ?? DEFAULT_RELAY_ENDPOINT),
+    relayPublicUseTls:
+      config.relayPublicUseTls ??
+      config.relayUseTls ??
+      shouldUseTlsForDefaultHostedRelay(
+        config.relayPublicEndpoint ?? config.relayEndpoint ?? DEFAULT_RELAY_ENDPOINT,
+      ),
     logPath,
     pidPath,
     pidInfo,

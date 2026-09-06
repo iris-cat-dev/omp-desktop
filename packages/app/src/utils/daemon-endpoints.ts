@@ -1,4 +1,5 @@
 import {
+  DEFAULT_RELAY_ENDPOINT,
   buildDaemonWebSocketUrl,
   buildRelayWebSocketUrl as buildSharedRelayWebSocketUrl,
   deriveLabelFromEndpoint,
@@ -11,6 +12,7 @@ import {
   shouldUseTlsForDefaultHostedRelay,
   type HostPortParts,
 } from "@omp-desktop/protocol/daemon-endpoints";
+import { parseRelayAddress, type ConnectionOffer } from "@omp-desktop/protocol/connection-offer";
 
 export { decodeOfferFragmentPayload } from "@omp-desktop/protocol/connection-offer";
 
@@ -27,6 +29,32 @@ export {
   serializeConnectionUriForStorage,
   shouldUseTlsForDefaultHostedRelay,
 };
+
+export interface RelayServerAddress {
+  endpoint: string;
+  useTls: boolean;
+}
+export const DEFAULT_RELAY_SERVER_ADDRESS = `wss://${DEFAULT_RELAY_ENDPOINT}`;
+
+export function parseRelayServerAddress(input: string): RelayServerAddress {
+  const address = input.trim();
+  return parseRelayAddress(address, shouldUseTlsForDefaultHostedRelay(address));
+}
+
+export function formatRelayServerAddress(address: RelayServerAddress): string {
+  return `${address.useTls ? "wss" : "ws"}://${address.endpoint}`;
+}
+
+export function applyConfiguredRelayToOffer(
+  offer: ConnectionOffer,
+  configuredAddress: string,
+): ConnectionOffer {
+  if (!configuredAddress.trim()) return offer;
+  return {
+    ...offer,
+    relay: parseRelayServerAddress(configuredAddress),
+  };
+}
 
 export function buildRelayWebSocketUrl(params: {
   endpoint: string;

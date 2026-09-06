@@ -16,6 +16,11 @@ import {
 } from "@/components/sidebar/display-preferences/row-items";
 import { isNative } from "@/constants/platform";
 import {
+  DEFAULT_RELAY_SERVER_ADDRESS,
+  formatRelayServerAddress,
+  parseRelayServerAddress,
+} from "@/utils/daemon-endpoints";
+import {
   FONT_SIZE,
   PLUGIN_THEME_PREFERENCE,
   THEME_OPTIONS,
@@ -84,6 +89,8 @@ export interface AppSettings {
   language: AppLanguage;
   sendBehavior: SendBehavior;
   serviceUrlBehavior: ServiceUrlBehavior;
+  /** Relay used when adding a host; users may clear it to trust each pairing offer. */
+  relayServerAddress: string;
   terminalScrollbackLines: number;
   useLegacyTerminalRenderer: boolean;
   uiFontFamily: string; // "" = platform default UI stack
@@ -130,6 +137,7 @@ const StoredAppSettingsSchema = z.strictObject({
     .optional(),
   sendBehavior: z.enum(["interrupt", "steer", "queue"]).optional(),
   serviceUrlBehavior: z.enum(["ask", "in-app", "external"]).optional(),
+  relayServerAddress: z.string().optional(),
   terminalScrollbackLines: z.union([z.number(), z.string()]).optional(),
   useLegacyTerminalRenderer: z.boolean().optional(),
   uiFontFamily: z.string().optional(),
@@ -166,6 +174,7 @@ export const DEFAULT_CLIENT_SETTINGS: AppSettings = {
   language: "system",
   sendBehavior: "steer",
   serviceUrlBehavior: "ask",
+  relayServerAddress: DEFAULT_RELAY_SERVER_ADDRESS,
   terminalScrollbackLines: DEFAULT_TERMINAL_SCROLLBACK_LINES,
   useLegacyTerminalRenderer: false,
   uiFontFamily: "",
@@ -395,6 +404,15 @@ function pickAppSettings(stored: StoredAppSettings): Partial<AppSettings> {
   Object.assign(result, pickEnumAppSettings(stored));
   if (typeof stored.pluginThemeId === "string") {
     result.pluginThemeId = stored.pluginThemeId;
+  }
+  if (typeof stored.relayServerAddress === "string" && stored.relayServerAddress.trim()) {
+    try {
+      result.relayServerAddress = formatRelayServerAddress(
+        parseRelayServerAddress(stored.relayServerAddress),
+      );
+    } catch {
+      // Invalid persisted overrides fall back to the relay advertised by the pairing offer.
+    }
   }
   if (stored.sidebarRowItems !== undefined) {
     result.sidebarRowItems = parseSidebarRowItems(stored.sidebarRowItems);

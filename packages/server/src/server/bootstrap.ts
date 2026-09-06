@@ -156,7 +156,13 @@ import { DaemonConfigStore, type MutableDaemonConfig } from "./daemon-config-sto
 import { OpenAIImageGenerationService } from "./image-generation/openai-image-generator.js";
 import { DefaultOmpSubscriptionCredentialResolver } from "./image-generation/omp-subscription-credential.js";
 import { createOrchestrationSkills } from "./orchestration-skills/index.js";
-import { resolveConfigFromPersisted, type CliConfigOverrides } from "./config.js";
+import {
+  DEFAULT_APP_BASE_URL,
+  DEFAULT_RELAY_ENDPOINT,
+  resolveConfigFromPersisted,
+  type CliConfigOverrides,
+} from "./config.js";
+import { shouldUseTlsForDefaultHostedRelay } from "@omp-desktop/protocol/daemon-endpoints";
 import { BrowserToolsBroker } from "./browser-tools/broker.js";
 import { DaemonConfigBrowserToolsPolicy } from "./browser-tools/policy.js";
 import { WorkspaceGitServiceImpl } from "./workspace-git-service.js";
@@ -171,6 +177,8 @@ import { setupAutoArchiveOnMerge } from "./auto-archive-on-merge/index.js";
 import { wrapSessionMessage, type SessionOutboundMessage } from "./messages.js";
 import type { TerminalManager } from "../terminal/terminal-manager.js";
 import { createConfiguredTerminalManager } from "../terminal/terminal-manager-factory.js";
+import { loadOrCreateDaemonKeyPair } from "./daemon-keypair.js";
+import { createRelayRuntime, type RelayRuntime } from "./relay-runtime.js";
 import type { PushNotificationSender } from "./push/index.js";
 import { getOrCreateServerId } from "./server-id.js";
 import { resolveDaemonVersion } from "./daemon-version.js";
@@ -561,9 +569,21 @@ function createInitialImageGenerationConfig(
 function createInitialMutableDaemonConfig(config: PaseoDaemonConfig): MutableDaemonConfig {
   const providers = config.providerOverrides ?? {};
   const imageGeneration = createInitialImageGenerationConfig(config);
+  const relayEndpoint = config.relayEndpoint ?? DEFAULT_RELAY_ENDPOINT;
+  const relayUseTls = config.relayUseTls ?? shouldUseTlsForDefaultHostedRelay(relayEndpoint);
+  const relayPublicEndpoint = config.relayPublicEndpoint ?? relayEndpoint;
 
   const initialConfig: MutableDaemonConfig = {
-    relay: { enabled: false },
+    relay: {
+      enabled: config.relayEnabled === true,
+      endpoint: relayEndpoint,
+      useTls: relayUseTls,
+      publicEndpoint: relayPublicEndpoint,
+      publicUseTls:
+        config.relayPublicUseTls ??
+        config.relayUseTls ??
+        shouldUseTlsForDefaultHostedRelay(relayPublicEndpoint),
+    },
     mcp: {
       enabled: config.mcpEnabled ?? true,
       injectIntoAgents: config.mcpInjectIntoAgents ?? true,
@@ -572,7 +592,7 @@ function createInitialMutableDaemonConfig(config: PaseoDaemonConfig): MutableDae
     cors: { allowedOrigins: config.corsAllowedOrigins },
     trustedProxies: config.trustedProxies ?? ["loopback"],
     git: config.git ?? resolveGitProcessPolicy({ env: process.env }),
-    app: { baseUrl: config.appBaseUrl ?? "https://app.paseo.sh" },
+    app: { baseUrl: config.appBaseUrl ?? DEFAULT_APP_BASE_URL },
     ...(config.providerCatalogRefreshTimeoutMs !== undefined
       ? { catalogRefreshTimeoutMs: config.providerCatalogRefreshTimeoutMs }
       : {}),
@@ -636,7 +656,8 @@ export async function createPaseoDaemon(
   const daemonVersion = config.daemonVersion ?? resolveDaemonVersion(import.meta.url);
   const initialMutableConfig = createInitialMutableDaemonConfig(config);
   const daemonConfigStore = new DaemonConfigStore(config.paseoHome, initialMutableConfig, logger, {
-    relayEnabledMutable: false,
+    relayEnabledMutable: config.relayEnabledMutable !== false,
+    relayOverrideControlledPaths: config.configReload?.overrideControlledPaths,
     startupPersisted: config.configReload?.startupPersisted,
     env: config.configReload?.env ?? process.env,
     reloadSource: {
@@ -667,6 +688,8 @@ export async function createPaseoDaemon(
   const browserToolsBroker = new BrowserToolsBroker({});
 
   const serverId = getOrCreateServerId(config.paseoHome, { logger });
+  const daemonKeyPair = await loadOrCreateDaemonKeyPair(config.paseoHome, logger);
+  let relayRuntime: RelayRuntime | null = null;
   const managedProcesses = createBootstrapManagedProcessRegistry(config, logger);
   // Reconcile the helper-process ledger in the background so it never blocks the
   // daemon from coming up; terminating a live leftover can take a few seconds.
@@ -714,12 +737,12 @@ export async function createPaseoDaemon(
   const scriptRuntimeStore = new WorkspaceScriptRuntimeStore();
   const workspaceSetupRuntime = new WorkspaceSetupRuntime();
   let configuredHostnames = config.hostnames ?? config.allowedHosts;
-  let appBaseUrl = config.appBaseUrl ?? "https://app.paseo.sh";
+  let appBaseUrl = config.appBaseUrl ?? DEFAULT_APP_BASE_URL;
   daemonConfigStore.onFieldChange("hostnames", (value) => {
     configuredHostnames = value as HostnamesConfig | undefined;
   });
   daemonConfigStore.onFieldChange("app.baseUrl", (value) => {
-    appBaseUrl = typeof value === "string" ? value : "https://app.paseo.sh";
+    appBaseUrl = typeof value === "string" ? value : DEFAULT_APP_BASE_URL;
   });
   let wsServer: VoiceAssistantWebSocketServer | null = null;
   let serviceProxyListenTarget: ListenTarget | null = null;
@@ -1546,8 +1569,18 @@ export async function createPaseoDaemon(
             daemonConfigStore.onFieldChange("appendSystemPrompt", (value) => {
               agentManager.setAppendSystemPrompt(typeof value === "string" ? value : "");
             });
-            const relayEndpoint = config.relayEndpoint ?? "relay.paseo.sh:443";
-            const relayPublicEndpoint = config.relayPublicEndpoint ?? relayEndpoint;
+            const getRelayConfig = () => {
+              const relay = daemonConfigStore.get().relay;
+              const endpoint = relay?.endpoint ?? DEFAULT_RELAY_ENDPOINT;
+              const useTls = relay?.useTls ?? false;
+              return {
+                enabled: relay?.enabled ?? false,
+                endpoint,
+                useTls,
+                publicEndpoint: relay?.publicEndpoint ?? endpoint,
+                publicUseTls: relay?.publicUseTls ?? useTls,
+              };
+            };
             if (boundListenTarget.type === "tcp") {
               logger.info(
                 {
@@ -1625,13 +1658,7 @@ export async function createPaseoDaemon(
                   return appBaseUrl;
                 },
                 desktopManaged: config.desktopManaged === true,
-                getRelayConfig: () => ({
-                  enabled: false,
-                  endpoint: relayEndpoint,
-                  publicEndpoint: relayPublicEndpoint,
-                  useTls: false,
-                  publicUseTls: false,
-                }),
+                getRelayConfig,
               },
               serviceProxyPublicBaseUrl,
               browserToolsBroker,
@@ -1642,6 +1669,22 @@ export async function createPaseoDaemon(
               workspaceLabelService,
             );
             wsServer.beginAcceptingConnections();
+            relayRuntime = createRelayRuntime({
+              config: getRelayConfig(),
+              logger,
+              attachSocket: async (ws, metadata) => {
+                if (!wsServer) {
+                  ws.close(1012, "Daemon is not accepting connections");
+                  return;
+                }
+                await wsServer.attachExternalSocket(ws, metadata);
+              },
+              serverId,
+              daemonKeyPair: daemonKeyPair.keyPair,
+            });
+            daemonConfigStore.onChange(() => {
+              relayRuntime?.updateConfig(getRelayConfig());
+            });
           };
 
           logAndResolve().then(resolve, reject);
@@ -1680,6 +1723,9 @@ export async function createPaseoDaemon(
     // Freeze both ingress and registration before taking the agent closure snapshot.
     wsServer?.prepareForShutdown();
     agentManager.prepareForShutdown();
+    const relayStopped = relayRuntime?.stop().catch((error) => {
+      logger.warn({ err: error }, "Failed to stop relay transport");
+    });
     await closeAllAgents(logger, agentManager);
     await agentManager.flushForShutdown().catch(() => undefined);
     detachAgentStoragePersistence();
@@ -1688,6 +1734,7 @@ export async function createPaseoDaemon(
     terminalManager.killAll();
     await speechService.stop();
     await scheduleService.stop().catch(() => undefined);
+    await relayStopped;
     if (wsServer) {
       await wsServer.close();
     }

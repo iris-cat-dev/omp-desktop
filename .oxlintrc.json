@@ -71,6 +71,7 @@
           "**/react-native",
           "**/@/styles/unistyles",
           "**/src/styles/unistyles",
+          "**/src/utils/initial-pairing-link",
           "**/@/test/window-local-storage"
         ]
       }

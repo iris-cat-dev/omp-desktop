@@ -47,7 +47,7 @@
       "project": ["src/**/*.{ts,tsx}", "tests/**/*.{ts,tsx}"]
     },
     "packages/relay": {
-      "entry": ["src/index.ts", "src/e2ee.ts", "src/cloudflare-adapter.ts", "src/**/*.test.ts"],
+      "entry": ["src/index.ts", "src/e2ee.ts", "src/**/*.test.ts"],
       "project": ["src/**/*.ts"]
     },
     "packages/website": {

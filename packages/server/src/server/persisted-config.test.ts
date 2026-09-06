@@ -694,11 +694,15 @@ describe("PersistedConfigSchema voice mode config", () => {
 });
 
 describe("loadPersistedConfig", () => {
-  test("materializes relay disabled for a new Paseo home", () => {
+  test("materializes the hosted Relay defaults for a new Paseo home", () => {
     const home = createTempHome();
     try {
       const config = loadPersistedConfig(home);
-      expect(config.daemon?.relay?.enabled).toBe(false);
+      expect(config.daemon?.relay).toEqual({
+        enabled: true,
+        endpoint: "relay.paseo.sh:443",
+        useTls: true,
+      });
     } finally {
       rmSync(home, { recursive: true, force: true });
     }

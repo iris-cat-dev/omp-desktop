@@ -19,6 +19,11 @@ import type {
 } from "./agent/provider-launch-config.js";
 import { ProviderOverrideSchema } from "./agent/provider-launch-config.js";
 import { AgentProviderSchema } from "@omp-desktop/protocol/provider-manifest";
+import { parseRelayAddress } from "@omp-desktop/protocol/connection-offer";
+import {
+  DEFAULT_RELAY_ENDPOINT,
+  shouldUseTlsForDefaultHostedRelay,
+} from "@omp-desktop/protocol/daemon-endpoints";
 import { hashDaemonPassword } from "./auth.js";
 import { resolveSpeechConfig } from "./speech/speech-config-resolver.js";
 import type { RequestedSpeechProviders } from "./speech/speech-types.js";
@@ -27,8 +32,8 @@ import { resolveGitProcessPolicy } from "../utils/git-process-scheduler.js";
 import { normalizeImageGenerationBaseUrl } from "./image-generation/base-url.js";
 
 const DEFAULT_PORT = 6770;
-const DEFAULT_RELAY_ENDPOINT = "relay.paseo.sh:443";
-const DEFAULT_APP_BASE_URL = "https://app.paseo.sh";
+export { DEFAULT_RELAY_ENDPOINT };
+export const DEFAULT_APP_BASE_URL = "http://localhost:8081";
 const DEFAULT_TRUSTED_PROXIES = ["loopback"];
 const DEFAULT_IMAGE_GENERATION_MODEL = "gpt-image-2";
 
@@ -291,32 +296,31 @@ function resolveTlsFromEnv(
 
 function resolveRelayConfig(input: ResolveRelayInput): ResolvedRelay {
   const environmentEnabled = parseBooleanEnv(input.env.PASEO_RELAY_ENABLED);
-  // COMPAT(relayOptInDefault): daemons whose startup config omitted this field
-  // retain relay-on removal semantics until 2027-01-31. Modern homes use false.
   const enabled =
     input.cliRelayEnabled ??
     environmentEnabled ??
     input.persisted.daemon?.relay?.enabled ??
     input.enabledFallback;
-  const endpoint =
-    input.env.PASEO_RELAY_ENDPOINT ??
-    input.persisted.daemon?.relay?.endpoint ??
-    DEFAULT_RELAY_ENDPOINT;
-  const publicEndpoint =
-    input.env.PASEO_RELAY_PUBLIC_ENDPOINT ??
-    input.persisted.daemon?.relay?.publicEndpoint ??
-    endpoint;
+  const persisted = input.persisted.daemon?.relay;
+  const endpointInput =
+    input.env.PASEO_RELAY_ENDPOINT ?? persisted?.endpoint ?? DEFAULT_RELAY_ENDPOINT;
+  const address = parseRelayAddress(
+    endpointInput,
+    persisted?.useTls ?? shouldUseTlsForDefaultHostedRelay(endpointInput),
+  );
+  const endpoint = address.endpoint;
   const useTls =
     input.cliRelayUseTls ??
-    resolveTlsFromEnv(
-      input.env.PASEO_RELAY_USE_TLS,
-      input.persisted.daemon?.relay?.useTls,
-      endpoint === DEFAULT_RELAY_ENDPOINT,
-    );
+    resolveTlsFromEnv(input.env.PASEO_RELAY_USE_TLS, persisted?.useTls, address.useTls);
+  const publicAddress = parseRelayAddress(
+    input.env.PASEO_RELAY_PUBLIC_ENDPOINT ?? persisted?.publicEndpoint ?? endpoint,
+    useTls,
+  );
+  const publicEndpoint = publicAddress.endpoint;
   const publicUseTls = resolveTlsFromEnv(
     input.env.PASEO_RELAY_PUBLIC_USE_TLS,
-    input.persisted.daemon?.relay?.publicUseTls,
-    useTls,
+    persisted?.publicUseTls,
+    publicAddress.useTls,
   );
   return {
     enabled,
@@ -605,8 +609,7 @@ export function resolveConfigFromPersisted(
   const resolvedOptions = options ?? {};
   const env = resolvedOptions.env ?? process.env;
   const cli = resolvedOptions.cli;
-  const relayEnabledFallback =
-    resolvedOptions.relayEnabledFallback ?? persisted.daemon?.relay?.enabled === undefined;
+  const relayEnabledFallback = resolvedOptions.relayEnabledFallback ?? false;
 
   const listen = resolveListenAddress(env, cli, persisted);
   const {

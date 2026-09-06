@@ -21,9 +21,22 @@ describe("daemon relay config", () => {
     await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true })));
   });
 
-  test("preserves implicit relay-on for a legacy config without enabled", async () => {
+  test("defaults new homes to the hosted Relay over TLS", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "paseo-config-relay-default-"));
+    roots.push(root);
+    const home = path.join(root, ".paseo");
+    await mkdir(home, { recursive: true });
+
+    const config = loadConfig(home, { env: {} });
+
+    expect(config.relayEnabled).toBe(true);
+    expect(config.relayEndpoint).toBe("relay.paseo.sh:443");
+    expect(config.relayUseTls).toBe(true);
+  });
+
+  test("keeps relay disabled for a legacy config without enabled", async () => {
     const home = await createPaseoHome({ version: 1, daemon: { relay: {} } });
-    expect(loadConfig(home, { env: {} }).relayEnabled).toBe(true);
+    expect(loadConfig(home, { env: {} }).relayEnabled).toBe(false);
   });
 
   test("keeps explicit persisted relay state and marks it mutable", async () => {
@@ -54,7 +67,7 @@ describe("daemon relay config", () => {
     expect(reloaded.relayEnabled).toBe(false);
   });
 
-  test("legacy configs retain relay-on compatibility when enabled remains absent", async () => {
+  test("legacy configs remain opted out when reloaded without enabled", async () => {
     const home = await createPaseoHome({ version: 1, daemon: { relay: {} } });
     const startup = loadConfig(home, { env: {} });
     const reloaded = resolveConfigFromPersisted(
@@ -66,7 +79,7 @@ describe("daemon relay config", () => {
       },
     );
 
-    expect(reloaded.relayEnabled).toBe(true);
+    expect(reloaded.relayEnabled).toBe(false);
   });
 
   test("marks environment relay overrides immutable", async () => {
@@ -92,7 +105,7 @@ describe("daemon relay config", () => {
     },
   );
 
-  test("loads relay TLS from env, persisted config, and hosted relay fallback", async () => {
+  test("loads relay TLS from env before persisted config", async () => {
     const persistedHome = await createPaseoHome({
       version: 1,
       daemon: {
@@ -114,17 +127,13 @@ describe("daemon relay config", () => {
       },
     });
     expect(loadConfig(envHome, { env: { PASEO_RELAY_USE_TLS: "true" } }).relayUseTls).toBe(true);
-
-    const hostedHome = await createPaseoHome({
-      version: 1,
-      daemon: { relay: {} },
-    });
-    expect(loadConfig(hostedHome, { env: {} }).relayUseTls).toBe(true);
   });
 
   test("relayPublicUseTls falls back to relayUseTls when unset", async () => {
-    const home = await createPaseoHome({ version: 1, daemon: { relay: {} } });
-    // Default: both true (hosted relay)
+    const home = await createPaseoHome({
+      version: 1,
+      daemon: { relay: { endpoint: "relay.example.com:443", useTls: true } },
+    });
     expect(loadConfig(home, { env: {} }).relayPublicUseTls).toBe(true);
   });
 
@@ -152,6 +161,52 @@ describe("daemon relay config", () => {
     const config = loadConfig(home, { env: {} });
     expect(config.relayUseTls).toBe(false);
     expect(config.relayPublicUseTls).toBe(true);
+  });
+
+  test("normalizes private and public WebSocket addresses while preserving explicit TLS overrides", async () => {
+    const home = await createPaseoHome({
+      version: 1,
+      daemon: {
+        relay: {
+          endpoint: "ws://LOCALHOST:4000/ws",
+          publicEndpoint: "wss://Public.Example.test:8443/",
+        },
+      },
+    });
+    const config = loadConfig(home, { env: {} });
+    expect(config.relayEndpoint).toBe("localhost:4000");
+    expect(config.relayUseTls).toBe(false);
+    expect(config.relayPublicEndpoint).toBe("public.example.test:8443");
+    expect(config.relayPublicUseTls).toBe(true);
+    expect(config.relayEnabled).toBe(false);
+    const overridden = loadConfig(home, {
+      env: { PASEO_RELAY_PUBLIC_USE_TLS: "false" },
+      cli: { relayUseTls: true },
+    });
+    expect(overridden.relayUseTls).toBe(true);
+    expect(overridden.relayPublicUseTls).toBe(false);
+    expect(overridden.configReload?.overrideControlledPaths).toEqual(
+      expect.arrayContaining(["daemon.relay.useTls", "daemon.relay.publicUseTls"]),
+    );
+  });
+
+  test("rejects invalid addresses on startup and reload instead of changing their meaning", async () => {
+    const home = await createPaseoHome({ version: 1 });
+    expect(() =>
+      loadConfig(home, {
+        env: { PASEO_RELAY_ENDPOINT: "https://relay.example.test" },
+      }),
+    ).toThrow();
+    expect(() =>
+      resolveConfigFromPersisted(
+        home,
+        {
+          version: 1,
+          daemon: { relay: { publicEndpoint: "ws://relay.example.test/other" } },
+        },
+        { env: {} },
+      ),
+    ).toThrow();
   });
 });
 

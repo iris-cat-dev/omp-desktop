@@ -60,6 +60,7 @@ import { ProviderUsageSettingsSection } from "@/provider-usage/settings-section"
 import { useProviderUsage } from "@/provider-usage/use-provider-usage";
 import { HostAppearanceSection } from "@/screens/settings/host-appearance-section";
 import { SettingsSection } from "@/screens/settings/settings-section";
+import { PairDeviceSection } from "@/screens/settings/pair-device-section";
 import { ImageGenerationSettingsSection } from "@/screens/settings/image-generation-card";
 import { OmpProviderConfigurationPanel } from "@/components/provider-diagnostic-sheet";
 import { useSessionStore } from "@/stores/session-store";
@@ -710,6 +711,7 @@ export function HostSettingsPage({
       <HostStatusBadges serverId={serverId} />
 
       <HostAppearanceSection host={host} />
+      <PairDeviceSection key={serverId} serverId={serverId} />
 
       {isLocalDaemon ? <LocalDaemonSection /> : null}
 

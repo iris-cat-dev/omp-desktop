@@ -1642,6 +1642,7 @@ export const en = {
     },
   },
   pairing: {
+    desktopWaiting: "Waiting for the local OMP Desktop daemon…",
     connectionMethods: {
       title: "Add connection",
       direct: {
@@ -1709,6 +1710,8 @@ export const en = {
         emptyOffer: "Offer payload is empty",
         invalid: "Invalid pairing link",
         unableToPair: "Unable to pair host",
+        relayConnectionFailed:
+          "Could not connect through {{relay}}. The Web app and daemon must use the same relay; this pairing link advertises {{advertisedRelay}}. Confirm the daemon relay status, or clear the app relay setting to use the link address. Details: {{detail}}",
       },
       alert: {
         failedTitle: "Pairing failed",
@@ -1732,6 +1735,16 @@ export const en = {
       unableToPair: "Unable to pair host",
       errorTitle: "Error",
     },
+    relayAddress: {
+      label: "Relay server address",
+      description:
+        "Used when adding hosts from pairing links. The Web app and daemon must connect to the same relay. Use ws:// or wss://; leave blank to use the address in the link. Pairing traffic stays end-to-end encrypted.",
+      invalid:
+        "Enter a valid ws:// or wss:// address without credentials, a query, or a fragment. Only / or /ws paths are supported.",
+      save: "Save relay address",
+      saving: "Saving...",
+      saved: "Relay setting saved. It will be applied the next time you add a host.",
+    },
     device: {
       loadingOffer: "Loading pairing offer...",
       failedToLoadOffer: "Failed to load pairing offer.",
@@ -1748,7 +1761,7 @@ export const en = {
         "Without relay, connect directly over TCP, Tailscale, or another VPN. No QR code is created.",
       updateRequired: "Update the host to enable relay from OMP Desktop Desktop.",
       unavailable: "Pairing offer unavailable.",
-      hint: "Scan this QR code with OMP Desktop on your phone, or copy the link below.",
+      hint: "Copy this link, then open OMP Desktop Web on another device and choose Add host → Paste pairing link.",
       securityWarning:
         "Treat this pairing link like a password. Anyone with it can access this daemon.",
       qrUnavailable: "QR code unavailable.",

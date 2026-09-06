@@ -20,6 +20,13 @@ export function startCommand(): Command {
     .option("--port <port>", "Port to listen on (default: 6770)")
     .option("--home <path>", "OMP Desktop home directory (default: ~/.omp-desktop)")
     .option("--foreground", "Run in foreground (don't daemonize)")
+    .option("--relay", "Enable outbound encrypted relay access")
+    .option("--no-relay", "Disable outbound relay access")
+    .option("--relay-use-tls", "Use TLS for the outbound relay connection")
+    .option(
+      "--no-relay-use-tls",
+      "Disable TLS for the outbound relay connection (E2EE remains enabled)",
+    )
     .option("--no-mcp", "Disable the Agent MCP HTTP endpoint")
     .option("--no-inject-mcp", "Disable auto-injecting OMP Desktop tools into created agents")
     .option("--web-ui", "Enable the bundled daemon web UI")

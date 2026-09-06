@@ -173,6 +173,10 @@ const MutableBrowserToolsConfigSchema = z
 const MutableRelayConfigSchema = z
   .object({
     enabled: z.boolean(),
+    endpoint: z.string().optional(),
+    useTls: z.boolean().optional(),
+    publicEndpoint: z.string().optional(),
+    publicUseTls: z.boolean().optional(),
   })
   .passthrough();
 

@@ -1,6 +1,6 @@
 {
   "name": "@omp-desktop/client",
-  "version": "0.1.14",
+  "version": "0.2.0",
   "description": "OMP Desktop client SDK",
   "files": [
     "dist",
@@ -31,7 +31,7 @@
   },
   "scripts": {
     "clean": "node ../../scripts/clean-package-dist.mjs",
-    "build": "npm run build --workspace=@omp-desktop/protocol && tsc -p tsconfig.json --incremental false",
+    "build": "npm run build --workspace=@omp-desktop/relay && npm run build --workspace=@omp-desktop/protocol && tsc -p tsconfig.json --incremental false",
     "build:clean": "npm run clean && npm run build",
     "prepack": "npm run build:clean",
     "typecheck": "tsgo --noEmit",
@@ -39,7 +39,8 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@omp-desktop/protocol": "0.1.14",
+    "@omp-desktop/protocol": "0.2.0",
+    "@omp-desktop/relay": "0.2.0",
     "zod": "^4.4.3"
   },
   "devDependencies": {

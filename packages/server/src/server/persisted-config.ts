@@ -17,6 +17,7 @@ import {
   TerminalProfileSchema,
 } from "@omp-desktop/protocol/messages";
 import { PaseoServicePortAllocationSchema } from "@omp-desktop/protocol/paseo-config-schema";
+import { DEFAULT_RELAY_ENDPOINT } from "@omp-desktop/protocol/daemon-endpoints";
 
 export const LogLevelSchema = z.enum(["trace", "debug", "info", "warn", "error", "fatal"]);
 export const LogFormatSchema = z.enum(["pretty", "json"]);
@@ -383,7 +384,9 @@ const DEFAULT_PERSISTED_CONFIG = PersistedConfigSchema.parse({
       allowedOrigins: ["omp-desktop://app"],
     },
     relay: {
-      enabled: false,
+      enabled: true,
+      endpoint: DEFAULT_RELAY_ENDPOINT,
+      useTls: true,
     },
   },
   features: {

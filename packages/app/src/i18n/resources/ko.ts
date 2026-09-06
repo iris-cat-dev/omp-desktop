@@ -1632,6 +1632,7 @@ export const ko: TranslationResources = {
     },
   },
   pairing: {
+    desktopWaiting: "로컬 OMP Desktop 데몬을 기다리는 중…",
     connectionMethods: {
       title: "연결 추가",
       direct: {
@@ -1698,6 +1699,8 @@ export const ko: TranslationResources = {
         emptyOffer: "Offer 페이로드가 비어 있습니다",
         invalid: "잘못된 페어링 링크",
         unableToPair: "호스트를 페어링할 수 없습니다",
+        relayConnectionFailed:
+          "{{relay}}을(를) 통해 연결할 수 없습니다. Web 앱과 데몬은 같은 릴레이를 사용해야 하며 이 링크는 {{advertisedRelay}}을(를) 지정합니다. 데몬의 릴레이 상태를 확인하거나 앱 설정을 비워 링크 주소를 사용하세요. 세부 정보: {{detail}}",
       },
       alert: {
         failedTitle: "페어링 실패",
@@ -1721,6 +1724,16 @@ export const ko: TranslationResources = {
       unableToPair: "호스트를 페어링할 수 없습니다",
       errorTitle: "오류",
     },
+    relayAddress: {
+      label: "릴레이 서버 주소",
+      description:
+        "페어링 링크에서 호스트를 추가할 때 사용합니다. Web 앱과 데몬은 같은 릴레이에 연결해야 합니다. ws:// 또는 wss://를 입력하거나 비워 두어 링크의 주소를 사용하세요. 트래픽은 종단 간 암호화됩니다.",
+      invalid:
+        "인증 정보, 쿼리 또는 프래그먼트가 없는 유효한 ws:// 또는 wss:// 주소를 입력하세요. 경로는 / 또는 /ws만 지원합니다.",
+      save: "릴레이 주소 저장",
+      saving: "저장 중...",
+      saved: "릴레이 설정을 저장했습니다. 다음에 호스트를 추가할 때 적용됩니다.",
+    },
     device: {
       loadingOffer: "페어링 정보 불러오는 중...",
       failedToLoadOffer: "페어링 정보를 불러오지 못했습니다.",
@@ -1738,7 +1751,7 @@ export const ko: TranslationResources = {
         "릴레이 없이 TCP, Tailscale 또는 다른 VPN을 통해 직접 연결하세요. QR 코드가 생성되지 않습니다.",
       updateRequired: "OMP Desktop 데스크톱에서 릴레이를 활성화하려면 호스트를 업데이트하세요.",
       unavailable: "페어링 정보를 사용할 수 없습니다.",
-      hint: "휴대폰의 OMP Desktop로 이 QR 코드를 스캔하거나 아래 링크를 복사하세요.",
+      hint: "이 링크를 복사한 다음 다른 기기에서 OMP Desktop Web을 열고 호스트 추가 → 페어링 링크 붙여넣기를 선택하세요.",
       securityWarning:
         "이 페어링 링크는 비밀번호처럼 취급하세요. 링크를 가진 사람은 누구나 이 데몬에 접근할 수 있습니다.",
       qrUnavailable: "QR 코드를 사용할 수 없습니다.",

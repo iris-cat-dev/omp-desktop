@@ -5,6 +5,7 @@ import { runStopCommand } from "./stop.js";
 import { runRestartCommand } from "./restart.js";
 import { runSetPasswordCommand } from "./set-password.js";
 import { runDaemonReloadCommand } from "./reload.js";
+import { pairCommand } from "./pair.js";
 import { withOutput } from "../../output/index.js";
 import { addJsonAndDaemonHostOptions, addJsonOption } from "../../utils/command-options.js";
 
@@ -18,6 +19,7 @@ export function createDaemonCommand(): Command {
   const daemon = new Command("daemon").description("Manage the OMP Desktop daemon");
 
   daemon.addCommand(startCommand());
+  daemon.addCommand(pairCommand());
 
   addJsonAndDaemonHostOptions(
     daemon.command("reload").description("Reload config.json without restarting the daemon"),
@@ -43,6 +45,13 @@ export function createDaemonCommand(): Command {
       "Listen target for restarted daemon (host:port, port, or unix socket)",
     )
     .option("--port <port>", "Port for restarted daemon listen target")
+    .option("--relay", "Enable outbound encrypted relay access on restarted daemon")
+    .option("--no-relay", "Disable outbound relay access on restarted daemon")
+    .option("--relay-use-tls", "Use TLS for the outbound relay connection")
+    .option(
+      "--no-relay-use-tls",
+      "Disable TLS for the outbound relay connection (E2EE remains enabled)",
+    )
     .option("--no-mcp", "Disable Agent MCP on restarted daemon")
     .option("--no-inject-mcp", "Disable auto-injecting OMP Desktop tools into created agents")
     .option("--web-ui", "Enable the bundled daemon web UI on restarted daemon")

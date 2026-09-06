@@ -1652,6 +1652,7 @@ export const ptBR: TranslationResources = {
     },
   },
   pairing: {
+    desktopWaiting: "Aguardando o daemon local do OMP Desktop…",
     connectionMethods: {
       title: "Adicionar conexão",
       direct: {
@@ -1720,6 +1721,8 @@ export const ptBR: TranslationResources = {
         emptyOffer: "O payload da oferta está vazio",
         invalid: "Link de pareamento inválido",
         unableToPair: "Não foi possível parear host",
+        relayConnectionFailed:
+          "Não foi possível conectar por {{relay}}. O aplicativo Web e o daemon devem usar o mesmo relay; este link informa {{advertisedRelay}}. Verifique o relay do daemon ou limpe a configuração do aplicativo para usar o endereço do link. Detalhes: {{detail}}",
       },
       alert: {
         failedTitle: "Falha no pareamento",
@@ -1744,6 +1747,16 @@ export const ptBR: TranslationResources = {
       unableToPair: "Não foi possível parear host",
       errorTitle: "Erro",
     },
+    relayAddress: {
+      label: "Endereço do servidor de relay",
+      description:
+        "Usado ao adicionar hosts por links de pareamento. O aplicativo Web e o daemon devem usar o mesmo relay. Use ws:// ou wss://, ou deixe em branco para usar o endereço do link. O tráfego continua criptografado de ponta a ponta.",
+      invalid:
+        "Informe um endereço ws:// ou wss:// válido, sem credenciais, consulta ou fragmento. Apenas os caminhos / ou /ws são aceitos.",
+      save: "Salvar endereço do relay",
+      saving: "Salvando...",
+      saved: "A configuração foi salva e será aplicada na próxima vez que você adicionar um host.",
+    },
     device: {
       loadingOffer: "Carregando oferta de pareamento...",
       failedToLoadOffer: "Falha ao carregar oferta de pareamento.",
@@ -1760,7 +1773,7 @@ export const ptBR: TranslationResources = {
         "Sem relay, conecte diretamente por TCP, Tailscale ou outra VPN. Nenhum código QR é criado.",
       updateRequired: "Atualize o host para ativar o relay pelo OMP Desktop Desktop.",
       unavailable: "Oferta de pareamento indisponível.",
-      hint: "Escaneie este QR code com o OMP Desktop no seu celular ou copie o link abaixo.",
+      hint: "Copie este link, abra o OMP Desktop Web em outro dispositivo e escolha Adicionar host → Colar link de pareamento.",
       securityWarning:
         "Trate este link de pareamento como uma senha. Qualquer pessoa com o link pode acessar este daemon.",
       qrUnavailable: "QR code indisponível.",

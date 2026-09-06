@@ -1,6 +1,6 @@
 {
   "name": "@omp-desktop/app",
-  "version": "0.1.14",
+  "version": "0.2.0",
   "private": true,
   "main": "index.ts",
   "scripts": {
@@ -15,6 +15,7 @@
     "test:browser": "vitest run --project browser",
     "build": "npm run build:web",
     "build:web": "npm --prefix ../.. run build:app-deps && expo export --platform web",
+    "deploy": "npm run build:web && wrangler pages deploy dist --project-name omp-desktop --branch=main --commit-dirty=true",
     "build:terminal-webview": "node ./scripts/build-terminal-webview-html.mjs",
     "build:mermaid-runtime": "node ./src/components/markdown/fence/mermaid/build-runtime.mjs"
   },
@@ -121,6 +122,7 @@
     "playwright": "^1.56.1",
     "typescript": "~5.9.2",
     "vitest": "^4.1.6",
+    "wrangler": "^4.54.0",
     "ws": "^8.20.0"
   }
 }

@@ -7,7 +7,8 @@ import { StyleSheet, useUnistyles } from "react-native-unistyles";
 import { OmpIcon } from "@/components/icons/omp-icon";
 import { Button } from "@/components/ui/button";
 import { getHostRuntimeStore, isHostRuntimeConnected, useHosts } from "@/runtime/host-runtime";
-import { buildOpenProjectRoute } from "@/utils/host-routes";
+import { buildOpenProjectRoute, buildSettingsAddHostRoute } from "@/utils/host-routes";
+import { shouldUseDesktopDaemon } from "@/desktop/daemon/desktop-daemon";
 
 function useAnyHostOnline(serverIds: string[]): boolean {
   const runtime = getHostRuntimeStore();
@@ -33,6 +34,9 @@ export function WelcomeScreen() {
   const handleOpenSettings = useCallback(() => {
     router.push("/settings");
   }, [router]);
+  const handleAddHost = useCallback(() => {
+    router.push(buildSettingsAddHostRoute(Date.now()));
+  }, [router]);
   const settingsIcon = useMemo(
     () => <Settings size={theme.iconSize.sm} color={theme.colors.foregroundMuted} />,
     [theme.colors.foregroundMuted, theme.iconSize.sm],
@@ -45,7 +49,12 @@ export function WelcomeScreen() {
         <Text style={styles.title}>{t("onboarding.title")}</Text>
         <Text style={styles.subtitle}>{t("onboarding.subtitle")}</Text>
       </View>
-      <Text style={styles.status}>Waiting for the local OMP Desktop daemon…</Text>
+      <Text style={styles.status}>
+        {t(shouldUseDesktopDaemon() ? "pairing.desktopWaiting" : "pairing.link.helper")}
+      </Text>
+      <Button onPress={handleAddHost} testID="welcome-add-host">
+        {t("settings.addHost")}
+      </Button>
       <Button variant="ghost" size="sm" onPress={handleOpenSettings} leftIcon={settingsIcon}>
         {t("onboarding.actions.settings")}
       </Button>

@@ -153,7 +153,9 @@ import {
   TerminalStreamOpcode,
   type FileTransferFrame,
 } from "@omp-desktop/protocol/binary-frames/index";
+import { isRelayClientWebSocketUrl } from "@omp-desktop/protocol/daemon-endpoints";
 import {
+  createRelayE2eeTransportFactory,
   createWebSocketTransportFactory,
   decodeMessageData,
   defaultWebSocketFactory,
@@ -1153,7 +1155,7 @@ export class DaemonClient {
 
   constructor(private config: DaemonClientConfig) {
     this.logger = config.logger ?? consoleLogger;
-    this.logConnectionPath = "direct";
+    this.logConnectionPath = isRelayClientWebSocketUrl(this.config.url) ? "relay" : "direct";
     let parsedUrlForLog: URL | null = null;
     try {
       parsedUrlForLog = new URL(this.config.url);
@@ -1249,10 +1251,23 @@ export class DaemonClient {
       // Reconnect can overlap with browser close/error delivery ordering.
       // Always dispose previous transport before constructing the next one.
       this.disposeTransport();
-      const transportFactory =
+      const baseTransportFactory =
         this.config.transportFactory ??
         createWebSocketTransportFactory(this.config.webSocketFactory ?? defaultWebSocketFactory);
       const transportUrl = this.resolveTransportUrlForAttempt();
+      let transportFactory = baseTransportFactory;
+      // Relay v2 never carries plaintext application traffic, including hello.
+      if (isRelayClientWebSocketUrl(transportUrl)) {
+        const daemonPublicKeyB64 = this.config.e2ee?.daemonPublicKeyB64;
+        if (!daemonPublicKeyB64) {
+          throw new Error("daemonPublicKeyB64 is required for relay E2EE");
+        }
+        transportFactory = createRelayE2eeTransportFactory({
+          baseFactory: baseTransportFactory,
+          daemonPublicKeyB64,
+          logger: this.logger,
+        });
+      }
       const transport = transportFactory({
         url: transportUrl,
         headers,

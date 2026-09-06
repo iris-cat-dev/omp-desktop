@@ -1615,6 +1615,7 @@ export const zhCN: TranslationResources = {
     },
   },
   pairing: {
+    desktopWaiting: "正在等待本地 OMP Desktop 守护进程…",
     connectionMethods: {
       title: "添加连接",
       direct: {
@@ -1681,6 +1682,8 @@ export const zhCN: TranslationResources = {
         emptyOffer: "Offer payload 为空",
         invalid: "无效的配对链接",
         unableToPair: "无法配对 host",
+        relayConnectionFailed:
+          "无法通过 {{relay}} 连接。Web 应用和 Daemon 必须使用同一个 Relay；此配对链接声明的是 {{advertisedRelay}}。请检查 Daemon 的 Relay 状态，或清空应用 Relay 设置以使用链接中的地址。详情：{{detail}}",
       },
       alert: {
         failedTitle: "配对失败",
@@ -1703,6 +1706,15 @@ export const zhCN: TranslationResources = {
       unableToPair: "无法配对 host",
       errorTitle: "错误",
     },
+    relayAddress: {
+      label: "Relay 服务器地址",
+      description:
+        "添加配对链接中的 Host 时使用。Web 应用和 Daemon 必须连接同一个 Relay。请输入 ws:// 或 wss:// 地址；留空则使用配对链接中的地址。配对流量始终端到端加密。",
+      invalid: "请输入有效的 ws:// 或 wss:// 地址，不含凭据、查询参数或片段。路径仅支持 / 或 /ws。",
+      save: "保存 Relay 地址",
+      saving: "正在保存...",
+      saved: "Relay 设置已保存，将在下次添加 Host 时使用。",
+    },
     device: {
       loadingOffer: "正在加载配对 offer...",
       failedToLoadOffer: "加载配对 offer 失败。",
@@ -1718,7 +1730,7 @@ export const zhCN: TranslationResources = {
         "不使用中继时，请通过 TCP、Tailscale 或其他 VPN 直接连接。不会生成二维码。",
       updateRequired: "请更新主机，以便从 OMP Desktop Desktop 启用中继。",
       unavailable: "配对 offer 不可用。",
-      hint: "用手机上的 OMP Desktop 扫描此二维码，或复制下方链接。",
+      hint: "复制此链接，在另一台设备上打开 OMP Desktop Web，然后选择「添加主机」→「粘贴配对链接」。",
       securityWarning: "请像保管密码一样保管此配对链接。任何获得此链接的人都可以访问此守护进程。",
       qrUnavailable: "二维码不可用。",
       qrAccessibility: "配对二维码",

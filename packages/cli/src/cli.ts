@@ -14,6 +14,7 @@ import { startCommand as daemonStartCommand } from "./commands/daemon/start.js";
 import { runStatusCommand as runDaemonStatusCommand } from "./commands/daemon/status.js";
 import { runRestartCommand as runDaemonRestartCommand } from "./commands/daemon/restart.js";
 import { runDaemonReloadCommand } from "./commands/daemon/reload.js";
+import { pairCommand } from "./commands/daemon/pair.js";
 import { addLsOptions, runLsCommand } from "./commands/agent/ls.js";
 import { addRunOptions, runRunCommand } from "./commands/agent/run.js";
 import { addLogsOptions, runLogsCommand } from "./commands/agent/logs.js";
@@ -111,6 +112,7 @@ export function createCli(): Command {
 
   // Top-level local daemon shortcuts
   program.addCommand(daemonStartCommand());
+  program.addCommand(pairCommand());
 
   addJsonOption(
     program
@@ -139,6 +141,13 @@ export function createCli(): Command {
       "Listen target for restarted daemon (host:port, port, or unix socket)",
     )
     .option("--port <port>", "Port for restarted daemon listen target")
+    .option("--relay", "Enable outbound encrypted relay access on restarted daemon")
+    .option("--no-relay", "Disable outbound relay access on restarted daemon")
+    .option("--relay-use-tls", "Use TLS for the outbound relay connection")
+    .option(
+      "--no-relay-use-tls",
+      "Disable TLS for the outbound relay connection (E2EE remains enabled)",
+    )
     .option("--no-mcp", "Disable Agent MCP on restarted daemon")
     .option(
       "--hostnames <hosts>",

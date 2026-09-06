@@ -47,6 +47,7 @@ import { HostStatusDot } from "@/components/host-status-dot";
 import { ScreenTitle } from "@/components/headers/screen-title";
 import { HeaderIconBadge } from "@/components/headers/header-icon-badge";
 import { SettingsSection } from "@/screens/settings/settings-section";
+import { AddRemoteHostSection } from "@/screens/settings/add-remote-host-section";
 import { AppearanceSection } from "@/screens/settings/appearance/appearance-section";
 import {
   useAppSettings,
@@ -107,6 +108,7 @@ import {
   useEnableBuiltInDaemonOption,
 } from "@/desktop/hooks/use-enable-built-in-daemon-option";
 import {
+  buildSettingsAddHostRoute,
   buildSettingsHostSectionRoute,
   buildSettingsSectionRoute,
   type HostSectionSlug,
@@ -743,9 +745,6 @@ interface HostPickerProps {
   enableBuiltInDaemonOption: EnableBuiltInDaemonOption;
 }
 
-/**
- * Scopes host settings to the local OMP Desktop daemon.
- */
 function HostPicker({
   activeServerId,
   sortedHosts,
@@ -753,6 +752,10 @@ function HostPicker({
   enableBuiltInDaemonOption,
 }: HostPickerProps) {
   const { t } = useTranslation();
+  const router = useRouter();
+  const handleAddHost = useCallback(() => {
+    router.push(buildSettingsAddHostRoute(Date.now()));
+  }, [router]);
   const [isOpen, setIsOpen] = useState(false);
   const triggerRef = useRef<View | null>(null);
   const activeHost =
@@ -779,6 +782,9 @@ function HostPicker({
       open={isOpen}
       onOpenChange={setIsOpen}
       anchorRef={triggerRef}
+      includeAddHost
+      onAddHost={handleAddHost}
+      addHostTestID="settings-host-picker-add-host"
       includeEnableBuiltInDaemon={enableBuiltInDaemonOption.visible}
       onEnableBuiltInDaemon={enableBuiltInDaemonOption.onPress}
       showActiveConnection
@@ -1153,6 +1159,7 @@ export default function SettingsScreen({ view }: SettingsScreenProps) {
         case "general":
           return (
             <>
+              <AddRemoteHostSection />
               <GeneralSection
                 settings={settings}
                 isDesktopApp={isDesktopApp}
