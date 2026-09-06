@@ -16,7 +16,7 @@ import {
 import { SubagentsTrack } from "@/subagents/track";
 import { navigateToAgent } from "@/utils/navigate-to-agent";
 import { buildWorkspaceTabPersistenceKey } from "@/workspace-tabs/model";
-import { openSupportingTab, toggleSupportingTab } from "@/workspace-tabs/side-panel";
+import { toggleSupportingTab } from "@/workspace-tabs/side-panel";
 
 /**
  * The pane's ambient workspace changes and subagents as a row of pills above the composer.
@@ -39,7 +39,7 @@ export const AgentTracks = memo(function AgentTracks({
   archiveFinishedStatus: ArchiveFinishedStatus;
   onArchiveFinished: () => void;
 }): ReactElement | null {
-  const { tabId, openTab } = usePaneContext();
+  const { openTab } = usePaneContext();
   const hasWorkspaceDiffStat = useWorkspaceHasDiffStat(serverId, workspaceId);
   const hasWorkspaceBranch = useWorkspaceHasBranch(serverId, workspaceId);
   const isCompact = useIsCompactFormFactor();
@@ -50,6 +50,8 @@ export const AgentTracks = memo(function AgentTracks({
   );
   const archiveSubagent = useArchiveSubagent({ serverId });
   const detachSubagent = useDetachSubagent({ serverId });
+  // Sidebar navigation may host an agent tab in a different workspace.
+  // Open child tabs through that pane so they stay with their parent.
   const handleOpenSubagent = useCallback(
     (subagentId: string) => {
       const session = useSessionStore.getState().sessions[serverId];
@@ -58,33 +60,19 @@ export const AgentTracks = memo(function AgentTracks({
         navigateToAgent({ serverId, agentId: subagentId });
         return;
       }
-      if (canSplit && workspaceKey) {
-        openSupportingTab({
-          isCompact,
-          workspaceKey,
-          target: { kind: "agent", agentId: subagentId },
-          parentTabId: tabId,
-        });
+      if (canSplit) {
+        openTab({ kind: "agent", agentId: subagentId });
         return;
       }
       navigateToAgent({ serverId, agentId: subagentId });
     },
-    [canSplit, isCompact, serverId, tabId, workspaceId, workspaceKey],
+    [canSplit, openTab, serverId, workspaceId],
   );
   const handleOpenProviderSubagent = useCallback(
     (parentAgentId: string, subagentId: string) => {
-      if (canSplit && workspaceKey) {
-        openSupportingTab({
-          isCompact,
-          workspaceKey,
-          target: { kind: "provider_subagent", parentAgentId, subagentId },
-          parentTabId: tabId,
-        });
-        return;
-      }
       openTab({ kind: "provider_subagent", parentAgentId, subagentId });
     },
-    [canSplit, isCompact, openTab, tabId, workspaceKey],
+    [openTab],
   );
   const handleOpenChanges = useCallback(() => {
     if (!workspaceKey) {
