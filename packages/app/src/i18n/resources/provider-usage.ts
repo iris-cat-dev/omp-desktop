@@ -10,6 +10,8 @@ const en = {
   clientUnavailable: "Host connection is not ready",
   retry: "Try again",
   tooltipLoading: "Loading plan usage…",
+  collapseDetails: "Collapse provider details",
+  expandDetails: "Expand provider details",
   labels: {
     balance: "Balance",
     apiKeyQuota: "API key quota",
@@ -47,6 +49,8 @@ export const providerUsage = {
     clientUnavailable: "主机连接尚未就绪",
     retry: "重试",
     tooltipLoading: "正在加载套餐用量…",
+    collapseDetails: "折叠服务商详情",
+    expandDetails: "展开服务商详情",
     labels: {
       balance: "余额",
       apiKeyQuota: "API Key 配额",
@@ -81,6 +85,8 @@ export const providerUsage = {
     clientUnavailable: "ホスト接続の準備ができていません",
     retry: "再試行",
     tooltipLoading: "プラン使用量を読み込み中…",
+    collapseDetails: "プロバイダーの詳細を折りたたむ",
+    expandDetails: "プロバイダーの詳細を展開",
     labels: {
       balance: "残高",
       apiKeyQuota: "APIキー割り当て",
@@ -115,6 +121,8 @@ export const providerUsage = {
     clientUnavailable: "호스트 연결이 준비되지 않았습니다",
     retry: "다시 시도",
     tooltipLoading: "플랜 사용량 불러오는 중…",
+    collapseDetails: "공급자 세부 정보 접기",
+    expandDetails: "공급자 세부 정보 펼치기",
     labels: {
       balance: "잔액",
       apiKeyQuota: "API 키 할당량",
@@ -149,6 +157,8 @@ export const providerUsage = {
     clientUnavailable: "La connexion à l’hôte n’est pas prête",
     retry: "Réessayer",
     tooltipLoading: "Chargement de l’utilisation du forfait…",
+    collapseDetails: "Réduire les détails du fournisseur",
+    expandDetails: "Développer les détails du fournisseur",
     labels: {
       balance: "Solde",
       apiKeyQuota: "Quota de la clé API",
@@ -183,6 +193,8 @@ export const providerUsage = {
     clientUnavailable: "La conexión con el host no está lista",
     retry: "Reintentar",
     tooltipLoading: "Cargando uso del plan…",
+    collapseDetails: "Contraer detalles del proveedor",
+    expandDetails: "Ampliar detalles del proveedor",
     labels: {
       balance: "Saldo",
       apiKeyQuota: "Cuota de la clave API",
@@ -217,6 +229,8 @@ export const providerUsage = {
     clientUnavailable: "A conexão com o host não está pronta",
     retry: "Tentar novamente",
     tooltipLoading: "Carregando uso do plano…",
+    collapseDetails: "Recolher detalhes do provedor",
+    expandDetails: "Expandir detalhes do provedor",
     labels: {
       balance: "Saldo",
       apiKeyQuota: "Cota da chave de API",
@@ -251,6 +265,8 @@ export const providerUsage = {
     clientUnavailable: "Подключение к хосту не готово",
     retry: "Повторить",
     tooltipLoading: "Загрузка использования плана…",
+    collapseDetails: "Свернуть сведения о провайдере",
+    expandDetails: "Развернуть сведения о провайдере",
     labels: {
       balance: "Баланс",
       apiKeyQuota: "Квота API-ключа",
@@ -285,6 +301,8 @@ export const providerUsage = {
     clientUnavailable: "اتصال المضيف غير جاهز",
     retry: "إعادة المحاولة",
     tooltipLoading: "جارٍ تحميل استخدام الخطة…",
+    collapseDetails: "طي تفاصيل المزود",
+    expandDetails: "توسيع تفاصيل المزود",
     labels: {
       balance: "الرصيد",
       apiKeyQuota: "حصة مفتاح API",

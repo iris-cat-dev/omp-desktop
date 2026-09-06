@@ -1,8 +1,8 @@
 import { router, usePathname, type Href } from "expo-router";
 import {
-  Bot,
   CalendarClock,
   ChevronDown,
+  ChevronUp,
   CircleUserRound,
   GitBranch,
   History,
@@ -24,6 +24,8 @@ import {
   useMemo,
   useRef,
   useState,
+  type ComponentProps,
+  type ReactElement,
   type RefObject,
   type ReactNode,
 } from "react";
@@ -50,7 +52,6 @@ import { HostPicker } from "@/components/hosts/host-picker";
 import { SidebarHeaderRow } from "@/components/sidebar/sidebar-header-row";
 import { SidebarDisplayPreferencesMenu } from "@/components/sidebar/display-preferences/menu";
 import { SidebarResizeHandle } from "@/components/sidebar-resize-handle";
-import { ModelProviderGlyph } from "@/components/model-browser";
 import {
   formatOmpAccountIdentity,
   formatOmpAccountSelectionLabel,
@@ -128,6 +129,8 @@ type SidebarAccountFeature = Extract<
 >;
 
 const DEV_BUILD_LABEL = process.env.EXPO_PUBLIC_PASEO_DEV_BUILD_LABEL?.trim() || null;
+const EXPANDED_ACCESSIBILITY_STATE = { expanded: true } as const;
+const COLLAPSED_ACCESSIBILITY_STATE = { expanded: false } as const;
 
 interface SidebarSharedProps {
   theme: SidebarTheme;
@@ -394,6 +397,11 @@ function sidebarHostOptionTestID(serverId: string): string {
   return `sidebar-host-row-${serverId}`;
 }
 
+function resolveFooterButtonAccessibilityState(expanded?: boolean) {
+  if (expanded === undefined) return undefined;
+  return expanded ? EXPANDED_ACCESSIBILITY_STATE : COLLAPSED_ACCESSIBILITY_STATE;
+}
+
 function FooterIconButton({
   buttonRef,
   onPress,
@@ -402,6 +410,7 @@ function FooterIconButton({
   icon: Icon,
   iconSize,
   shortcutKeys,
+  expanded,
   theme,
 }: {
   onPress: () => void;
@@ -410,6 +419,7 @@ function FooterIconButton({
   icon: typeof Server;
   iconSize?: number;
   shortcutKeys?: ReturnType<typeof useShortcutKeys>;
+  expanded?: boolean;
   theme: SidebarTheme;
   buttonRef?: RefObject<View | null>;
 }) {
@@ -425,6 +435,7 @@ function FooterIconButton({
           accessible
           accessibilityLabel={label}
           accessibilityRole="button"
+          accessibilityState={resolveFooterButtonAccessibilityState(expanded)}
           onPress={onPress}
         >
           {({ hovered }) => (
@@ -681,10 +692,15 @@ function SidebarAccountTriggerContent({
   );
 }
 
-function SidebarProviderAccountPanel() {
+function SidebarProviderAccountPanel({ detailsExpanded }: { detailsExpanded: boolean }) {
   const active = useActiveAgentControls();
   if (!active) return null;
-  return <SidebarProviderAccountPanelContent controls={active.controls} />;
+  return (
+    <SidebarProviderAccountPanelContent
+      controls={active.controls}
+      detailsExpanded={detailsExpanded}
+    />
+  );
 }
 
 function useSidebarProviderModel(controls: AgentControlCommandCenterSource) {
@@ -958,10 +974,166 @@ function canSwitchSidebarProvider(
   return optionCount > (selectedProvider ? 1 : 0);
 }
 
+function SidebarProviderAccountDetails({
+  visible,
+  showProviderUsage,
+  selectedProviderUsageId,
+  providerUsageView,
+  showAccountLoading,
+  showAccountSelector,
+  accountLocked,
+  accountSwitchHint,
+  accountAnchorRef,
+  hasAccountSwitcher,
+  onAccountToggle,
+  accountAccessibilityState,
+  accountTriggerStyle,
+  accountPrimary,
+  accountSecondary,
+  canSwitchAccount,
+  theme,
+  accountOptions,
+  accountValue,
+  onAccountSelect,
+  renderAccountOption,
+  accountOpen,
+  onAccountOpenChange,
+  selectedAccount,
+}: {
+  visible: boolean;
+  showProviderUsage: boolean;
+  selectedProviderUsageId: string;
+  providerUsageView: ProviderUsageView;
+  showAccountLoading: boolean;
+  showAccountSelector: boolean;
+  accountLocked: boolean;
+  accountSwitchHint: string;
+  accountAnchorRef: RefObject<View | null>;
+  hasAccountSwitcher: boolean;
+  onAccountToggle: () => void;
+  accountAccessibilityState: { disabled: boolean };
+  accountTriggerStyle: ComponentProps<typeof ComboboxTrigger>["style"];
+  accountPrimary: string;
+  accountSecondary: string;
+  canSwitchAccount: boolean;
+  theme: SidebarTheme;
+  accountOptions: ComboboxOption[];
+  accountValue: string;
+  onAccountSelect: (credentialId: string) => void;
+  renderAccountOption: (args: {
+    option: ComboboxOption;
+    selected: boolean;
+    active: boolean;
+    onPress: () => void;
+  }) => ReactElement;
+  accountOpen: boolean;
+  onAccountOpenChange: (open: boolean) => void;
+  selectedAccount: SidebarAccount | null | undefined;
+}) {
+  const { t } = useTranslation();
+  if (!visible) return null;
+  return (
+    <>
+      {showProviderUsage ? (
+        <>
+          <View style={styles.sidebarProviderDivider} />
+          <View style={styles.sidebarQuota}>
+            <SidebarProviderUsageDetails
+              providerId={selectedProviderUsageId}
+              view={providerUsageView}
+              loadingLabel={t("agentControls.quota.loading")}
+            />
+          </View>
+        </>
+      ) : null}
+      {showAccountLoading ? (
+        <View style={styles.sidebarAccountLoading}>
+          <CircleUserRound size={16} color={theme.colors.foregroundMuted} />
+          <Text style={styles.sidebarQuotaLoading} numberOfLines={1}>
+            {t("agentControls.quota.loading")}
+          </Text>
+        </View>
+      ) : null}
+      {showAccountSelector ? (
+        <>
+          <View style={styles.sidebarProviderDivider} />
+          <Tooltip delayDuration={300} enabledOnDesktop={accountLocked}>
+            <TooltipTrigger asChild>
+              <View
+                style={styles.sidebarAccountTriggerContainer}
+                collapsable={false}
+                testID="sidebar-account-tooltip-trigger"
+              >
+                <ComboboxTrigger
+                  ref={accountAnchorRef}
+                  block={accountLocked}
+                  collapsable={false}
+                  disabled={!hasAccountSwitcher}
+                  onPress={onAccountToggle}
+                  accessibilityState={accountAccessibilityState}
+                  style={accountTriggerStyle}
+                  accessibilityRole="button"
+                  accessibilityLabel={
+                    accountLocked
+                      ? `${t("agentControls.features.oauthAccount.title")}. ${accountSwitchHint}`
+                      : t("agentControls.features.oauthAccount.title")
+                  }
+                  testID="sidebar-account-selector"
+                  chevron={null}
+                >
+                  <SidebarAccountTriggerContent
+                    primary={accountPrimary}
+                    secondary={accountSecondary}
+                    locked={accountLocked}
+                    canSwitch={canSwitchAccount}
+                    theme={theme}
+                  />
+                </ComboboxTrigger>
+              </View>
+            </TooltipTrigger>
+            <TooltipContent side="top" align="end" offset={8}>
+              <IconTooltipContent label={accountSwitchHint} />
+            </TooltipContent>
+          </Tooltip>
+          <Combobox
+            options={accountOptions}
+            value={accountValue}
+            onSelect={onAccountSelect}
+            renderOption={renderAccountOption}
+            searchable={false}
+            open={accountOpen}
+            onOpenChange={onAccountOpenChange}
+            anchorRef={accountAnchorRef}
+            desktopPlacement="top-start"
+            desktopMinWidth={240}
+          />
+          {selectedAccount ? (
+            <View style={styles.sidebarQuota}>
+              <SidebarQuotaMeter
+                label={t("agentControls.quota.weekly")}
+                usedPct={selectedAccount.quota?.weeklyUsedPct}
+              />
+              {shouldShowOmpFiveHourQuota(selectedAccount.quota?.planLabel) ? (
+                <SidebarQuotaMeter
+                  label={t("agentControls.quota.fiveHour")}
+                  usedPct={selectedAccount.quota?.fiveHourUsedPct}
+                  limitReached={selectedAccount.quota?.fiveHourLimitReached}
+                />
+              ) : null}
+            </View>
+          ) : null}
+        </>
+      ) : null}
+    </>
+  );
+}
+
 function SidebarProviderAccountPanelContent({
   controls,
+  detailsExpanded,
 }: {
   controls: AgentControlCommandCenterSource;
+  detailsExpanded: boolean;
 }) {
   const { t } = useTranslation();
   const { theme } = useUnistyles();
@@ -1084,8 +1256,8 @@ function SidebarProviderAccountPanelContent({
     setAccountOpen((open) => !open);
   }, [controls.isRunning]);
   useEffect(() => {
-    if (controls.isRunning) setAccountOpen(false);
-  }, [controls.isRunning]);
+    if (controls.isRunning || !detailsExpanded) setAccountOpen(false);
+  }, [controls.isRunning, detailsExpanded]);
 
   if (providers.length === 0) return null;
   const accountSwitchHint = t("agentControls.quota.switchAfterTurn");
@@ -1103,13 +1275,6 @@ function SidebarProviderAccountPanelContent({
         testID="sidebar-provider-selector"
         chevron={null}
       >
-        <View style={styles.sidebarProviderIcon}>
-          {selectedProvider ? (
-            <ModelProviderGlyph provider={selectedProvider.id} size={18} tone="foreground" />
-          ) : (
-            <Bot size={18} color={theme.colors.foreground} />
-          )}
-        </View>
         <View style={styles.sidebarProviderCopy}>
           <Text style={styles.sidebarProviderName} numberOfLines={1}>
             {selectedProvider?.label ?? t("agentControls.provider.fallback")}
@@ -1129,96 +1294,32 @@ function SidebarProviderAccountPanelContent({
         desktopMinWidth={240}
       />
 
-      {showProviderUsage ? (
-        <>
-          <View style={styles.sidebarProviderDivider} />
-          <View style={styles.sidebarQuota}>
-            <SidebarProviderUsageDetails
-              providerId={selectedProviderUsageId}
-              view={providerUsageView}
-              loadingLabel={t("agentControls.quota.loading")}
-            />
-          </View>
-        </>
-      ) : null}
-      {showAccountLoading ? (
-        <View style={styles.sidebarAccountLoading}>
-          <CircleUserRound size={16} color={theme.colors.foregroundMuted} />
-          <Text style={styles.sidebarQuotaLoading} numberOfLines={1}>
-            {t("agentControls.quota.loading")}
-          </Text>
-        </View>
-      ) : null}
-      {showAccountSelector ? (
-        <>
-          <View style={styles.sidebarProviderDivider} />
-          <Tooltip delayDuration={300} enabledOnDesktop={accountLocked}>
-            <TooltipTrigger asChild>
-              <View
-                style={styles.sidebarAccountTriggerContainer}
-                collapsable={false}
-                testID="sidebar-account-tooltip-trigger"
-              >
-                <ComboboxTrigger
-                  ref={accountAnchorRef}
-                  block={accountLocked}
-                  collapsable={false}
-                  disabled={!hasAccountSwitcher}
-                  onPress={handleAccountToggle}
-                  accessibilityState={accountAccessibilityState}
-                  style={accountTriggerStyle}
-                  accessibilityRole="button"
-                  accessibilityLabel={
-                    accountLocked
-                      ? `${t("agentControls.features.oauthAccount.title")}. ${accountSwitchHint}`
-                      : t("agentControls.features.oauthAccount.title")
-                  }
-                  testID="sidebar-account-selector"
-                  chevron={null}
-                >
-                  <SidebarAccountTriggerContent
-                    primary={accountPrimary}
-                    secondary={accountSecondary}
-                    locked={accountLocked}
-                    canSwitch={canSwitchAccount}
-                    theme={theme}
-                  />
-                </ComboboxTrigger>
-              </View>
-            </TooltipTrigger>
-            <TooltipContent side="top" align="end" offset={8}>
-              <IconTooltipContent label={accountSwitchHint} />
-            </TooltipContent>
-          </Tooltip>
-          <Combobox
-            options={accountOptions}
-            value={accountSelection?.configuredValue ?? ""}
-            onSelect={handleAccountSelect}
-            renderOption={renderAccountOption}
-            searchable={false}
-            open={accountOpen}
-            onOpenChange={setAccountOpen}
-            anchorRef={accountAnchorRef}
-            desktopPlacement="top-start"
-            desktopMinWidth={240}
-          />
-          {selectedAccount ? (
-            <View style={styles.sidebarQuota}>
-              <SidebarQuotaMeter
-                label={t("agentControls.quota.weekly")}
-                usedPct={selectedAccount.quota?.weeklyUsedPct}
-              />
-              {shouldShowOmpFiveHourQuota(selectedAccount.quota?.planLabel) ? (
-                <SidebarQuotaMeter
-                  label={t("agentControls.quota.fiveHour")}
-                  usedPct={selectedAccount.quota?.fiveHourUsedPct}
-                  limitReached={selectedAccount.quota?.fiveHourLimitReached}
-                />
-              ) : null}
-            </View>
-          ) : null}
-        </>
-      ) : null}
+      <SidebarProviderAccountDetails
+        visible={detailsExpanded}
+        showProviderUsage={showProviderUsage}
+        selectedProviderUsageId={selectedProviderUsageId}
+        providerUsageView={providerUsageView}
+        showAccountLoading={showAccountLoading}
+        showAccountSelector={showAccountSelector}
+        accountLocked={accountLocked}
+        accountSwitchHint={accountSwitchHint}
+        accountAnchorRef={accountAnchorRef}
+        hasAccountSwitcher={hasAccountSwitcher}
+        onAccountToggle={handleAccountToggle}
+        accountAccessibilityState={accountAccessibilityState}
+        accountTriggerStyle={accountTriggerStyle}
+        accountPrimary={accountPrimary}
+        accountSecondary={accountSecondary}
+        canSwitchAccount={canSwitchAccount}
+        theme={theme}
+        accountOptions={accountOptions}
+        accountValue={accountSelection?.configuredValue ?? ""}
+        onAccountSelect={handleAccountSelect}
+        renderAccountOption={renderAccountOption}
+        accountOpen={accountOpen}
+        onAccountOpenChange={setAccountOpen}
+        selectedAccount={selectedAccount}
+      />
     </View>
   );
 }
@@ -1242,34 +1343,66 @@ function SidebarFooter({
   handleAddHost: () => void;
   handleOpenHostSettings: (serverId: string) => void;
 }) {
+  const { t } = useTranslation();
   const settingsKeys = useShortcutKeys("toggle-settings");
+  const active = useActiveAgentControls();
+  const [providerPanelExpanded, setProviderPanelExpanded] = useState(true);
+  const toggleProviderPanel = useCallback(
+    () => setProviderPanelExpanded((expanded) => !expanded),
+    [],
+  );
+  const providerPanelToggleLabel = providerPanelExpanded
+    ? t("providerUsage.collapseDetails")
+    : t("providerUsage.expandDetails");
+
+  const iconRow = (
+    <View style={[styles.footerIconRow, active && styles.footerIconRowInPanel]}>
+      <SidebarHostPicker
+        theme={theme}
+        label={labels.hosts}
+        onAddHost={handleAddHost}
+        onOpenHostSettings={handleOpenHostSettings}
+      />
+      <FooterIconButton
+        onPress={handleHome}
+        testID="sidebar-home"
+        label={labels.home}
+        icon={Home}
+        theme={theme}
+      />
+      <FooterIconButton
+        onPress={handleSettings}
+        testID="sidebar-settings"
+        label={labels.settings}
+        icon={Settings}
+        shortcutKeys={settingsKeys}
+        theme={theme}
+      />
+      {active ? (
+        <View style={styles.footerCollapseSlot}>
+          <FooterIconButton
+            onPress={toggleProviderPanel}
+            testID="sidebar-provider-panel-toggle"
+            label={providerPanelToggleLabel}
+            icon={providerPanelExpanded ? ChevronDown : ChevronUp}
+            expanded={providerPanelExpanded}
+            theme={theme}
+          />
+        </View>
+      ) : null}
+    </View>
+  );
 
   return (
     <View style={styles.sidebarFooter}>
-      <SidebarProviderAccountPanel />
-      <View style={styles.footerIconRow}>
-        <SidebarHostPicker
-          theme={theme}
-          label={labels.hosts}
-          onAddHost={handleAddHost}
-          onOpenHostSettings={handleOpenHostSettings}
-        />
-        <FooterIconButton
-          onPress={handleHome}
-          testID="sidebar-home"
-          label={labels.home}
-          icon={Home}
-          theme={theme}
-        />
-        <FooterIconButton
-          onPress={handleSettings}
-          testID="sidebar-settings"
-          label={labels.settings}
-          icon={Settings}
-          shortcutKeys={settingsKeys}
-          theme={theme}
-        />
-      </View>
+      {active ? (
+        <View style={styles.sidebarFooterPanel}>
+          <SidebarProviderAccountPanel detailsExpanded={providerPanelExpanded} />
+          {iconRow}
+        </View>
+      ) : (
+        iconRow
+      )}
     </View>
   );
 }
@@ -1822,11 +1955,18 @@ const styles = StyleSheet.create((theme) => ({
     fontWeight: theme.fontWeight.medium,
   },
   sidebarFooter: {
-    gap: theme.spacing[2],
     paddingHorizontal: theme.spacing[2],
     paddingVertical: theme.spacing[2],
     borderTopWidth: 1,
     borderTopColor: theme.colors.border,
+  },
+  sidebarFooterPanel: {
+    width: "100%",
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    borderRadius: theme.borderRadius.lg,
+    backgroundColor: theme.colors.surfaceSidebarHover,
   },
   footerIconRow: {
     flexDirection: "row",
@@ -1834,18 +1974,21 @@ const styles = StyleSheet.create((theme) => ({
     gap: theme.spacing[2],
     flexShrink: 0,
   },
+  footerIconRowInPanel: {
+    padding: theme.spacing[1],
+  },
+  footerCollapseSlot: {
+    marginLeft: "auto",
+  },
   sidebarProviderCard: {
     width: "100%",
-    overflow: "hidden",
     padding: theme.spacing[1],
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    borderRadius: theme.borderRadius.lg,
-    backgroundColor: theme.colors.surfaceSidebarHover,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border,
   },
   sidebarProviderTrigger: {
     minWidth: 0,
-    minHeight: 48,
+    minHeight: 40,
     flexDirection: "row",
     alignItems: "center",
     gap: theme.spacing[2],
@@ -1854,15 +1997,6 @@ const styles = StyleSheet.create((theme) => ({
     borderRadius: theme.borderRadius.md,
   },
   sidebarProviderTriggerActive: {
-    backgroundColor: theme.colors.surfaceSidebarSelected,
-  },
-  sidebarProviderIcon: {
-    width: 30,
-    height: 30,
-    flexShrink: 0,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: theme.borderRadius.md,
     backgroundColor: theme.colors.surfaceSidebarSelected,
   },
   sidebarProviderCopy: {
