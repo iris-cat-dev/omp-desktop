@@ -62,13 +62,6 @@ export function resolveOmpAccountSelectorOptions(
   });
 }
 
-export function isOmpAutomaticAccountSelectionPending(
-  isRunning: boolean,
-  effectiveValue: string,
-): boolean {
-  return isRunning && effectiveValue.length === 0;
-}
-
 export function resolveOmpAccountFeatureSelection(feature: OmpAccountFeatureSelection): {
   automaticOptionId: string | null;
   configuredValue: string;

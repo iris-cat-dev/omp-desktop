@@ -1,4 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useQueryClient } from "@tanstack/react-query";
 import * as Clipboard from "expo-clipboard";
 import {
   AlertTriangle,
@@ -44,6 +45,7 @@ import { useIsCompactFormFactor } from "@/constants/layout";
 import { useToast } from "@/contexts/toast-context";
 import { CODE_SURFACE_DATASET } from "@/styles/code-surface";
 import { useProvidersSnapshot } from "@/hooks/use-providers-snapshot";
+import { ompAccountQuotaQueryKey } from "@/hooks/use-omp-account-quota";
 import { useHostRuntimeClient } from "@/runtime/host-runtime";
 import { useSessionStore } from "@/stores/session-store";
 import { settingsStyles } from "@/styles/settings";
@@ -1705,6 +1707,7 @@ function OmpManagementPanel({
   const { t } = useTranslation();
   const { theme } = useUnistyles();
   const client = useHostRuntimeClient(serverId);
+  const queryClient = useQueryClient();
   const supported = useSessionStore(
     (state) => state.sessions[serverId]?.serverInfo?.features?.ompProviderManagement === true,
   );
@@ -1958,14 +1961,18 @@ function OmpManagementPanel({
       setReorderingProviderId(providerId);
       setError(null);
       try {
-        applyManagement(await client.reorderOmpProviderAccounts(providerId, credentialIds));
+        const result = await client.reorderOmpProviderAccounts(providerId, credentialIds);
+        const queryKey = ompAccountQuotaQueryKey(serverId);
+        await queryClient.cancelQueries({ queryKey, exact: true });
+        queryClient.setQueryData(queryKey, result);
+        applyManagement(result);
       } catch (reorderError) {
         setError(reorderError instanceof Error ? reorderError.message : String(reorderError));
       } finally {
         setReorderingProviderId(null);
       }
     },
-    [applyManagement, client],
+    [applyManagement, client, queryClient, serverId],
   );
   const editAccountNote = useCallback(
     (credentialId: number) => {

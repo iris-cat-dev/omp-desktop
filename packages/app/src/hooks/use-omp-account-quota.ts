@@ -12,6 +12,10 @@ type OmpAccountQuotaAccount = NonNullable<
 
 export type OmpAccountQuotaDisplayAccount = OmpAccountQuotaAccount & { note?: string };
 
+export function ompAccountQuotaQueryKey(serverId: string) {
+  return ["ompWorkflowQuota", serverId] as const;
+}
+
 function isCodexProvider(provider: string | undefined, modelId: string | null): boolean {
   if (provider === "openai-codex") return true;
   return provider === "omp" && resolveOmpModelProviderNamespace(modelId ?? "") === "openai-codex";
@@ -67,7 +71,7 @@ export function useOmpCodexAccountQuota(
   const canFetch = Boolean(client && supportsOmpProviderManagement);
   const active = enabled && canFetch;
   const query = useFetchQuery({
-    queryKey: ["ompWorkflowQuota", serverId ?? ""],
+    queryKey: ompAccountQuotaQueryKey(serverId ?? ""),
     queryFn: async () => {
       if (!client) throw new Error("OMP provider management is unavailable");
       return fetchOmpAccountQuotaManagement(client);

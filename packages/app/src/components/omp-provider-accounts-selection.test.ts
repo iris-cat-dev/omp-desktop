@@ -2,7 +2,6 @@ import { describe, expect, test } from "vitest";
 import {
   isOmpAutomaticAccountOption,
   orderOmpAccountFeatureOptions,
-  isOmpAutomaticAccountSelectionPending,
   resolveOmpAccountFeatureSelection,
   resolveOmpAccountSelectorOptions,
 } from "./omp-provider-accounts";
@@ -44,11 +43,29 @@ describe("OMP account feature selection", () => {
     ).toEqual(["automatic", "2", "1"]);
   });
 
-  test("only reports automatic account selection as pending during an unresolved turn", () => {
-    expect(isOmpAutomaticAccountSelectionPending(false, "")).toBe(false);
-    expect(isOmpAutomaticAccountSelectionPending(true, "")).toBe(true);
-    expect(isOmpAutomaticAccountSelectionPending(true, "42")).toBe(false);
-  });
+  test.each([
+    { accountIds: [], expectedIds: ["automatic", "1", "2", "3"] },
+    { accountIds: [2], expectedIds: ["automatic", "2", "1", "3"] },
+    { accountIds: [99, 2, 1], expectedIds: ["automatic", "2", "1", "3"] },
+  ])(
+    "preserves feature options when management accounts are $accountIds",
+    ({ accountIds, expectedIds }) => {
+      const options = Object.freeze([
+        { id: "1", label: "Account 1" },
+        { id: "automatic", label: "Automatic", metadata: { selectionMode: "automatic" } },
+        { id: "2", label: "Account 2", description: "Second account" },
+        { id: "3", label: "Account 3" },
+      ]);
+      const optionsById = new Map(options.map((option) => [option.id, option]));
+
+      expect(
+        resolveOmpAccountSelectorOptions(
+          options,
+          accountIds.map((credentialId) => ({ credentialId })),
+        ),
+      ).toEqual(expectedIds.map((id) => optionsById.get(id)));
+    },
+  );
 
   test("falls back to management accounts before the selector feature loads", () => {
     expect(
