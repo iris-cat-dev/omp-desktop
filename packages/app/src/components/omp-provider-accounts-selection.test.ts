@@ -29,6 +29,44 @@ describe("OMP account feature selection", () => {
     expect(ordered.map((opt) => opt.id)).toEqual(["automatic", "41", "42"]);
   });
 
+  test("orders account options by the management account order", () => {
+    const options = [
+      { id: "1", label: "Account 1" },
+      { id: "automatic", label: "Automatic", metadata: { selectionMode: "automatic" } },
+      { id: "2", label: "Account 2" },
+    ];
+
+    expect(
+      resolveOmpAccountSelectorOptions(options, [{ credentialId: 2 }, { credentialId: 1 }]).map(
+        (option) => option.id,
+      ),
+    ).toEqual(["automatic", "2", "1"]);
+  });
+
+  test.each([
+    { accountIds: [], expectedIds: ["automatic", "1", "2", "3"] },
+    { accountIds: [2], expectedIds: ["automatic", "2", "1", "3"] },
+    { accountIds: [99, 2, 1], expectedIds: ["automatic", "2", "1", "3"] },
+  ])(
+    "preserves feature options when management accounts are $accountIds",
+    ({ accountIds, expectedIds }) => {
+      const options = Object.freeze([
+        { id: "1", label: "Account 1" },
+        { id: "automatic", label: "Automatic", metadata: { selectionMode: "automatic" } },
+        { id: "2", label: "Account 2", description: "Second account" },
+        { id: "3", label: "Account 3" },
+      ]);
+      const optionsById = new Map(options.map((option) => [option.id, option]));
+
+      expect(
+        resolveOmpAccountSelectorOptions(
+          options,
+          accountIds.map((credentialId) => ({ credentialId })),
+        ),
+      ).toEqual(expectedIds.map((id) => optionsById.get(id)));
+    },
+  );
+
   test("falls back to management accounts before the selector feature loads", () => {
     expect(
       resolveOmpAccountSelectorOptions(undefined, [{ credentialId: 41 }, { credentialId: 42 }]),
