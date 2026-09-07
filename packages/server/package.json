@@ -1,6 +1,6 @@
 {
   "name": "@omp-desktop/server",
-  "version": "0.2.1",
+  "version": "0.2.3",
   "description": "OMP Desktop local daemon",
   "files": [
     "dist/server",
@@ -57,10 +57,10 @@
     "@octokit/auth-oauth-device": "^8.0.4",
     "@octokit/request": "^10.0.15",
     "@octokit/rest": "^22.0.1",
-    "@omp-desktop/client": "0.2.1",
-    "@omp-desktop/highlight": "0.2.1",
-    "@omp-desktop/protocol": "0.2.1",
-    "@omp-desktop/relay": "0.2.1",
+    "@omp-desktop/client": "0.2.3",
+    "@omp-desktop/highlight": "0.2.3",
+    "@omp-desktop/protocol": "0.2.3",
+    "@omp-desktop/relay": "0.2.3",
     "@xterm/headless": "^6.0.0",
     "ai": "5.0.78",
     "ajv": "^8.20.0",
