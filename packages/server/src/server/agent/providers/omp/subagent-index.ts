@@ -2,7 +2,6 @@ import type { AgentStreamEvent } from "../../agent-sdk-types.js";
 import { OmpHistoryMapper } from "./message-history.js";
 import type { OmpAgentMessage, OmpAgentSessionEvent } from "./rpc-types.js";
 import { OMP_HISTORY_MAPPER_HOOKS } from "./history-hooks.js";
-import { formatOmpSubagentTitle } from "./subagent-title.js";
 import type {
   OmpSubagentEventPayload,
   OmpSubagentLifecyclePayload,
@@ -112,8 +111,9 @@ export class OmpSubagentIndex {
       event: {
         type: "upsert",
         id,
-        title: formatOmpSubagentTitle(state.title, state.resolvedModel),
+        title: state.title,
         description: state.description,
+        model: state.resolvedModel,
         status,
         toolCallId: state.toolCallId,
       },

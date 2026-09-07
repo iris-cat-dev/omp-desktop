@@ -77,6 +77,7 @@ describe("selectSubagentsForParent", () => {
         provider: "codex",
         title: "Provider child",
         description: null,
+        model: "openai-codex/gpt-5.5",
         subtitle: "Codex worker · 4.2k tokens",
         status: "completed",
         createdAt: "2026-03-08T10:01:00.000Z",
@@ -98,6 +99,9 @@ describe("selectSubagentsForParent", () => {
       selectProviderSubagentsForParent(useProviderSubagentStore.getState(), params, true)[0]
         ?.subtitle,
     ).toBe("Codex worker · 4.2k tokens");
+    expect(
+      selectProviderSubagentsForParent(useProviderSubagentStore.getState(), params, true)[0]?.model,
+    ).toBe("openai-codex/gpt-5.5");
   });
 
   it("hides locally dismissed provider children while retaining their descriptor", () => {

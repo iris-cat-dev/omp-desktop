@@ -29,6 +29,7 @@ export interface ProviderSubagentRow {
   // one names the row — collapsing them here is what makes every row read alike.
   title: string | null;
   description: string | null;
+  model: string | null;
   /** Compact provider-owned context. The app displays it without interpreting its contents. */
   subtitle: string | null;
   status: ProviderSubagentDescriptorPayload["status"];
@@ -111,6 +112,7 @@ export function selectProviderSubagentsForParent(
       provider: subagent.provider,
       title: subagent.title,
       description: subagent.description,
+      model: subagent.model?.trim() || null,
       subtitle: subagent.subtitle ?? null,
       status: subagent.status,
       requiresAttention: subagent.status === "failed",

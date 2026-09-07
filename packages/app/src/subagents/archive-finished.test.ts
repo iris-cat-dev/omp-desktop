@@ -27,6 +27,7 @@ function provider(
     provider: "codex",
     title: id,
     description: null,
+    model: null,
     subtitle: null,
     status,
     requiresAttention: false,

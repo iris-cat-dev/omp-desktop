@@ -6,7 +6,6 @@ import { OmpHistoryMapper, type OmpCapturedUserMessageEntry } from "./message-hi
 import type { OmpAgentMessage } from "./rpc-types.js";
 import type { OmpRuntimeSession } from "./runtime.js";
 import { OMP_HISTORY_MAPPER_HOOKS } from "./history-hooks.js";
-import { formatOmpSubagentTitle } from "./subagent-title.js";
 import { resolveOmpDiagnosticPaths } from "./provider-config.js";
 
 interface OmpSessionEntry {
@@ -171,7 +170,8 @@ function subagentUpsert(
     event: {
       type: "upsert",
       id: transcript.id,
-      title: formatOmpSubagentTitle(transcript.title, resolvedModel),
+      title: transcript.title,
+      model: resolvedModel,
       status,
       toolCallId: transcript.toolCallId,
       ...(timestamp ? { timestamp } : {}),

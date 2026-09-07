@@ -405,6 +405,7 @@ interface AppContainerProps {
 }
 
 const WINDOW_SIDEBAR_TOGGLE_HORIZONTAL_PADDING = 12;
+const WINDOW_CONTROLS_OVERLAY_DATASET = { "window-controls-overlay": "true" } as const;
 
 function AppContainer({ children, chromeEnabled: chromeEnabledOverride }: AppContainerProps) {
   const keyboardActionDispatcher = useKeyboardActionDispatcher();
@@ -516,6 +517,7 @@ function AppContainer({ children, chromeEnabled: chromeEnabledOverride }: AppCon
           <WindowChromeSafeArea
             placement="inline"
             horizontalPadding={WINDOW_SIDEBAR_TOGGLE_HORIZONTAL_PADDING}
+            dataSet={WINDOW_CONTROLS_OVERLAY_DATASET}
             pointerEvents="box-none"
             style={layoutStyles.windowSidebarToggle}
           >

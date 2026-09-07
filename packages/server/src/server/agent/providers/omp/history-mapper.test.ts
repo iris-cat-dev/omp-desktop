@@ -894,13 +894,15 @@ describe("OMP history mapper", () => {
       expect.arrayContaining([
         expect.objectContaining({
           id: echoId,
-          title: "task · gpt-5.5 (openai-codex)",
+          title: "task",
+          model: "openai-codex/gpt-5.5",
           status: "running",
           timestamp: "2026-07-07T02:00:00Z",
         }),
         expect.objectContaining({
           id: echoId,
-          title: "task · gpt-5.5 (openai-codex)",
+          title: "task",
+          model: "openai-codex/gpt-5.5",
           status: "completed",
           timestamp: "2026-07-07T02:00:03Z",
         }),

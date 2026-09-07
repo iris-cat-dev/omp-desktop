@@ -69,20 +69,34 @@ describe("window drag region CSS", () => {
         <div data-window-drag-scope="true"></div>
         <section><button id="static-control">Static control</button></section>
       </div>
+      <div id="window-controls-overlay" data-window-controls-overlay="true">
+        <button id="window-control">Window control</button>
+      </div>
       <div id="overlay-root"><button id="overlay-control">Overlay control</button></div>
     `;
 
     const nativeRegion = frameDocument.getElementById("native-region");
     const nativeControl = frameDocument.getElementById("native-control");
     const staticControl = frameDocument.getElementById("static-control");
+    const windowControlsOverlay = frameDocument.getElementById("window-controls-overlay");
+    const windowControl = frameDocument.getElementById("window-control");
     const overlayControl = frameDocument.getElementById("overlay-control");
-    if (!nativeRegion || !nativeControl || !staticControl || !overlayControl) {
+    if (
+      !nativeRegion ||
+      !nativeControl ||
+      !staticControl ||
+      !windowControlsOverlay ||
+      !windowControl ||
+      !overlayControl
+    ) {
       throw new Error("Failed to create window chrome fixture");
     }
 
     expect(readAppRegion(nativeRegion)).toBe("drag");
     expect(readAppRegion(nativeControl)).toBe("no-drag");
     expect(readAppRegion(staticControl)).toBe("no-drag");
+    expect(readAppRegion(windowControlsOverlay)).toBe("no-drag");
+    expect(readAppRegion(windowControl)).toBe("no-drag");
     expect(readAppRegion(overlayControl)).toBe("no-drag");
   });
 });

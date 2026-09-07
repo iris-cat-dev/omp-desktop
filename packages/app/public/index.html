@@ -55,6 +55,12 @@
          not reliably clip app regions inside overflow scrollers
          (electron/electron#40610), so a global rule lets hidden content erase
          unrelated native titlebar regions. */
+      [data-window-controls-overlay],
+      [data-window-controls-overlay] * {
+        -webkit-app-region: no-drag !important;
+      }
+      /* Interactive controls rendered above a sibling drag surface must opt out
+         directly because the scoped descendant rule below cannot reach them. */
       :where(
         [data-window-drag-region] *,
         [data-window-drag-scope] ~ *,

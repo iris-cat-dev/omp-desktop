@@ -24,6 +24,7 @@ describe("OMP provider subagent mapper", () => {
           id: "child-1",
           title: "explore",
           description: "Inspect files",
+          model: null,
           status: "running",
           toolCallId: "task-1",
         },
@@ -45,8 +46,9 @@ describe("OMP provider subagent mapper", () => {
     ).toMatchObject({
       event: {
         id: "child-1",
+        model: "openai-codex/gpt-5.5",
         status: "running",
-        title: "explore · gpt-5.5 (openai-codex)",
+        title: "explore",
       },
     });
 
@@ -64,9 +66,9 @@ describe("OMP provider subagent mapper", () => {
       })[0],
     ).toMatchObject({
       event: {
-        id: "child-1",
+        model: "anthropic/claude-sonnet-5",
         status: "completed",
-        title: "explore · claude-sonnet-5 (anthropic)",
+        title: "explore",
       },
     });
   });

@@ -16,6 +16,7 @@ export interface ProviderSubagentDescriptor {
   provider: AgentProvider;
   title: string | null;
   description: string | null;
+  model: string | null;
   status: ProviderSubagentStatus;
   createdAt: string;
   updatedAt: string;
@@ -30,6 +31,7 @@ export type ProviderSubagentInputEvent =
       id: string;
       title?: string | null;
       description?: string | null;
+      model?: string | null;
       /**
        * Omit to keep the stored status. A presentation-only upsert says nothing about whether the
        * child is still running, and must not revert a finished one.
@@ -117,6 +119,7 @@ export class ProviderSubagentStore {
       provider,
       title: stickyField(event.title, previous?.title),
       description: stickyField(event.description, previous?.description),
+      model: stickyField(event.model, previous?.model),
       status: event.status ?? previous?.status ?? "running",
       createdAt: previous?.createdAt ?? timestamp,
       updatedAt: timestamp,

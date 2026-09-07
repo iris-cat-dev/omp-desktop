@@ -8442,6 +8442,7 @@ test("overlapping workspace rebuilds publish the newest provider subagent status
     provider: "codex",
     title: "Native child",
     description: null,
+    model: null,
     status: "running",
     createdAt: "2026-08-01T10:01:00.000Z",
     updatedAt: "2026-08-01T10:01:00.000Z",

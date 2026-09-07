@@ -92,6 +92,7 @@ const providerRow: SubagentRow = {
   provider: "codex",
   title: "Explore",
   description: "检查工作区路由",
+  model: null,
   subtitle: null,
   status: "running",
   requiresAttention: false,

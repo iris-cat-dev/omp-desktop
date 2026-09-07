@@ -4597,6 +4597,7 @@ export const ProviderSubagentDescriptorPayloadSchema = z.object({
   provider: AgentProviderSchema,
   title: z.string().nullable(),
   description: z.string().nullable(),
+  model: z.string().nullable().optional(),
   status: z.enum(["running", "completed", "failed", "canceled"]),
   createdAt: z.string(),
   updatedAt: z.string(),
