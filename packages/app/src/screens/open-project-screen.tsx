@@ -89,19 +89,27 @@ function loadPosterModule(): Promise<PosterModule> {
     script.id = POSTER_LOADER_ID;
     script.type = "module";
     script.src = POSTER_LOADER_SRC;
-    script.onload = () => {
-      const posterModule = window.__OMP_POSTER_MODULE__;
-      if (posterModule) {
-        resolve(posterModule);
-        return;
-      }
-      script.remove();
-      reject(new Error("OMP poster module loaded without exposing its API"));
-    };
-    script.onerror = () => {
-      script.remove();
-      reject(new Error(`Failed to load ${POSTER_LOADER_SRC}`));
-    };
+    script.addEventListener(
+      "load",
+      () => {
+        const posterModule = window.__OMP_POSTER_MODULE__;
+        if (posterModule) {
+          resolve(posterModule);
+          return;
+        }
+        script.remove();
+        reject(new Error("OMP poster module loaded without exposing its API"));
+      },
+      { once: true },
+    );
+    script.addEventListener(
+      "error",
+      () => {
+        script.remove();
+        reject(new Error(`Failed to load ${POSTER_LOADER_SRC}`));
+      },
+      { once: true },
+    );
     document.head.append(script);
   });
 
