@@ -216,14 +216,23 @@ function throwIfShellFailed({ result, regex, shell, attempt }: ThrowIfShellFaile
 function getSystemShell(
   deps: Required<Pick<LoginShellEnvDependencies, "env" | "platform" | "userInfo">>,
 ): string {
-  const shell = deps.env.SHELL;
-  if (shell) return shell;
-
+  const envShell = deps.env.SHELL;
+  let accountShell: string | null = null;
   try {
     const info = deps.userInfo();
-    if (info.shell && info.shell !== "/bin/false") return info.shell;
+    if (info.shell && info.shell !== "/bin/false") {
+      accountShell = info.shell;
+    }
   } catch {}
 
+  // Finder/Dock launches can report the generic /bin/sh even when the user's
+  // configured macOS login shell is zsh. Match native terminals by preferring
+  // the account shell only for that generic GUI-launch fallback.
+  if (deps.platform === "darwin" && (!envShell || envShell === "/bin/sh") && accountShell) {
+    return accountShell;
+  }
+  if (envShell) return envShell;
+  if (accountShell) return accountShell;
   return deps.platform === "darwin" ? "/bin/zsh" : "/bin/bash";
 }
 
@@ -449,6 +458,10 @@ function resolveShellEnv({ deps, timeoutMs }: ResolveShellEnvInput): ResolvedShe
       });
       const durationMs = deps.now() - attemptStartedAt;
       restoreElectronEnv({ env, savedRunAsNode, savedNoAttach });
+      // The shell process can echo Finder's inherited SHELL=/bin/sh unchanged.
+      // Persist the executable we actually resolved so the daemon and its
+      // terminal worker select the same user login shell.
+      env.SHELL = shell;
 
       deps.logger.info("[login-shell-env] attempt applied", {
         attemptKind: attempt.kind,

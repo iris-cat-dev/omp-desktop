@@ -7,6 +7,32 @@ export type ListTerminalsPayload = ListTerminalsResponse["payload"];
 type TerminalEntry = ListTerminalsPayload["terminals"][number];
 type CreatedTerminal = NonNullable<CreateTerminalResponse["payload"]["terminal"]>;
 
+export interface TerminalWorkspaceSelection {
+  routeWorkspaceId: string;
+  workspaceId: string;
+}
+
+export function resolveTerminalWorkspaceSelection(input: {
+  current: TerminalWorkspaceSelection | null;
+  routeWorkspaceId: string;
+  focusedAgentWorkspaceId: string | null;
+}): TerminalWorkspaceSelection {
+  const routeWorkspaceId = input.routeWorkspaceId.trim();
+  const focusedAgentWorkspaceId = input.focusedAgentWorkspaceId?.trim() || null;
+  const workspaceId =
+    focusedAgentWorkspaceId ??
+    (input.current?.routeWorkspaceId === routeWorkspaceId
+      ? input.current.workspaceId
+      : routeWorkspaceId);
+  if (
+    input.current?.routeWorkspaceId === routeWorkspaceId &&
+    input.current.workspaceId === workspaceId
+  ) {
+    return input.current;
+  }
+  return { routeWorkspaceId, workspaceId };
+}
+
 export function buildTerminalsQueryKey(
   serverId: string,
   workspaceDirectory: string | null,

@@ -158,6 +158,28 @@ describe("login shell env retry behavior", () => {
     expect(logger.warnings).toEqual([]);
   });
 
+  it("uses the macOS account login shell when the GUI environment reports /bin/sh", () => {
+    const env = { ...createEnv(fakeHome), SHELL: "/bin/sh" };
+    const logger = new RecordingLoginShellLogger();
+    const shells: string[] = [];
+    const spawnSync: LoginShellSpawnSync = (shell, args) => {
+      shells.push(String(shell));
+      const shellCommand = String(Array.isArray(args) ? args.at(-1) : "");
+      return successResult(shellCommand, env);
+    };
+
+    inheritLoginShellEnv({
+      env,
+      logger,
+      platform: "darwin",
+      spawnSync,
+      userInfo: () => ({ ...os.userInfo(), shell: zsh }),
+    });
+
+    expect(shells).toEqual([zsh]);
+    expect(env.SHELL).toBe(zsh);
+  });
+
   it("retries non-interactively after an interactive timeout", () => {
     const env = createEnv(fakeHome);
     const logger = new RecordingLoginShellLogger();

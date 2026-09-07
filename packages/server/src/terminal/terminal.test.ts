@@ -453,6 +453,27 @@ describe("createTerminal", () => {
     expect(session.id).toBeDefined();
   });
 
+  it.runIf(isPlatform("linux", "darwin"))(
+    "launches the shell supplied by the terminal environment",
+    async () => {
+      const cwd = mkdtempSync(join(tmpdir(), "terminal-default-shell-"));
+      temporaryDirs.push(cwd);
+      const preferredShell = join(cwd, "preferred-shell");
+      writeFileSync(preferredShell, "#!/bin/sh\nprintf 'preferred-shell\\n'\n");
+      chmodSync(preferredShell, 0o755);
+
+      const session = trackSession(
+        await createTerminal({
+          workspaceId: "ws-test",
+          cwd,
+          env: { SHELL: preferredShell },
+        }),
+      );
+
+      await waitForLines(session, ["preferred-shell"]);
+    },
+  );
+
   it("uses default rows and cols", async () => {
     const shell = isPlatform("win32")
       ? (process.env.ComSpec ?? "C:\\Windows\\System32\\cmd.exe")

@@ -19,6 +19,7 @@ interface AttachedBrowserRegistration {
 
 contextBridge.exposeInMainWorld("paseoDesktop", {
   platform: process.platform,
+  loginShell: process.env.SHELL,
   invoke: (command: string, args?: Record<string, unknown>) =>
     ipcRenderer.invoke("paseo:invoke", command, args),
   getPendingOpenProject: () =>

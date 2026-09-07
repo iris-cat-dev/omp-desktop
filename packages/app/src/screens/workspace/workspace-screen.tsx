@@ -180,6 +180,7 @@ import { getIsElectron, isNative, isWeb } from "@/constants/platform";
 import type { SurfaceBackdrop } from "@/styles/surface-backdrop";
 import { buildHostRootRoute, buildSettingsHostRoute } from "@/utils/host-routes";
 import { useWorkspaceTerminals } from "@/screens/workspace/terminals/use-workspace-terminals";
+import { resolveTerminalWorkspaceSelection } from "@/screens/workspace/terminals/state";
 import {
   createWorkspaceFileTabTarget,
   normalizeWorkspaceFileLocation,
@@ -1383,6 +1384,59 @@ function WorkspaceScreenContent({
       }),
     [normalizedServerId, normalizedWorkspaceId],
   );
+  const workspaceLayout = useWorkspaceLayoutStore((state) =>
+    persistenceKey ? (state.layoutByWorkspace[persistenceKey] ?? null) : null,
+  );
+  const uiTabs = useMemo(
+    () => (workspaceLayout ? collectAllTabs(workspaceLayout.root) : EMPTY_UI_TABS),
+    [workspaceLayout],
+  );
+  const focusedPaneTabState = useMemo(
+    () =>
+      deriveWorkspacePaneState({
+        layout: workspaceLayout,
+        tabs: uiTabs,
+      }),
+    [uiTabs, workspaceLayout],
+  );
+  const focusedAgentWorkspaceId = useSessionStore((state) => {
+    const target = focusedPaneTabState.activeTab?.descriptor.target;
+    if (target?.kind !== "agent") {
+      return null;
+    }
+    const session = state.sessions[normalizedServerId];
+    const agent = session?.agents.get(target.agentId) ?? session?.agentDetails.get(target.agentId);
+    return trimNonEmpty(agent?.workspaceId);
+  });
+  const [lastTerminalWorkspaceSelection, setLastTerminalWorkspaceSelection] = useState(() =>
+    resolveTerminalWorkspaceSelection({
+      current: null,
+      routeWorkspaceId: normalizedWorkspaceId,
+      focusedAgentWorkspaceId,
+    }),
+  );
+  const terminalWorkspaceSelection = useMemo(
+    () =>
+      resolveTerminalWorkspaceSelection({
+        current: lastTerminalWorkspaceSelection,
+        routeWorkspaceId: normalizedWorkspaceId,
+        focusedAgentWorkspaceId,
+      }),
+    [focusedAgentWorkspaceId, lastTerminalWorkspaceSelection, normalizedWorkspaceId],
+  );
+  useEffect(() => {
+    setLastTerminalWorkspaceSelection((current) =>
+      current === terminalWorkspaceSelection ? current : terminalWorkspaceSelection,
+    );
+  }, [terminalWorkspaceSelection]);
+  const terminalWorkspaceDescriptor = useWorkspace(
+    normalizedServerId,
+    terminalWorkspaceSelection.workspaceId,
+  );
+  const terminalWorkspaceDirectory = terminalWorkspaceDescriptor?.workspaceDirectory || null;
+  const terminalWorkspaceScripts = getWorkspaceScripts(terminalWorkspaceDescriptor);
+  const isMissingTerminalWorkspaceDirectory =
+    Boolean(terminalWorkspaceDescriptor) && !terminalWorkspaceDirectory;
   const openTab = useWorkspaceLayoutStore((state) => state.openTab);
   const replaceWorkspaceTabTarget = useWorkspaceLayoutStore((state) => state.replaceTab);
   const openWorkspaceTabFocused = useCallback(
@@ -1471,11 +1525,11 @@ function WorkspaceScreenContent({
     isConnected,
     isRouteFocused,
     normalizedServerId,
-    normalizedWorkspaceId,
-    workspaceDirectory,
-    workspaceScripts,
+    normalizedWorkspaceId: terminalWorkspaceSelection.workspaceId,
+    workspaceDirectory: terminalWorkspaceDirectory,
+    workspaceScripts: terminalWorkspaceScripts,
     hasHydratedWorkspaces,
-    isMissingWorkspaceDirectory,
+    isMissingWorkspaceDirectory: isMissingTerminalWorkspaceDirectory,
     onTerminalCreated: handleTerminalCreated,
     onScriptTerminalSelected: handleScriptTerminalSelected,
     onWorkspacePathUnavailable: handleWorkspacePathUnavailable,
@@ -1555,9 +1609,6 @@ function WorkspaceScreenContent({
     return () => handler.remove();
   }, [isSidePanelShowing, isMobile, isRouteFocused, showMobileAgent]);
 
-  const workspaceLayout = useWorkspaceLayoutStore((state) =>
-    persistenceKey ? (state.layoutByWorkspace[persistenceKey] ?? null) : null,
-  );
   const sidePanelPaneId = useWorkspaceLayoutStore((state) =>
     persistenceKey ? selectSidePanelPaneId(state, persistenceKey) : null,
   );
@@ -1567,10 +1618,6 @@ function WorkspaceScreenContent({
   );
   const ensureWorkspaceSetupStatus = useWorkspaceSetupStore((state) => state.ensureSetupStatus);
   const claimFailedSetupSurface = useWorkspaceSetupStore((state) => state.claimFailedSetupSurface);
-  const uiTabs = useMemo(
-    () => (workspaceLayout ? collectAllTabs(workspaceLayout.root) : EMPTY_UI_TABS),
-    [workspaceLayout],
-  );
   const openAgentIds = useMemo(() => {
     const agentIds = new Set<string>();
     for (const tab of uiTabs) {
@@ -1661,14 +1708,6 @@ function WorkspaceScreenContent({
     [closeWorkspaceTab, hideWorkspaceAgent, persistenceKey, unpinWorkspaceAgent],
   );
 
-  const focusedPaneTabState = useMemo(
-    () =>
-      deriveWorkspacePaneState({
-        layout: workspaceLayout,
-        tabs: uiTabs,
-      }),
-    [uiTabs, workspaceLayout],
-  );
   const viewedTimelineSync = useSessionStore(
     (state) => state.sessions[normalizedServerId]?.viewedTimelineSync ?? null,
   );

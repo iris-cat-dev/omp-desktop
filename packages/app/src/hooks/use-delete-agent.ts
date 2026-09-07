@@ -1,9 +1,8 @@
-import { useCallback } from "react";
 import { useMutation, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import type { DaemonClient } from "@omp-desktop/client/internal/daemon-client";
 import { useSessionStore } from "@/stores/session-store";
 import { collectAllTabs, useWorkspaceLayoutStore } from "@/stores/workspace-layout-store";
-import { buildWorkspaceTabPersistenceKey } from "@/workspace-tabs/model";
+import { deleteWorkspaceWithCleanup } from "@/workspace/workspace-delete";
 import {
   removeAgentFromCachedLists,
   type AgentHistoryQueryData,
@@ -38,17 +37,10 @@ export async function deleteAgentOrWorkspace(
     }
     return;
   }
-  const result = await client.deleteWorkspace(input.workspaceId);
-  if (result.error) {
-    throw new Error(result.error);
-  }
-  const workspaceKey = buildWorkspaceTabPersistenceKey({
+  await deleteWorkspaceWithCleanup(client, {
     serverId: input.serverId,
     workspaceId: input.workspaceId,
   });
-  if (workspaceKey) {
-    useWorkspaceLayoutStore.getState().purgeWorkspace(workspaceKey);
-  }
 }
 
 function removeAgentFromHistoryPage(
@@ -129,10 +121,5 @@ export function useDeleteAgent() {
     },
   });
 
-  const deleteAgent = useCallback(
-    (input: DeleteAgentInput) => mutation.mutateAsync(input),
-    [mutation.mutateAsync],
-  );
-
-  return { deleteAgent, isDeleting: mutation.isPending };
+  return { deleteAgent: mutation.mutateAsync, isDeleting: mutation.isPending };
 }

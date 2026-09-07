@@ -27,10 +27,13 @@ import type { TerminalProfile } from "@omp-desktop/protocol/messages";
 import { CHAT_LAUNCH_TARGET } from "@/new-workspace-launch/target";
 import { useTerminalComposerState } from "@/new-workspace-launch/composer-state";
 import { runCreateTerminalWorkspace } from "./new-workspace-terminal";
+import { getDesktopHost } from "@/desktop/host";
+import { resolveDesktopDefaultTerminalShell } from "@/terminal/default-shell";
 import {
   useHostRuntimeClient,
   useHostRuntimeConnectionStatuses,
   useHostRuntimeIsConnected,
+  useHostRuntimeSnapshot,
   useHosts,
   type HostRuntimeConnectionStatus,
 } from "@/runtime/host-runtime";
@@ -692,6 +695,8 @@ export function NewWorkspaceScreen({
     projectId,
     displayName: displayNameProp,
   });
+  const terminalActiveConnection =
+    useHostRuntimeSnapshot(selectedServerId)?.activeConnection ?? null;
   // COMPAT(workspaceMultiplicity): added in v0.1.97, drop the gate when floor >= v0.1.97
   const supportsForgeSearch = useHostFeature(selectedServerId, "forgeSearch");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -979,7 +984,16 @@ export function NewWorkspaceScreen({
             input.workspaceDirectory,
             input.name,
             undefined,
-            { command: input.command, args: input.args, workspaceId: input.workspaceId },
+            {
+              command:
+                input.command ??
+                resolveDesktopDefaultTerminalShell({
+                  activeConnection: terminalActiveConnection,
+                  loginShell: getDesktopHost()?.loginShell,
+                }),
+              args: input.args,
+              workspaceId: input.workspaceId,
+            },
           );
           if (!createdTerminal.terminal) {
             throw new Error(
@@ -1008,6 +1022,7 @@ export function NewWorkspaceScreen({
     completeSidebarConversationDraft,
     launchTarget,
     selectedServerId,
+    terminalActiveConnection,
     selectedSourceDirectory,
     selectedTerminalProfile,
     t,

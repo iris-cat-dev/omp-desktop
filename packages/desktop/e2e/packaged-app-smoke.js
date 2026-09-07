@@ -13,6 +13,7 @@ const TERMINAL_CAPTURE_ATTEMPTS = 20;
 const TERMINAL_CAPTURE_INTERVAL_MS = 500;
 const REQUIRED_DESKTOP_BRIDGE_KEYS = [
   "platform",
+  "loginShell",
   "invoke",
   "getPendingOpenProject",
   "events",
@@ -483,16 +484,25 @@ async function assertPackagedRendererLoaded(page, deadline) {
     { timeout: remainingTime(deadline) },
   );
 
-  const bridgeKeys = await page.evaluate(() =>
-    typeof window.paseoDesktop === "object" && window.paseoDesktop !== null
-      ? Object.keys(window.paseoDesktop)
-      : [],
-  );
+  const bridgeState = await page.evaluate(() => ({
+    keys:
+      typeof window.paseoDesktop === "object" && window.paseoDesktop !== null
+        ? Object.keys(window.paseoDesktop)
+        : [],
+    loginShell:
+      typeof window.paseoDesktop?.loginShell === "string"
+        ? window.paseoDesktop.loginShell.trim()
+        : "",
+  }));
+  const bridgeKeys = bridgeState.keys;
   const missingBridgeKeys = REQUIRED_DESKTOP_BRIDGE_KEYS.filter((key) => !bridgeKeys.includes(key));
   if (missingBridgeKeys.length > 0) {
     throw new Error(
       `Packaged renderer is missing desktop preload bridge keys: ${missingBridgeKeys.join(", ")}. Present keys: ${bridgeKeys.join(", ") || "<none>"}`,
     );
+  }
+  if (process.platform !== "win32" && !bridgeState.loginShell) {
+    throw new Error("Packaged renderer did not inherit the resolved desktop login shell.");
   }
 }
 

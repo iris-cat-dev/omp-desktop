@@ -240,16 +240,27 @@ export function ensureNodePtySpawnHelperExecutableForCurrentPlatform(
 }
 
 export function resolveDefaultTerminalShell(
-  options: { platform?: NodeJS.Platform; env?: NodeJS.ProcessEnv } = {},
+  options: {
+    platform?: NodeJS.Platform;
+    env?: NodeJS.ProcessEnv;
+    terminalEnv?: Record<string, string>;
+  } = {},
 ): string {
   const platform = options.platform ?? process.platform;
   const env = options.env ?? process.env;
+  const terminalEnv = options.terminalEnv;
 
   if (platform === "win32") {
-    return env.ComSpec || env.COMSPEC || "C:\\Windows\\System32\\cmd.exe";
+    return (
+      terminalEnv?.ComSpec ||
+      terminalEnv?.COMSPEC ||
+      env.ComSpec ||
+      env.COMSPEC ||
+      "C:\\Windows\\System32\\cmd.exe"
+    );
   }
 
-  return env.SHELL || "/bin/sh";
+  return terminalEnv?.SHELL || env.SHELL || "/bin/sh";
 }
 
 export interface ResolvedTerminalCommand {
@@ -931,7 +942,7 @@ export async function createTerminal(options: CreateTerminalOptions): Promise<Te
     command,
     args = [],
   } = options;
-  const resolvedShell = shell ?? resolveDefaultTerminalShell();
+  const resolvedShell = shell ?? resolveDefaultTerminalShell({ terminalEnv: env });
 
   const id = options.id ?? randomUUID();
   const listeners = new Set<(msg: ServerMessage) => void>();

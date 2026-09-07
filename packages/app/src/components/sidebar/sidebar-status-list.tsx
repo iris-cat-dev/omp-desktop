@@ -511,6 +511,7 @@ function StatusWorkspaceRowWithMenu({
 }) {
   const { t } = useTranslation();
   const toast = useToast();
+  const activeRouteWorkspaceSelection = useActiveWorkspaceSelection();
   const [isHidingWorkspace, setIsHidingWorkspace] = useState(false);
   const [isRenameOpen, setIsRenameOpen] = useState(false);
   const isArchiving = workspace.archivingAt !== null || isHidingWorkspace;
@@ -524,11 +525,9 @@ function StatusWorkspaceRowWithMenu({
     redirectIfArchivingActiveWorkspace({
       serverId: workspace.serverId,
       workspaceId: workspace.workspaceId,
-      activeWorkspaceSelection: selected
-        ? { serverId: workspace.serverId, workspaceId: workspace.workspaceId }
-        : null,
+      activeWorkspaceSelection: activeRouteWorkspaceSelection,
     });
-  }, [selected, workspace]);
+  }, [activeRouteWorkspaceSelection, workspace.serverId, workspace.workspaceId]);
 
   const archiveController = useWorkspaceArchive({
     serverId: workspace.serverId,

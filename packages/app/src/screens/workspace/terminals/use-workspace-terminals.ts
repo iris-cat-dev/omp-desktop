@@ -7,6 +7,9 @@ import type { WorkspaceDescriptor } from "@/stores/session-store";
 import { useTranslation } from "react-i18next";
 import { useReplicaQuery } from "@/data/query";
 import { workspaceTerminalsPushRoute } from "@/data/push-router";
+import { getDesktopHost } from "@/desktop/host";
+import { useHostRuntimeSnapshot } from "@/runtime/host-runtime";
+import { resolveDesktopDefaultTerminalShell } from "@/terminal/default-shell";
 import {
   buildTerminalsQueryKey,
   canCreateWorkspaceTerminal,
@@ -69,6 +72,7 @@ export function useWorkspaceTerminals(input: UseWorkspaceTerminalsInput) {
   } = input;
   const { t } = useTranslation();
   const queryClient = useQueryClient();
+  const activeConnection = useHostRuntimeSnapshot(normalizedServerId)?.activeConnection ?? null;
   const [pendingCreateInput, setPendingCreateInput] = useState<PendingTerminalCreateInput | null>(
     null,
   );
@@ -139,6 +143,12 @@ export function useWorkspaceTerminals(input: UseWorkspaceTerminalsInput) {
         throw new Error(t("workspace.terminal.hostDisconnected"));
       }
       const profile = _input.profile ? resolveTerminalProfileLaunch(_input.profile, "") : undefined;
+      const defaultShell = profile
+        ? undefined
+        : resolveDesktopDefaultTerminalShell({
+            activeConnection,
+            loginShell: getDesktopHost()?.loginShell,
+          });
       const payload = profile
         ? await client.createTerminal(workspaceDirectory, profile.name, undefined, {
             command: profile.command,
@@ -147,6 +157,7 @@ export function useWorkspaceTerminals(input: UseWorkspaceTerminalsInput) {
           })
         : await client.createTerminal(workspaceDirectory, undefined, undefined, {
             workspaceId: normalizedWorkspaceId || undefined,
+            ...(defaultShell ? { command: defaultShell } : {}),
           });
       // The daemon reports a failed spawn (e.g. a profile command that isn't
       // installed) via payload.error with a null terminal. Surface it instead

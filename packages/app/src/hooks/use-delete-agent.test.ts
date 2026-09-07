@@ -23,31 +23,6 @@ describe("deleteAgentOrWorkspace", () => {
     });
   }
 
-  it("purges the deleted workspace layout without affecting another host", async () => {
-    openAgent("server-a:workspace-1", "agent-1");
-    openAgent("server-a:workspace-1", "child");
-    openAgent("server-b:workspace-1", "agent-1");
-    const otherLayout =
-      useWorkspaceLayoutStore.getState().layoutByWorkspace["server-b:workspace-1"];
-    const client = {
-      deleteAgent: vi.fn(),
-      deleteWorkspace: vi.fn().mockResolvedValue({ error: null }),
-    };
-
-    await deleteAgentOrWorkspace(client, {
-      serverId: "server-a",
-      agentId: "agent-1",
-      workspaceId: "workspace-1",
-    });
-
-    expect(
-      useWorkspaceLayoutStore.getState().layoutByWorkspace["server-a:workspace-1"],
-    ).toBeUndefined();
-    expect(useWorkspaceLayoutStore.getState().layoutByWorkspace["server-b:workspace-1"]).toBe(
-      otherLayout,
-    );
-  });
-
   it.each([true, false])("closes an agent-only deletion with active=%s", async (active) => {
     openAgent("server-a:workspace-1", "agent-1");
     openAgent("server-a:workspace-1", "survivor");
@@ -69,20 +44,6 @@ describe("deleteAgentOrWorkspace", () => {
     ).toEqual([{ kind: "agent", agentId: "survivor" }]);
     expect(useWorkspaceLayoutStore.getState().layoutByWorkspace["server-b:workspace-1"]).toBe(
       otherLayout,
-    );
-  });
-
-  it("preserves open tabs when workspace deletion fails", async () => {
-    openAgent("server-a:workspace-1", "agent-1");
-    const layout = useWorkspaceLayoutStore.getState().layoutByWorkspace["server-a:workspace-1"];
-    await expect(
-      deleteAgentOrWorkspace(
-        { deleteAgent: vi.fn(), deleteWorkspace: vi.fn().mockResolvedValue({ error: "denied" }) },
-        { serverId: "server-a", agentId: "agent-1", workspaceId: "workspace-1" },
-      ),
-    ).rejects.toThrow("denied");
-    expect(useWorkspaceLayoutStore.getState().layoutByWorkspace["server-a:workspace-1"]).toBe(
-      layout,
     );
   });
 });

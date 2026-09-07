@@ -4,6 +4,7 @@ import {
   collectScriptTerminalIds,
   collectStandaloneTerminalIds,
   reconcilePendingScriptTerminals,
+  resolveTerminalWorkspaceSelection,
   removeTerminalFromPayload,
   upsertCreatedTerminalPayload,
   type ListTerminalsPayload,
@@ -67,6 +68,38 @@ describe("workspace terminal state", () => {
         scriptTerminalIds: new Set(["terminal-1", "script-live"]),
       }),
     ).toEqual(["terminal-2"]);
+  });
+
+  it("keeps terminals scoped to the focused conversation workspace", () => {
+    const routeSelection = resolveTerminalWorkspaceSelection({
+      current: null,
+      routeWorkspaceId: "workspace-host",
+      focusedAgentWorkspaceId: null,
+    });
+    const conversationSelection = resolveTerminalWorkspaceSelection({
+      current: routeSelection,
+      routeWorkspaceId: "workspace-host",
+      focusedAgentWorkspaceId: "workspace-conversation",
+    });
+
+    expect(conversationSelection.workspaceId).toBe("workspace-conversation");
+    expect(
+      resolveTerminalWorkspaceSelection({
+        current: conversationSelection,
+        routeWorkspaceId: "workspace-host",
+        focusedAgentWorkspaceId: null,
+      }),
+    ).toBe(conversationSelection);
+    expect(
+      resolveTerminalWorkspaceSelection({
+        current: conversationSelection,
+        routeWorkspaceId: "workspace-next",
+        focusedAgentWorkspaceId: null,
+      }),
+    ).toEqual({
+      routeWorkspaceId: "workspace-next",
+      workspaceId: "workspace-next",
+    });
   });
 
   it("updates terminal cache entries for created and closed terminals", () => {

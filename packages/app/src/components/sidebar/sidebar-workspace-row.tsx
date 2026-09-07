@@ -17,6 +17,7 @@ import { useWorkspaceArchive } from "@/workspace/use-workspace-archive";
 import { useShortcutKeys } from "@/hooks/use-shortcut-keys";
 import { useKeyboardActionHandler } from "@/hooks/use-keyboard-action-handler";
 import { useClearWorkspaceAttention } from "@/hooks/use-clear-workspace-attention";
+import { useActiveWorkspaceSelection } from "@/stores/navigation-active-workspace-store";
 import { redirectIfArchivingActiveWorkspace } from "@/utils/sidebar-workspace-archive-redirect";
 import { requireWorkspaceDirectory } from "@/utils/workspace-directory";
 import { isNative as platformIsNative } from "@/constants/platform";
@@ -79,6 +80,7 @@ export function SidebarWorkspaceRow({
 }: SidebarWorkspaceRowProps) {
   const { t } = useTranslation();
   const toast = useToast();
+  const activeRouteWorkspaceSelection = useActiveWorkspaceSelection();
   const [isHidingWorkspace, setIsHidingWorkspace] = useState(false);
   const [isRenameOpen, setIsRenameOpen] = useState(false);
   const isArchiving = workspace.archivingAt !== null || isHidingWorkspace;
@@ -92,11 +94,9 @@ export function SidebarWorkspaceRow({
     redirectIfArchivingActiveWorkspace({
       serverId: workspace.serverId,
       workspaceId: workspace.workspaceId,
-      activeWorkspaceSelection: selected
-        ? { serverId: workspace.serverId, workspaceId: workspace.workspaceId }
-        : null,
+      activeWorkspaceSelection: activeRouteWorkspaceSelection,
     });
-  }, [selected, workspace]);
+  }, [activeRouteWorkspaceSelection, workspace.serverId, workspace.workspaceId]);
 
   const archiveController = useWorkspaceArchive({
     serverId: workspace.serverId,

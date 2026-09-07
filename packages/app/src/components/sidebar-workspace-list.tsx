@@ -138,6 +138,7 @@ import { redirectIfArchivingActiveWorkspace } from "@/utils/sidebar-workspace-ar
 import { openExternalUrl } from "@/utils/open-external-url";
 import { requireWorkspaceDirectory } from "@/utils/workspace-directory";
 import { useWorkspaceArchive } from "@/workspace/use-workspace-archive";
+import { deleteWorkspaceWithCleanup } from "@/workspace/workspace-delete";
 import {
   getCurrentProjectRemoveReadiness,
   removeProjectFromHosts,
@@ -231,13 +232,6 @@ function isProjectSelectedByRoute(input: {
 
 function activeWorkspaceSelectionKey(selection: ActiveWorkspaceSelection | null): string {
   return selection ? `${selection.serverId}:${selection.workspaceId}` : "";
-}
-
-function selectionForSelectedWorkspace(
-  selected: boolean,
-  workspace: SidebarWorkspaceEntry,
-): ActiveWorkspaceSelection | null {
-  return selected ? { serverId: workspace.serverId, workspaceId: workspace.workspaceId } : null;
 }
 
 interface SidebarWorkspaceListProps {
@@ -1261,6 +1255,7 @@ function WorkspaceRowWithMenu({
 }) {
   const { t } = useTranslation();
   const toast = useToast();
+  const activeRouteWorkspaceSelection = useActiveWorkspaceSelection();
   const [isHidingWorkspace, setIsHidingWorkspace] = useState(false);
   const [isRenameOpen, setIsRenameOpen] = useState(false);
   const isArchiving = workspace.archivingAt !== null || isHidingWorkspace;
@@ -1268,19 +1263,19 @@ function WorkspaceRowWithMenu({
     redirectIfArchivingActiveWorkspace({
       serverId: workspace.serverId,
       workspaceId: workspace.workspaceId,
-      activeWorkspaceSelection: selectionForSelectedWorkspace(selected, workspace),
+      activeWorkspaceSelection: activeRouteWorkspaceSelection,
     });
-  }, [selected, workspace]);
+  }, [activeRouteWorkspaceSelection, workspace.serverId, workspace.workspaceId]);
   const deleteMutation = useMutation({
     mutationFn: async () => {
       const client = getHostRuntimeStore().getClient(workspace.serverId);
       if (!client) {
         throw new Error(t("sidebar.workspace.toasts.hostDisconnected"));
       }
-      const result = await client.deleteWorkspace(workspace.workspaceId);
-      if (result.error) {
-        throw new Error(result.error);
-      }
+      await deleteWorkspaceWithCleanup(client, {
+        serverId: workspace.serverId,
+        workspaceId: workspace.workspaceId,
+      });
     },
     onSuccess: redirectAfterArchive,
     onError: (error) => {
