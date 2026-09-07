@@ -1,0 +1,12 @@
+# Normalize line endings: store and check out all text files with LF.
+#
+# The toolchain (oxfmt, oxlint) expects LF, and Windows clones with
+# core.autocrlf=true (the Git for Windows default) would otherwise
+# produce CRLF working trees that fail `npm run format:check`.
+# Binary files are auto-detected by `text=auto` and are unaffected.
+
+* text=auto eol=lf
+
+# Windows batch files: cmd.exe expects CRLF.
+*.bat text eol=crlf
+*.cmd text eol=crlf
