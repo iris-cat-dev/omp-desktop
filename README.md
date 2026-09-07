@@ -54,10 +54,11 @@ The Web export is `packages/app/dist`. These commands build artifacts; they do n
 ### Cloudflare Pages
 
 ```bash
-npm run deploy:web
+./deploy.sh
+# or: npm run deploy:web
 ```
 
-This builds the Web export and runs `wrangler pages deploy dist --project-name omp-desktop --branch=main`. SPA routes fall back through `packages/app/public/_redirects`. Pairing links should use the Pages origin as `app.baseUrl`.
+`deploy.sh` builds the Web export and runs `wrangler pages deploy` against project `omp-desktop` on branch `main`. Override with `CF_PAGES_PROJECT` / `CF_PAGES_BRANCH` if needed. SPA routes fall back through `packages/app/public/_redirects`. Pairing links should use the Pages origin as `app.baseUrl`.
 
 Deploy the `paseo-relay` repository using its `deployment/self-hosted/compose.yaml`, `Caddyfile`, and `.env.example`. That deployment serves both your WSS relay and the Web export on your own domains, with automatic HTTPS and SPA route fallback. The relay machine does not need OMP or access to the daemon's private listening port.
 

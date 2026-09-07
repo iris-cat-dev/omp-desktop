@@ -12,6 +12,35 @@ const INLINE_IMAGE_FALLBACK_SIZE = 16;
 const INLINE_IMAGE_MAX_WIDTH = 240;
 const INLINE_IMAGE_MAX_HEIGHT = 160;
 
+const BLOCK_IMAGE_FALLBACK_SIZE = 16;
+const BLOCK_IMAGE_MAX_HEIGHT = 480;
+
+export function resolveBlockImageSize(input: {
+  natural: InlineImageDimensions | null;
+  availableWidth: number | null;
+}): InlineImageDimensions {
+  const dimensions = input.natural ?? {
+    width: BLOCK_IMAGE_FALLBACK_SIZE,
+    height: BLOCK_IMAGE_FALLBACK_SIZE,
+  };
+  const availableWidth =
+    input.availableWidth !== null &&
+    Number.isFinite(input.availableWidth) &&
+    input.availableWidth > 0
+      ? input.availableWidth
+      : dimensions.width;
+  const scale = Math.min(
+    1,
+    availableWidth / dimensions.width,
+    BLOCK_IMAGE_MAX_HEIGHT / dimensions.height,
+  );
+
+  return {
+    width: Math.round(dimensions.width * scale),
+    height: Math.round(dimensions.height * scale),
+  };
+}
+
 export function resolveInlineImageSize(input: {
   explicit: InlineImageExplicitDimensions;
   natural: InlineImageDimensions | null;

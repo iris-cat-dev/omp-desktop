@@ -6,7 +6,7 @@ import { createElement, type ReactNode } from "react";
 import { fireEvent, render } from "@testing-library/react";
 import { Text, type StyleProp, type TextStyle } from "react-native";
 import { describe, expect, it, vi } from "vitest";
-import { resolveInlineImageSize } from "./inline-image-size";
+import { resolveBlockImageSize, resolveInlineImageSize } from "./inline-image-size";
 import { colorMarkdownLinkChildren } from "./link-children";
 import { MarkdownLinkText } from "./link-text";
 
@@ -43,6 +43,26 @@ vi.mock("react-native", () => ({
 function flattenStyle(style: StyleProp<TextStyle>): TextStyle {
   return Object.assign({}, ...(Array.isArray(style) ? style.filter(Boolean) : [style]));
 }
+
+describe("resolveBlockImageSize", () => {
+  it("keeps naturally small badges at their intrinsic dimensions", () => {
+    expect(
+      resolveBlockImageSize({
+        natural: { width: 142, height: 20 },
+        availableWidth: 900,
+      }),
+    ).toEqual({ width: 142, height: 20 });
+  });
+
+  it("scales large images down to the preview width without changing aspect ratio", () => {
+    expect(
+      resolveBlockImageSize({
+        natural: { width: 1200, height: 800 },
+        availableWidth: 600,
+      }),
+    ).toEqual({ width: 600, height: 400 });
+  });
+});
 
 describe("resolveInlineImageSize", () => {
   it("respects a one-sided explicit width using natural aspect ratio", () => {

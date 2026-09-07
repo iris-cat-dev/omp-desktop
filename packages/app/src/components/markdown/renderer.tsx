@@ -1,16 +1,10 @@
-import React, {
-  useCallback,
-  useEffect,
-  useMemo,
-  useState,
-  type ComponentType,
-  type ReactNode,
-} from "react";
+import React, { useCallback, useMemo, useState, type ComponentType, type ReactNode } from "react";
 import {
   Image,
   Pressable,
   Text,
   View,
+  type ImageStyle,
   type TextProps,
   type TextStyle,
   type ViewStyle,
@@ -37,7 +31,9 @@ import {
   type MarkdownDisplayPart,
   type MarkdownInlineImagePart,
 } from "./html-ish";
-import { resolveInlineImageSize, type InlineImageDimensions } from "./inline-image-size";
+import { resolveInlineImageSize } from "./inline-image-size";
+import { MarkdownBlockImage, useNaturalImageDimensions } from "./block-image";
+import { MarkdownBlockImageLink } from "./block-image-link";
 import { groupMarkdownParts, type MarkdownPartGroup } from "./part-groups";
 import { colorMarkdownLinkChildren } from "./link-children";
 import { MarkdownLinkText } from "./link-text";
@@ -216,40 +212,22 @@ function MarkdownFragment({
   );
 }
 
-function useNaturalImageDimensions(part: MarkdownInlineImagePart): {
-  natural: InlineImageDimensions | null;
-  failed: boolean;
-  setFailed: (failed: boolean) => void;
-} {
-  const [natural, setNatural] = useState<InlineImageDimensions | null>(null);
-  const [failed, setFailed] = useState(false);
-
-  useEffect(() => {
-    if (part.width && part.height) {
-      return;
-    }
-
-    let cancelled = false;
-    Image.getSize(
-      part.src,
-      (width, height) => {
-        if (!cancelled) {
-          setNatural({ width, height });
-        }
-      },
-      () => {
-        if (!cancelled) {
-          setFailed(true);
-        }
-      },
-    );
-
-    return () => {
-      cancelled = true;
-    };
-  }, [part.height, part.src, part.width]);
-
-  return { natural, failed, setFailed };
+function resolveMarkdownImageSource(
+  src: unknown,
+  allowedImageHandlers: readonly string[],
+  defaultImageHandler: string | null,
+): string | null {
+  if (typeof src !== "string" || src.length === 0) {
+    return null;
+  }
+  const normalizedSrc = src.toLowerCase();
+  const allowed = allowedImageHandlers.some((handler) =>
+    normalizedSrc.startsWith(handler.toLowerCase()),
+  );
+  if (allowed) {
+    return src;
+  }
+  return defaultImageHandler === null ? null : `${defaultImageHandler}${src}`;
 }
 
 function MarkdownInlineImage({
@@ -515,6 +493,32 @@ function getMarkdownLinkHref(node: ASTNode): string {
 export function createSharedMarkdownRules(): RenderRules {
   return {
     ...createMarkdownMathRules(),
+    image: (
+      node: ASTNode,
+      _children: ReactNode[],
+      _parent: ASTNode[],
+      styles: MarkdownStyles,
+      allowedImageHandlers: readonly string[],
+      defaultImageHandler: string | null,
+    ) => {
+      const src = resolveMarkdownImageSource(
+        node.attributes?.src,
+        allowedImageHandlers,
+        defaultImageHandler,
+      );
+      if (!src) {
+        return null;
+      }
+      const alt = node.attributes?.alt;
+      return (
+        <MarkdownBlockImage
+          key={node.key}
+          src={src}
+          alt={typeof alt === "string" ? alt : ""}
+          style={styles.image as ImageStyle}
+        />
+      );
+    },
     text: (
       node: ASTNode,
       _children: ReactNode[],
@@ -717,6 +721,21 @@ export function createSharedMarkdownRules(): RenderRules {
       >
         {children}
       </MarkdownParagraphView>
+    ),
+    blocklink: (
+      node: ASTNode,
+      children: ReactNode[],
+      _parent: ASTNode[],
+      _styles: MarkdownStyles,
+      onLinkPress?: (url: string) => boolean,
+    ) => (
+      <MarkdownBlockImageLink
+        key={node.key}
+        href={getMarkdownLinkHref(node)}
+        onLinkPress={onLinkPress}
+      >
+        {children}
+      </MarkdownBlockImageLink>
     ),
     link: (
       node: ASTNode,
