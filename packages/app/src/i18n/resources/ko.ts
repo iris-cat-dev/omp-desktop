@@ -204,6 +204,19 @@ export const ko: TranslationResources = {
       title_mr: "이슈 또는 MR 첨부",
     },
   },
+  quickAsk: {
+    menuLabel: "Ask",
+    title: "Ask about selection",
+    selectedContent: "Selected content",
+    placeholder: "Ask a question about the selected content",
+    ask: "Ask",
+    thinking: "Thinking...",
+    answer: "Answer",
+    failed: "Unable to answer this question",
+    disconnected: "The host is disconnected",
+    unavailable: "The current agent configuration is unavailable",
+    noSelection: "No selected content",
+  },
   agentControls: {
     provider: {
       fallback: "프로바이더",

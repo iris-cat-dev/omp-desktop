@@ -204,6 +204,19 @@ export const es: TranslationResources = {
       title_mr: "Adjuntar problema o MR",
     },
   },
+  quickAsk: {
+    menuLabel: "Ask",
+    title: "Ask about selection",
+    selectedContent: "Selected content",
+    placeholder: "Ask a question about the selected content",
+    ask: "Ask",
+    thinking: "Thinking...",
+    answer: "Answer",
+    failed: "Unable to answer this question",
+    disconnected: "The host is disconnected",
+    unavailable: "The current agent configuration is unavailable",
+    noSelection: "No selected content",
+  },
   agentControls: {
     provider: {
       fallback: "Proveedor",

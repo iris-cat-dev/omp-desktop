@@ -362,6 +362,7 @@ type FetchAgentsResponseEntry = FetchAgentsResponsePayload["entries"][number];
 type FetchAgentsResponsePageInfo = FetchAgentsResponsePayload["pageInfo"];
 type AgentUpdatesFilter = FetchAgentsRequestFilter;
 type CreateAgentRequestMessage = Extract<SessionInboundMessage, { type: "create_agent_request" }>;
+type QuickAskRequestMessage = Extract<SessionInboundMessage, { type: "quick_ask_request" }>;
 
 interface ResolvedSessionCreateAgentIntent {
   config: AgentSessionConfig;
@@ -2258,6 +2259,8 @@ export class Session {
         return this.handleSendAgentMessageRequest(msg);
       case "wait_for_finish_request":
         return this.handleWaitForFinish(msg.agentId, msg.requestId, msg.timeoutMs);
+      case "quick_ask_request":
+        return this.handleQuickAskRequest(msg);
       case "create_agent_request":
         return this.handleCreateAgentRequest(msg);
       case "resume_agent_request":
@@ -7622,6 +7625,56 @@ export class Session {
           error: errorToFriendlyMessage(error),
         },
       });
+    }
+  }
+
+  private async handleQuickAskRequest(msg: QuickAskRequestMessage): Promise<void> {
+    let agentId: string | null = null;
+    try {
+      const agent = await this.agentManager.createAgent(
+        {
+          ...msg.config,
+          title: "Quick ask",
+          internal: true,
+          systemPrompt:
+            "Answer the user's one-off question using only the selected content included in the prompt. " +
+            "Be direct and concise. Do not use tools, inspect files, or modify anything.",
+        },
+        undefined,
+        { persistSession: false, workspaceId: undefined },
+      );
+      agentId = agent.id;
+      const result = await this.agentManager.runAgent(
+        agent.id,
+        `Selected content:\n\n---\n${msg.selectedText}\n---\n\nQuestion: ${msg.question}`,
+      );
+      const answer =
+        result.finalText?.trim() ||
+        result.timeline.findLast((item) => item.type === "assistant_message")?.text.trim() ||
+        null;
+      if (!answer) {
+        throw new Error("AI returned an empty answer");
+      }
+      this.emit({
+        type: "quick_ask_response",
+        payload: { requestId: msg.requestId, answer, error: null },
+      });
+    } catch (error) {
+      this.emit({
+        type: "quick_ask_response",
+        payload: {
+          requestId: msg.requestId,
+          answer: null,
+          error: errorToFriendlyMessage(error),
+        },
+      });
+    } finally {
+      if (agentId) {
+        await this.agentManager.closeAgent(agentId).catch(() => undefined);
+        await this.agentManager.flush();
+        await this.agentStorage.remove(agentId).catch(() => undefined);
+        await this.agentManager.deleteAgentState(agentId).catch(() => undefined);
+      }
     }
   }
 

@@ -5549,6 +5549,32 @@ export class DaemonClient {
     });
   }
 
+  async quickAsk(input: {
+    config: {
+      provider: string;
+      cwd: string;
+      modeId?: string;
+      model?: string;
+      thinkingOptionId?: string;
+      featureValues?: Record<string, unknown>;
+    };
+    selectedText: string;
+    question: string;
+  }): Promise<string> {
+    const payload = await this.sendCorrelatedSessionRequest({
+      message: { type: "quick_ask_request", ...input },
+      responseType: "quick_ask_response",
+      timeout: 5 * 60_000,
+    });
+    if (payload.error) {
+      throw new Error(payload.error);
+    }
+    if (!payload.answer) {
+      throw new Error("AI returned an empty answer");
+    }
+    return payload.answer;
+  }
+
   async waitForFinish(agentId: string, timeout = 60000): Promise<WaitForFinishResult> {
     const requestId = this.createRequestId();
     const hasTimeout = Number.isFinite(timeout) && timeout > 0;

@@ -374,6 +374,9 @@ export function createAgentUpdatesService(deps: AgentUpdatesServiceDeps): AgentU
   }
 
   function forwardLiveAgent(agent: ManagedAgent): Promise<void> {
+    if (agent.internal) {
+      return Promise.resolve();
+    }
     const payload = toAgentPayload(agent);
     return enqueueAgentUpdate(payload.id, () => emitLiveAgentUpdate(payload));
   }

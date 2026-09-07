@@ -204,6 +204,19 @@ export const zhCN: TranslationResources = {
       title_mr: "附加 issue 或 MR",
     },
   },
+  quickAsk: {
+    menuLabel: "询问",
+    title: "询问选中内容",
+    selectedContent: "选中内容",
+    placeholder: "输入关于选中内容的问题",
+    ask: "询问",
+    thinking: "正在思考...",
+    answer: "回答",
+    failed: "无法回答此问题",
+    disconnected: "Host 已断开连接",
+    unavailable: "当前 Agent 配置不可用",
+    noSelection: "没有选中内容",
+  },
   agentControls: {
     provider: {
       fallback: "提供方",

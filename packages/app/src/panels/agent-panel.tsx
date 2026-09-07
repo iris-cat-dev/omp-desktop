@@ -120,6 +120,7 @@ import { applyLegacyDaemonWorkspaceOwnership } from "@/workspace/legacy-daemon-w
 import type { WorkspaceFileOpenRequest } from "@/workspace/file-open";
 import { deriveSidebarStateBucket } from "@/utils/sidebar-agent-state";
 import { buildDraftAgentSetup, type ClientSlashCommand } from "@/client-slash-commands";
+import { runQuickAsk } from "@/quick-ask/run-quick-ask";
 
 interface ChatAgentStateShape {
   serverId: string | null;
@@ -1512,9 +1513,31 @@ const ChatAgentReadyContent = memo(function ChatAgentReadyContent({
     },
     [agentInputDraft],
   );
+  const handleAskSelection = useCallback(
+    (selectedText: string, question: string) => {
+      if (!client) return Promise.reject(new Error(t("quickAsk.disconnected")));
+      if (!agentState.provider || !cwd) {
+        return Promise.reject(new Error(t("quickAsk.unavailable")));
+      }
+      return runQuickAsk({
+        client,
+        source: {
+          provider: agentState.provider,
+          cwd,
+          currentModeId: agentState.currentModeId,
+          model: agentState.model,
+          thinkingOptionId: agentState.thinkingOptionId,
+          features: agentState.features,
+        },
+        selectedText,
+        question,
+      });
+    },
+    [agentState, client, cwd, t],
+  );
   const streamContainer = <View style={styles.contentContainer}>{streamContent}</View>;
   const contentContainer = hasActiveComposer ? (
-    <QuotedSelectionContextMenu onQuote={handleQuoteSelection}>
+    <QuotedSelectionContextMenu onQuote={handleQuoteSelection} onAsk={handleAskSelection}>
       {streamContainer}
     </QuotedSelectionContextMenu>
   ) : (

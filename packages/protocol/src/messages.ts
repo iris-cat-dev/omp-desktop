@@ -1414,6 +1414,21 @@ export const WaitForFinishRequestSchema = z.object({
   timeoutMs: z.number().int().positive().optional(),
 });
 
+export const QuickAskRequestSchema = z.object({
+  type: z.literal("quick_ask_request"),
+  requestId: z.string(),
+  config: AgentSessionConfigSchema.pick({
+    provider: true,
+    cwd: true,
+    modeId: true,
+    model: true,
+    thinkingOptionId: true,
+    featureValues: true,
+  }),
+  selectedText: z.string().trim().min(1),
+  question: z.string().trim().min(1),
+});
+
 export const DaemonGetStatusRequestSchema = z.object({
   type: z.literal("daemon.get_status.request"),
   requestId: z.string(),
@@ -3204,6 +3219,7 @@ export const SessionInboundMessageSchema = z.discriminatedUnion("type", [
   SetVoiceModeMessageSchema,
   SendAgentMessageRequestSchema,
   WaitForFinishRequestSchema,
+  QuickAskRequestSchema,
   DaemonGetStatusRequestSchema,
   DaemonGetPairingOfferRequestSchema,
   DaemonConfigReloadRequestSchema,
@@ -4770,6 +4786,15 @@ export const WaitForFinishResponseMessageSchema = z.object({
     final: AgentSnapshotPayloadSchema.nullable(),
     error: z.string().nullable(),
     lastMessage: z.string().nullable(),
+  }),
+});
+
+export const QuickAskResponseSchema = z.object({
+  type: z.literal("quick_ask_response"),
+  payload: z.object({
+    requestId: z.string(),
+    answer: z.string().nullable(),
+    error: z.string().nullable(),
   }),
 });
 
@@ -6789,6 +6814,7 @@ export const SessionOutboundMessageSchema = z.discriminatedUnion("type", [
   WorkspaceRecoveryInspectResponseSchema,
   WorkspaceRecoveryRestoreResponseSchema,
   WaitForFinishResponseMessageSchema,
+  QuickAskResponseSchema,
   AgentPermissionRequestMessageSchema,
   AgentPermissionResolvedMessageSchema,
   AgentDeletedMessageSchema,
@@ -7022,6 +7048,7 @@ export type WorkspaceCreateResponse = z.infer<typeof WorkspaceCreateResponseSche
 export type ProjectRenameResponsePayload = z.infer<typeof ProjectRenameResponsePayloadSchema>;
 export type ProjectRemoveResponsePayload = z.infer<typeof ProjectRemoveResponsePayloadSchema>;
 export type WaitForFinishResponseMessage = z.infer<typeof WaitForFinishResponseMessageSchema>;
+export type QuickAskResponse = z.infer<typeof QuickAskResponseSchema>;
 export type AgentPermissionRequestMessage = z.infer<typeof AgentPermissionRequestMessageSchema>;
 export type AgentPermissionResolvedMessage = z.infer<typeof AgentPermissionResolvedMessageSchema>;
 export type AgentDeletedMessage = z.infer<typeof AgentDeletedMessageSchema>;
@@ -7136,6 +7163,7 @@ export type FetchAgentRequestMessage = z.infer<typeof FetchAgentRequestMessageSc
 export type AgentForkContextRequestMessage = z.infer<typeof AgentForkContextRequestMessageSchema>;
 export type SendAgentMessageRequest = z.infer<typeof SendAgentMessageRequestSchema>;
 export type WaitForFinishRequest = z.infer<typeof WaitForFinishRequestSchema>;
+export type QuickAskRequest = z.infer<typeof QuickAskRequestSchema>;
 export type DictationStreamStartMessage = z.infer<typeof DictationStreamStartMessageSchema>;
 export type DictationStreamChunkMessage = z.infer<typeof DictationStreamChunkMessageSchema>;
 export type DictationStreamFinishMessage = z.infer<typeof DictationStreamFinishMessageSchema>;

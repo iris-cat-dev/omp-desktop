@@ -443,6 +443,19 @@ describe("forwardLiveAgent", () => {
     expect(h.agentUpdates()).toEqual([{ kind: "remove", agentId: "a" }]);
   });
 
+  test("does not expose internal agents to directory subscribers", async () => {
+    const h = buildHarness();
+    h.service.beginSubscription({ subscriptionId: "sub", filter: {} });
+    h.service.flushBootstrapped("sub");
+    const agent = h.managed("internal");
+    agent.internal = true;
+
+    await h.service.forwardLiveAgent(agent);
+
+    expect(h.agentUpdates()).toEqual([]);
+    expect(h.workspaceUpdates).toEqual([]);
+  });
+
   test("with no subscription, emits no agent_update but still updates the workspace", async () => {
     const h = buildHarness();
     h.register(makeAgentPayload({ id: "a", workspaceId: "ws-1" }));

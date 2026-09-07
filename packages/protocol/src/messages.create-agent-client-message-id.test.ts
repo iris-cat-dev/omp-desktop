@@ -22,6 +22,25 @@ describe("create_agent_request clientMessageId", () => {
     expect(parsed.clientMessageId).toBe("client-msg-1");
   });
 
+  it("accepts one-off quick ask requests", () => {
+    const parsed = SessionInboundMessageSchema.parse({
+      type: "quick_ask_request",
+      requestId: "req-quick-ask",
+      config: {
+        provider: "claude",
+        cwd: "/tmp/project",
+      },
+      selectedText: "Selected content",
+      question: "What does this mean?",
+    });
+
+    expect(parsed.type).toBe("quick_ask_request");
+    if (parsed.type !== "quick_ask_request") {
+      throw new Error("Expected quick_ask_request");
+    }
+    expect(parsed.question).toBe("What does this mean?");
+  });
+
   it("accepts explicit titles up to the create-agent limit", () => {
     const parsed = SessionInboundMessageSchema.parse({
       type: "create_agent_request",
