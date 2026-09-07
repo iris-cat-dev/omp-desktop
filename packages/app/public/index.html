@@ -51,22 +51,33 @@
       }
     </style>
     <style>
-      button,
-      a,
-      input,
-      textarea,
-      select,
-      [role="button"],
-      [role="link"],
-      [role="textbox"],
-      [role="combobox"],
-      [role="tab"],
-      [role="switch"],
-      [role="checkbox"],
-      [role="slider"],
-      [role="menuitem"],
-      [tabindex],
-      [contenteditable="true"] {
+      /* Keep no-drag rectangles inside real window-chrome hosts. Chromium does
+         not reliably clip app regions inside overflow scrollers
+         (electron/electron#40610), so a global rule lets hidden content erase
+         unrelated native titlebar regions. */
+      :where(
+        [data-window-drag-region] *,
+        [data-window-drag-scope] ~ *,
+        [data-window-drag-scope] ~ * *,
+        #overlay-root *
+      ):is(
+        button,
+        a,
+        input,
+        textarea,
+        select,
+        [role="button"],
+        [role="link"],
+        [role="textbox"],
+        [role="combobox"],
+        [role="tab"],
+        [role="switch"],
+        [role="checkbox"],
+        [role="slider"],
+        [role="menuitem"],
+        [tabindex],
+        [contenteditable="true"]
+      ) {
         -webkit-app-region: no-drag !important;
       }
       /* Normal windows stay on Chromium's native drag path. Maximized frameless
