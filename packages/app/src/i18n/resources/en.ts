@@ -297,6 +297,12 @@ export const en = {
       reconnecting: "Reconnecting",
       timelineSyncFailed: "Couldn't refresh agent history.",
       timelineSyncRetrying: "Retrying…",
+      historyUnavailableTitle: "Conversation history unavailable",
+      historyUnavailableMissing:
+        "This agent still exists, but its provider conversation file was removed. Any cached messages above are read-only.",
+      historyUnavailableMalformed:
+        "This agent still exists, but its provider conversation file is incomplete or damaged. Any cached messages above are read-only.",
+      historyUnavailableEmpty: "No recoverable conversation messages are available.",
       archivingTitle: "Archiving agent...",
       archivingSubtitle: "Please wait while we archive this agent.",
     },

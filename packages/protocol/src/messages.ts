@@ -4523,6 +4523,13 @@ export const AgentTimelineEntryPayloadSchema = z.object({
   collapsed: z.array(z.enum(["assistant_merge", "reasoning_merge", "tool_lifecycle"])),
 });
 
+export const AgentHistoryUnavailableSchema = z.object({
+  reason: z.enum(["missing", "malformed"]),
+  message: z.string(),
+});
+
+export type AgentHistoryUnavailable = z.infer<typeof AgentHistoryUnavailableSchema>;
+
 export const FetchAgentTimelineResponseMessageSchema = z.object({
   type: z.literal("fetch_agent_timeline_response"),
   payload: z.object({
@@ -4546,6 +4553,7 @@ export const FetchAgentTimelineResponseMessageSchema = z.object({
     hasNewer: z.boolean(),
     mergeWindow: z.boolean().optional(),
     entries: z.array(AgentTimelineEntryPayloadSchema),
+    historyUnavailable: AgentHistoryUnavailableSchema.optional(),
     error: z.string().nullable(),
   }),
 });

@@ -4515,11 +4515,10 @@ export class AgentManager {
   private emitState(agent: ManagedAgent, options?: { persist?: boolean }): void {
     // Keep attention as an edge-triggered unread signal, not a level signal.
     this.checkAndSetAttention(agent);
+    this.syncFeaturesFromSession(agent);
     if (options?.persist !== false) {
       this.enqueueBackgroundPersist(agent);
     }
-
-    this.syncFeaturesFromSession(agent);
 
     this.logger.trace(
       {
@@ -4542,8 +4541,32 @@ export class AgentManager {
   }
 
   private syncFeaturesFromSession(agent: ManagedAgent): void {
-    if ("session" in agent && agent.session?.features) {
-      agent.features = agent.session.features;
+    if (!("session" in agent) || !agent.session?.features) {
+      return;
+    }
+
+    const features = agent.session.features;
+    agent.features = features;
+
+    // Persist provider-owned transitions without freezing unconfigured provider defaults.
+    const configuredValues = agent.config.featureValues;
+    if (!configuredValues) {
+      return;
+    }
+
+    let nextValues: Record<string, unknown> | null = null;
+    for (const feature of features) {
+      if (
+        !Object.prototype.hasOwnProperty.call(configuredValues, feature.id) ||
+        Object.is(configuredValues[feature.id], feature.value)
+      ) {
+        continue;
+      }
+      nextValues ??= { ...configuredValues };
+      nextValues[feature.id] = feature.value;
+    }
+    if (nextValues) {
+      agent.config.featureValues = nextValues;
     }
   }
 

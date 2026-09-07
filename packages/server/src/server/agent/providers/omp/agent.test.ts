@@ -1,5 +1,8 @@
 import { describe, expect, test } from "vitest";
 import { setImmediate as waitForImmediate } from "node:timers/promises";
+import { mkdtemp, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 import type { PaseoToolCatalog } from "../../tools/types.js";
 import type { OmpNoTurnScheduler, OmpProviderIdleScheduler } from "./agent.js";
@@ -727,6 +730,9 @@ describe("OMP agent client and session", () => {
     expect(omp.features()).toEqual([
       expect.objectContaining({ id: "workflow_mode", value: "standard" }),
     ]);
+
+    await omp.runPrompt("answer a follow-up", "Follow-up complete");
+    expect(omp.recordedPrompts().at(-1)?.message).toBe("answer a follow-up");
   });
 
   test("deleting an empty pending goal does not send /goal drop", async () => {
@@ -1155,6 +1161,18 @@ describe("OMP agent client and session", () => {
     });
   });
 
+  test("rejects malformed OMP history before launching a runtime", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "paseo-omp-malformed-resume-"));
+    const sessionFile = join(directory, "session.jsonl");
+    await writeFile(sessionFile, '{"type":"title","title":"truncated"}\n', "utf8");
+    const omp = new OmpHarness();
+
+    await expect(omp.resumeFile(sessionFile)).rejects.toThrow(
+      "OMP session file is missing a valid session header",
+    );
+    expect(omp.launchCount()).toBe(0);
+  });
+
   test("resumes an OMP session and replays its history", async () => {
     const omp = new OmpHarness();
     await omp.resume(
@@ -1213,6 +1231,56 @@ describe("OMP agent client and session", () => {
     expect(omp.extensionUiResponses()).toEqual([
       { id: "approval-1", response: { value: "Approve" } },
     ]);
+  });
+
+  test("folds OMP ask custom input into the Other option", async () => {
+    const omp = new OmpHarness();
+    await omp.start();
+
+    omp.emitExtensionUiRequest({
+      type: "extension_ui_request",
+      id: "ask-select-1",
+      method: "select",
+      title: "Which capability should ship first?",
+      options: ["Task execution", "Blueprint editor", "Other (type your own)"],
+    });
+    expect(omp.pendingPermissions()).toEqual([
+      expect.objectContaining({
+        id: "ask-select-1",
+        kind: "question",
+        input: {
+          questions: [
+            {
+              question: "Which capability should ship first?",
+              header: "Response",
+              options: [{ label: "Task execution" }, { label: "Blueprint editor" }],
+              multiSelect: false,
+              allowOther: true,
+            },
+          ],
+        },
+      }),
+    ]);
+
+    await omp.respondToPermission("ask-select-1", {
+      behavior: "allow",
+      updatedInput: { answers: { Response: "Live collaboration" } },
+    });
+    expect(omp.extensionUiResponses()).toEqual([
+      { id: "ask-select-1", response: { value: "Other (type your own)" } },
+    ]);
+
+    omp.emitExtensionUiRequest({
+      type: "extension_ui_request",
+      id: "ask-editor-1",
+      method: "editor",
+      title: "Which capability should ship first?",
+    });
+    expect(omp.extensionUiResponses()).toEqual([
+      { id: "ask-select-1", response: { value: "Other (type your own)" } },
+      { id: "ask-editor-1", response: { value: "Live collaboration" } },
+    ]);
+    expect(omp.pendingPermissions()).toEqual([]);
   });
 
   test("exposes OMP modes and commands through the domain session", async () => {

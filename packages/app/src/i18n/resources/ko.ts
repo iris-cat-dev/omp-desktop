@@ -289,6 +289,12 @@ export const ko: TranslationResources = {
       reconnecting: "다시 연결하는 중",
       timelineSyncFailed: "에이전트 기록을 새로고침할 수 없습니다.",
       timelineSyncRetrying: "재시도 중…",
+      historyUnavailableTitle: "대화 기록을 사용할 수 없음",
+      historyUnavailableMissing:
+        "이 에이전트는 남아 있지만 제공자의 대화 파일이 삭제되었습니다. 위에 캐시된 메시지가 있다면 읽기 전용입니다.",
+      historyUnavailableMalformed:
+        "이 에이전트는 남아 있지만 제공자의 대화 파일이 불완전하거나 손상되었습니다. 위에 캐시된 메시지가 있다면 읽기 전용입니다.",
+      historyUnavailableEmpty: "복구할 수 있는 대화 메시지가 없습니다.",
       archivingTitle: "에이전트 보관 중...",
       archivingSubtitle: "이 에이전트를 보관하는 동안 잠시 기다려 주세요.",
     },

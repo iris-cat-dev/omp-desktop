@@ -36,6 +36,7 @@ import type {
 import type {
   ServerInfoStatusPayload,
   ProjectPlacementPayload,
+  AgentHistoryUnavailable,
   ServerCapabilities,
   WorkspaceDescriptorPayload,
   WorkspaceProjectDescriptorPayload,
@@ -420,6 +421,7 @@ export interface SessionState {
   historySyncGeneration: number;
   agentHistorySyncGeneration: Map<string, number>;
   agentAuthoritativeHistoryApplied: Map<string, boolean>;
+  agentHistoryUnavailable: Map<string, AgentHistoryUnavailable>;
 
   // Initializing agents (used for UI loading state)
   initializingAgents: Map<string, boolean>;
@@ -555,6 +557,11 @@ interface SessionStoreActions {
     agentId: string,
     applied: boolean,
   ) => void;
+  setAgentHistoryUnavailable: (
+    serverId: string,
+    agentId: string,
+    unavailable: AgentHistoryUnavailable | null,
+  ) => void;
   applyAgentTimelineResponseState: (
     serverId: string,
     agentId: string,
@@ -677,6 +684,7 @@ function createInitialSessionState(
     historySyncGeneration: 0,
     agentHistorySyncGeneration: new Map(),
     agentAuthoritativeHistoryApplied: new Map(),
+    agentHistoryUnavailable: new Map(),
     initializingAgents: new Map(),
     agents: new Map(),
     workspaceAgentActivity: new Map(),
@@ -1479,6 +1487,34 @@ export const useSessionStore = create<SessionStore>()(
               [serverId]: {
                 ...session,
                 agentHistorySyncGeneration: nextMap,
+              },
+            },
+          };
+        });
+      },
+
+      setAgentHistoryUnavailable: (serverId, agentId, unavailable) => {
+        set((prev) => {
+          const session = prev.sessions[serverId];
+          if (
+            !session ||
+            equal(session.agentHistoryUnavailable.get(agentId) ?? null, unavailable)
+          ) {
+            return prev;
+          }
+          const nextUnavailable = new Map(session.agentHistoryUnavailable);
+          if (unavailable) {
+            nextUnavailable.set(agentId, unavailable);
+          } else {
+            nextUnavailable.delete(agentId);
+          }
+          return {
+            ...prev,
+            sessions: {
+              ...prev.sessions,
+              [serverId]: {
+                ...session,
+                agentHistoryUnavailable: nextUnavailable,
               },
             },
           };

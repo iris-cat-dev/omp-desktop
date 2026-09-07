@@ -289,6 +289,12 @@ export const ar: TranslationResources = {
       reconnecting: "جارٍ إعادة الاتصال",
       timelineSyncFailed: "تعذر تحديث سجل الوكيل.",
       timelineSyncRetrying: "جارٍ إعادة المحاولة…",
+      historyUnavailableTitle: "سجل المحادثة غير متاح",
+      historyUnavailableMissing:
+        "لا يزال هذا الوكيل موجودًا، ولكن تمت إزالة ملف محادثة المزوّد. أي رسائل مخزنة مؤقتًا أعلاه متاحة للقراءة فقط.",
+      historyUnavailableMalformed:
+        "لا يزال هذا الوكيل موجودًا، ولكن ملف محادثة المزوّد غير مكتمل أو تالف. أي رسائل مخزنة مؤقتًا أعلاه متاحة للقراءة فقط.",
+      historyUnavailableEmpty: "لا توجد رسائل محادثة قابلة للاسترداد.",
       archivingTitle: "وكيل الارشيف...",
       archivingSubtitle: "الرجاء الانتظار بينما نقوم بأرشفة هذا الوكيل.",
     },

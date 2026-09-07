@@ -26,6 +26,7 @@ import type {
   OmpAgentMessage,
   OmpModel,
   OmpRpcSlashCommand,
+  OmpRuntimeEvent,
   OmpSessionStats,
   OmpSessionState,
 } from "../rpc-types.js";
@@ -136,7 +137,13 @@ export class OmpHarness {
     history: OmpResumeHistory,
     overrides: Partial<AgentSessionConfig> = {},
   ): Promise<void> {
-    const sessionFile = await writeOmpHistory(history);
+    await this.resumeFile(await writeOmpHistory(history), overrides);
+  }
+
+  async resumeFile(
+    sessionFile: string,
+    overrides: Partial<AgentSessionConfig> = {},
+  ): Promise<void> {
     const handle: AgentPersistenceHandle = {
       provider: "omp",
       sessionId: "omp-session-1",
@@ -484,6 +491,10 @@ export class OmpHarness {
     detail: string;
   }): void {
     this.omp.latestSession().requestToolApproval(input);
+  }
+
+  emitExtensionUiRequest(event: Extract<OmpRuntimeEvent, { type: "extension_ui_request" }>): void {
+    this.omp.latestSession().emit(event);
   }
 
   pendingPermissions() {

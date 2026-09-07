@@ -130,6 +130,7 @@ import {
   listImportableProviderSessions,
   normalizeImportAgentRequest,
 } from "./agent/import-sessions.js";
+import { inspectOmpSessionHistoryAvailability } from "./agent/providers/omp/session-descriptor.js";
 import {
   checkoutLiteFromGitSnapshot,
   checkoutFromPersistedWorkspacePlacement,
@@ -587,6 +588,12 @@ interface AgentTimelineProjectionSelection {
   endSeq: number | null;
   hasOlder: boolean;
   hasNewer: boolean;
+}
+
+interface UnavailableAgentHistory {
+  agent: AgentSnapshotPayload;
+  reason: "missing" | "malformed";
+  message: string;
 }
 
 type RegistryTransition = "created" | "unarchived" | "existing";
@@ -4517,6 +4524,37 @@ export class Session {
     return this.isProviderVisibleToClient(payload.provider) ? payload : null;
   }
 
+  private async inspectUnavailablePersistedOmpHistory(
+    agentId: string,
+  ): Promise<UnavailableAgentHistory | null> {
+    if (this.agentManager.getAgent(agentId)) {
+      return null;
+    }
+    const record = await this.agentStorage.get(agentId);
+    const nativeHandle = record?.persistence?.nativeHandle;
+    if (
+      !record ||
+      record.internal ||
+      record.provider !== "omp" ||
+      typeof nativeHandle !== "string" ||
+      !nativeHandle.trim()
+    ) {
+      return null;
+    }
+    const availability = await inspectOmpSessionHistoryAvailability(nativeHandle);
+    if (availability.status === "available") {
+      return null;
+    }
+    return {
+      agent: this.buildStoredAgentPayload(record),
+      reason: availability.reason,
+      message:
+        availability.reason === "missing"
+          ? "The OMP session file no longer exists."
+          : "The OMP session file is missing a valid session header.",
+    };
+  }
+
   private async resolveDelegationRootWorkspaceId(agentId: string): Promise<string | null> {
     const seen = new Set<string>();
     let currentAgentId = agentId;
@@ -7129,6 +7167,46 @@ export class Session {
       : undefined;
 
     try {
+      const supportsDegradedHistory = source
+        ? this.supportsForSource(CLIENT_CAPS.degradedAgentHistory, source)
+        : this.supports(CLIENT_CAPS.degradedAgentHistory);
+
+      if (supportsDegradedHistory) {
+        const unavailableHistory = await this.inspectUnavailablePersistedOmpHistory(msg.agentId);
+        if (unavailableHistory) {
+          this.emitForSource(
+            {
+              type: "fetch_agent_timeline_response",
+              payload: {
+                requestId: msg.requestId,
+                agentId: msg.agentId,
+                agent: unavailableHistory.agent,
+                direction,
+                projection,
+                epoch: "",
+                reset: false,
+                staleCursor: false,
+                gap: false,
+                window: { minSeq: 0, maxSeq: 0, nextSeq: 0 },
+                startCursor: null,
+                endCursor: null,
+                hasOlder: false,
+                hasNewer: false,
+                ...(msg.mergeWindow === true ? { mergeWindow: true } : {}),
+                entries: [],
+                historyUnavailable: {
+                  reason: unavailableHistory.reason,
+                  message: unavailableHistory.message,
+                },
+                error: null,
+              },
+            },
+            source,
+          );
+          return;
+        }
+      }
+
       const snapshot = await ensureAgentLoaded(msg.agentId, {
         agentManager: this.agentManager,
         agentStorage: this.agentStorage,

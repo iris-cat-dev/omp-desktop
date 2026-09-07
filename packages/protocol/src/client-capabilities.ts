@@ -4,6 +4,10 @@ export const CLIENT_CAPS = {
   // once the supported client floor is >= v0.1.106.
   selectiveAgentTimeline: "selective_agent_timeline",
   reasoningMergeEnum: "reasoning_merge_enum",
+  // COMPAT(degradedAgentHistory): added in v0.2.X. Capable clients can render
+  // persisted agent metadata when the provider transcript is missing or malformed.
+  // Older clients receive the original timeline error instead.
+  degradedAgentHistory: "degraded_agent_history",
   // COMPAT(customModeIcons): added in v0.1.84. Old clients pin AgentModeIcon to
   // a closed enum and crash rendering unknown values; daemon downgrades icons
   // outside the legacy set to "ShieldCheck" when this cap is absent. Drop the

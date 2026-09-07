@@ -291,6 +291,12 @@ export const fr: TranslationResources = {
       reconnecting: "Reconnexion",
       timelineSyncFailed: "Impossible d’actualiser l’historique de l’agent.",
       timelineSyncRetrying: "Nouvelle tentative…",
+      historyUnavailableTitle: "Historique de conversation indisponible",
+      historyUnavailableMissing:
+        "Cet agent existe toujours, mais le fichier de conversation du fournisseur a été supprimé. Les éventuels messages en cache ci-dessus sont en lecture seule.",
+      historyUnavailableMalformed:
+        "Cet agent existe toujours, mais le fichier de conversation du fournisseur est incomplet ou endommagé. Les éventuels messages en cache ci-dessus sont en lecture seule.",
+      historyUnavailableEmpty: "Aucun message de conversation récupérable n’est disponible.",
       archivingTitle: "Agent d'archivage...",
       archivingSubtitle: "Veuillez patienter pendant que nous archivons cet agent.",
     },

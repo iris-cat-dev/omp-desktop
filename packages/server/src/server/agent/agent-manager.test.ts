@@ -8534,6 +8534,10 @@ test("respondToPermission refreshes features and runtime info after provider-man
     {
       provider: "codex",
       cwd: workdir,
+      featureValues: {
+        fast_mode: true,
+        plan_mode: true,
+      },
     },
     undefined,
     { workspaceId: undefined },
@@ -8572,6 +8576,10 @@ test("respondToPermission refreshes features and runtime info after provider-man
     createFeature({ id: "fast_mode", label: "Fast", value: true }),
     createFeature({ id: "plan_mode", label: "Plan", value: false }),
   ]);
+  expect(persisted?.config?.featureValues).toEqual({
+    fast_mode: true,
+    plan_mode: false,
+  });
 });
 
 test("respondToPermission emits refreshed state before permission_resolved", async () => {

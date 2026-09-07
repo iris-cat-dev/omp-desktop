@@ -1,4 +1,7 @@
-import type { AgentStreamEventPayload } from "@omp-desktop/protocol/messages";
+import type {
+  AgentHistoryUnavailable,
+  AgentStreamEventPayload,
+} from "@omp-desktop/protocol/messages";
 import { selectAgentTimelineState, useSessionStore } from "@/stores/session-store";
 import type { AssistantMessageItem, StreamItem, TodoEntry } from "@/types/stream";
 import type { TurnLivenessTransition } from "@/timeline/turn-liveness";
@@ -150,6 +153,7 @@ export interface ProcessTimelineResponseInput {
     hasNewer: boolean;
     hasOlder: boolean;
     mergeWindow?: boolean;
+    historyUnavailable?: AgentHistoryUnavailable;
   };
   currentTail: StreamItem[];
   currentHead: StreamItem[];
@@ -1258,6 +1262,24 @@ export function processTimelineResponse(
       initResolution: hasActiveInitDeferred ? "reject" : null,
       clearInitializing: isInitializing,
       error: payload.error,
+      sideEffects: [],
+      acknowledgedClientMessageIds: [],
+    };
+  }
+
+  // A missing provider transcript is a terminal, readable state rather than a
+  // transport failure. Preserve any painted replica while resolving bootstrap.
+  if (payload.historyUnavailable) {
+    return {
+      commit: "discard",
+      tail: currentTail,
+      head: currentHead,
+      cursor: currentCursor,
+      cursorChanged: false,
+      older: "unchanged",
+      initResolution: hasActiveInitDeferred ? "resolve" : null,
+      clearInitializing: isInitializing,
+      error: null,
       sideEffects: [],
       acknowledgedClientMessageIds: [],
     };

@@ -44,6 +44,7 @@ type ProviderSubagentStoreSnapshot = ReturnType<typeof useProviderSubagentStore.
 interface SelectSubagentsParams {
   serverId: string;
   parentAgentId: string;
+  enabled?: boolean;
 }
 
 const EMPTY_SUBAGENT_ROWS: SubagentRow[] = [];
@@ -138,11 +139,11 @@ export function useSubagentsForParent(params: SelectSubagentsParams): SubagentRo
   const client = useSessionStore((state) => state.sessions[params.serverId]?.client ?? null);
 
   useEffect(() => {
-    if (!client || !supported) return;
+    if (!client || !supported || params.enabled === false) return;
     void refreshProviderSubagents(client, params.serverId, params.parentAgentId).catch(
       () => undefined,
     );
-  }, [client, params.parentAgentId, params.serverId, supported]);
+  }, [client, params.enabled, params.parentAgentId, params.serverId, supported]);
 
   return useMemo(() => {
     if (providerRows.length === 0) return paseoRows;

@@ -1,6 +1,8 @@
+import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import type { DaemonClient } from "@omp-desktop/client/internal/daemon-client";
+import type { AgentHistoryUnavailable } from "@omp-desktop/protocol/messages";
 import type { TFunction } from "i18next";
 import { SquarePen } from "lucide-react-native";
 import React, {
@@ -78,6 +80,7 @@ import { buildDraftPanelDescriptor } from "@/panels/draft-panel-descriptor";
 import {
   type HostRuntimeConnectionStatus,
   getHostRuntimeConnectionStatusSince,
+  getHostRuntimeStore,
   useHostRuntimeClient,
   useHostRuntimeConnectionStatus,
   useHostRuntimeIsConnected,
@@ -111,6 +114,7 @@ import type { PendingPermission } from "@/types/shared";
 import type { StreamItem, TodoEntry } from "@/types/stream";
 import { useArchiveFinishedSubagents, useSubagentsForParent } from "@/subagents";
 import { getInitDeferred, getInitKey } from "@/utils/agent-initialization";
+import { planTimelineTailFetch } from "@/timeline/timeline-sync-plan";
 import { derivePendingPermissionKey, normalizeAgentSnapshot } from "@/utils/agent-snapshots";
 import { applyLegacyDaemonWorkspaceOwnership } from "@/workspace/legacy-daemon-workspaces";
 import type { WorkspaceFileOpenRequest } from "@/workspace/file-open";
@@ -823,6 +827,7 @@ function ChatAgentContent({
   const wasPaneFocusedRef = useRef(isPaneFocused);
   const reconnectToastPresentedRef = useRef(false);
   const initAttemptTokenRef = useRef(0);
+  const [isRetryingUnavailableHistory, setIsRetryingUnavailableHistory] = useState(false);
   const routeBottomAnchorRequestRef = useRef<{
     routeKey: string;
     reason: "initial-entry" | "resume";
@@ -847,6 +852,9 @@ function ChatAgentContent({
   );
   const isInitializingFromMap = useSessionStore((state) =>
     agentId ? (state.sessions[serverId]?.initializingAgents?.get(agentId) ?? false) : false,
+  );
+  const historyUnavailable = useSessionStore((state) =>
+    agentId ? (state.sessions[serverId]?.agentHistoryUnavailable.get(agentId) ?? null) : null,
   );
   const historySyncGeneration = useSessionStore(
     (state) => state.sessions[serverId]?.historySyncGeneration ?? 0,
@@ -1003,11 +1011,11 @@ function ChatAgentContent({
     return Boolean(getInitDeferred(initKey));
   }, [agentId, isInitializing, serverId]);
   const needsAuthoritativeSync = useMemo(() => {
-    if (!agentId) {
+    if (!agentId || historyUnavailable) {
       return false;
     }
     return agentHistorySyncGeneration < historySyncGeneration;
-  }, [agentHistorySyncGeneration, agentId, historySyncGeneration]);
+  }, [agentHistorySyncGeneration, agentId, historySyncGeneration, historyUnavailable]);
 
   const agent = useMemo<AgentScreenAgent | null>(
     () => buildChatAgentFromState(agentState, projectPlacement),
@@ -1085,6 +1093,15 @@ function ChatAgentContent({
     viewedTimelineSync.retryVisibleAgentTimeline(agentId);
   }, [agentId, viewedTimelineSync]);
 
+  const retryUnavailableHistory = useCallback(() => {
+    if (!agentId || isRetryingUnavailableHistory) return;
+    setIsRetryingUnavailableHistory(true);
+    void getHostRuntimeStore()
+      .fetchAgentTimeline(serverId, agentId, planTimelineTailFetch())
+      .catch((error) => toastApi.error(toErrorMessage(error)))
+      .finally(() => setIsRetryingUnavailableHistory(false));
+  }, [agentId, isRetryingUnavailableHistory, serverId, toastApi]);
+
   useEffect(() => {
     initAttemptTokenRef.current += 1;
     setMissingAgentState({ kind: "idle" });
@@ -1097,7 +1114,7 @@ function ChatAgentContent({
     if (agentState.archivedAt) {
       return;
     }
-    if (agentState.id && hasAppliedAuthoritativeHistory) {
+    if (agentState.id && (hasAppliedAuthoritativeHistory || historyUnavailable)) {
       if (
         missingAgentState.kind === "resolving" ||
         missingAgentState.kind === "not_found" ||
@@ -1164,6 +1181,7 @@ function ChatAgentContent({
     agentState.id,
     agentState.archivedAt,
     hasAppliedAuthoritativeHistory,
+    historyUnavailable,
     agentId,
     client,
     ensureAgentIsInitialized,
@@ -1223,6 +1241,9 @@ function ChatAgentContent({
       isRetryingHistorySync={isRetryingHistorySync}
       cwd={agentCwd}
       retryTimelineSync={retryTimelineSync}
+      historyUnavailable={historyUnavailable}
+      retryUnavailableHistory={retryUnavailableHistory}
+      isRetryingUnavailableHistory={isRetryingUnavailableHistory}
       onAttentionInputFocus={attentionController.clearOnInputFocus}
       onAttentionPromptSend={attentionController.clearOnPromptSend}
       onOpenWorkspaceFile={onOpenWorkspaceFile}
@@ -1251,6 +1272,9 @@ const ChatAgentReadyContent = memo(function ChatAgentReadyContent({
   showHistorySyncError,
   isRetryingHistorySync,
   retryTimelineSync,
+  historyUnavailable,
+  retryUnavailableHistory,
+  isRetryingUnavailableHistory,
   cwd,
   onAttentionInputFocus,
   onAttentionPromptSend,
@@ -1276,6 +1300,9 @@ const ChatAgentReadyContent = memo(function ChatAgentReadyContent({
   showHistorySyncError: boolean;
   isRetryingHistorySync: boolean;
   retryTimelineSync: () => void;
+  historyUnavailable: AgentHistoryUnavailable | null;
+  retryUnavailableHistory: () => void;
+  isRetryingUnavailableHistory: boolean;
   cwd: string;
   onAttentionInputFocus: () => void;
   onAttentionPromptSend: () => void;
@@ -1327,7 +1354,11 @@ const ChatAgentReadyContent = memo(function ChatAgentReadyContent({
     },
     [agentId, client, t, toastApi],
   );
-  const subagentRows = useSubagentsForParent({ serverId, parentAgentId: agentId });
+  const subagentRows = useSubagentsForParent({
+    serverId,
+    parentAgentId: agentId,
+    enabled: hasAppliedAuthoritativeHistory && !historyUnavailable,
+  });
   const tasks = useSessionStore((state): TodoEntry[] | undefined =>
     state.sessions[serverId]?.agentTasks.get(agentId),
   );
@@ -1340,7 +1371,8 @@ const ChatAgentReadyContent = memo(function ChatAgentReadyContent({
     parentAgentId: agentId,
     rows: subagentRows,
   });
-  const hasActiveComposer = !agentState.archivedAt && !isArchivingCurrentAgent;
+  const hasActiveComposer =
+    !agentState.archivedAt && !isArchivingCurrentAgent && !historyUnavailable;
   const hasVisibleAgentTracks = hasAgentTracks({
     subagentRows,
     archiveFinishedStatus: archiveFinishedSubagents.status,
@@ -1391,7 +1423,32 @@ const ChatAgentReadyContent = memo(function ChatAgentReadyContent({
       composerState,
     ],
   );
-  const composerSection = (
+  const composerSection = historyUnavailable ? (
+    <View style={styles.historyUnavailableContainer}>
+      <Alert
+        variant="warning"
+        title={t("agentPanel.states.historyUnavailableTitle")}
+        description={
+          historyUnavailable.reason === "missing"
+            ? t("agentPanel.states.historyUnavailableMissing")
+            : t("agentPanel.states.historyUnavailableMalformed")
+        }
+        testID="agent-history-unavailable"
+      >
+        <Button
+          size="sm"
+          variant="secondary"
+          onPress={retryUnavailableHistory}
+          disabled={isRetryingUnavailableHistory}
+          testID="agent-history-unavailable-retry"
+        >
+          {isRetryingUnavailableHistory
+            ? t("agentPanel.states.timelineSyncRetrying")
+            : t("common.actions.retry")}
+        </Button>
+      </Alert>
+    </View>
+  ) : (
     <RenderProfile id={`AgentComposerSection:${agentId}`}>
       <AgentComposerSection
         agentId={agentId}
@@ -1421,6 +1478,10 @@ const ChatAgentReadyContent = memo(function ChatAgentReadyContent({
           routeBottomAnchorRequest={routeBottomAnchorRequest}
           hasAppliedAuthoritativeHistory={hasAppliedAuthoritativeHistory}
           hasActiveComposer={hasActiveComposer}
+          readOnly={Boolean(historyUnavailable)}
+          emptyText={
+            historyUnavailable ? t("agentPanel.states.historyUnavailableEmpty") : undefined
+          }
           hasVisibleAgentTracks={hasVisibleAgentTracks}
           toast={toastApi}
           onOpenWorkspaceFile={onOpenWorkspaceFile}
@@ -1466,7 +1527,10 @@ const ChatAgentReadyContent = memo(function ChatAgentReadyContent({
       setText={agentInputDraft.replaceText}
     >
       <View style={styles.root}>
-        <FileDropZone style={styles.container} disabled={isArchivingCurrentAgent}>
+        <FileDropZone
+          style={styles.container}
+          disabled={isArchivingCurrentAgent || Boolean(historyUnavailable)}
+        >
           <View style={styles.conversationBody}>
             {contentContainer}
             {isTaskPanelExpanded ? (
@@ -1506,7 +1570,7 @@ const ChatAgentReadyContent = memo(function ChatAgentReadyContent({
 
           <View style={styles.composerRail}>
             <View style={styles.composerStack}>
-              {goalModeEnabled ? (
+              {goalModeEnabled && !historyUnavailable ? (
                 <GoalBar
                   goal={goal}
                   disabled={!client}
@@ -1552,6 +1616,8 @@ const AgentStreamSection = memo(function AgentStreamSection({
   hasVisibleAgentTracks,
   toast,
   onOpenWorkspaceFile,
+  readOnly,
+  emptyText,
 }: {
   streamViewRef: React.RefObject<AgentStreamViewHandle | null>;
   serverId: string;
@@ -1563,6 +1629,8 @@ const AgentStreamSection = memo(function AgentStreamSection({
   hasActiveComposer: boolean;
   hasVisibleAgentTracks: boolean;
   toast: ReturnType<typeof useToastHost>["api"];
+  readOnly: boolean;
+  emptyText?: string;
   onOpenWorkspaceFile?: (request: WorkspaceFileOpenRequest) => void;
 }) {
   const isCompactFormFactor = useIsCompactFormFactor();
@@ -1630,7 +1698,9 @@ const AgentStreamSection = memo(function AgentStreamSection({
       streamItems={streamItems}
       pendingPermissions={pendingPermissions}
       routeBottomAnchorRequest={routeBottomAnchorRequest}
-      isAuthoritativeHistoryReady={hasAppliedAuthoritativeHistory}
+      isAuthoritativeHistoryReady={hasAppliedAuthoritativeHistory || readOnly}
+      readOnly={readOnly}
+      emptyText={emptyText}
       bottomOverlayTailClearance={bottomOverlayTailClearance}
       bottomOverlayControlClearance={bottomOverlayControlClearance}
       toast={toast}
@@ -1973,6 +2043,13 @@ const styles = StyleSheet.create((theme) => ({
   timelineSyncCalloutContent: {
     width: "100%",
     maxWidth: MAX_CONTENT_WIDTH,
+  },
+  historyUnavailableContainer: {
+    width: "100%",
+    maxWidth: MAX_CONTENT_WIDTH,
+    alignSelf: "center",
+    paddingHorizontal: theme.spacing[4],
+    paddingVertical: theme.spacing[3],
   },
   timelineSyncCallout: {
     flexDirection: "row",

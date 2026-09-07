@@ -1,5 +1,5 @@
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { View, Text, Pressable, type PressableStateCallbackType } from "react-native";
 import { StyleSheet, useUnistyles } from "react-native-unistyles";
 import { useIsCompactFormFactor } from "@/constants/layout";
@@ -8,7 +8,10 @@ import { useTranslation } from "react-i18next";
 import type { PendingPermission } from "@/types/shared";
 import type { AgentPermissionResponse } from "@omp-desktop/protocol/agent-types";
 import { isWeb } from "@/constants/platform";
-import { EditingTextInput as TextInput } from "@/components/ui/text-input";
+import {
+  EditingTextInput as TextInput,
+  type EditingTextInputHandle,
+} from "@/components/ui/text-input";
 import {
   areQuestionsAnswered,
   buildQuestionFormAnswers,
@@ -41,6 +44,37 @@ function getQuestionInputPlaceholder({
 }): string {
   return (
     question.placeholder ?? (question.options.length === 0 ? answerPlaceholder : otherPlaceholder)
+  );
+}
+
+interface SelectionControlProps {
+  isSelected: boolean;
+  multiSelect: boolean;
+}
+
+function SelectionControl({ isSelected, multiSelect }: SelectionControlProps) {
+  const { theme } = useUnistyles();
+  const controlStyle = useMemo(
+    () => [
+      styles.selectionControl,
+      multiSelect ? styles.selectionControlCheckbox : styles.selectionControlRadio,
+      {
+        borderColor: isSelected ? theme.colors.accent : theme.colors.foregroundMuted,
+        backgroundColor: isSelected && multiSelect ? theme.colors.accent : "transparent",
+      },
+    ],
+    [isSelected, multiSelect, theme.colors.accent, theme.colors.foregroundMuted],
+  );
+  const radioDotStyle = useMemo(
+    () => [styles.selectionRadioDot, { backgroundColor: theme.colors.accent }],
+    [theme.colors.accent],
+  );
+
+  return (
+    <View style={controlStyle}>
+      {isSelected && multiSelect ? <Check size={12} color={theme.colors.accentForeground} /> : null}
+      {isSelected && !multiSelect ? <View style={radioDotStyle} /> : null}
+    </View>
   );
 }
 
@@ -97,21 +131,6 @@ function QuestionOptionRow({
 
   // Static left-side control: square for multi-select, circle for single-select.
   // Always rendered so toggling only swaps fill/border — the row never reflows.
-  const controlStyle = useMemo(
-    () => [
-      styles.selectionControl,
-      multiSelect ? styles.selectionControlCheckbox : styles.selectionControlRadio,
-      {
-        borderColor: isSelected ? theme.colors.accent : theme.colors.foregroundMuted,
-        backgroundColor: isSelected && multiSelect ? theme.colors.accent : "transparent",
-      },
-    ],
-    [isSelected, multiSelect, theme.colors.accent, theme.colors.foregroundMuted],
-  );
-  const radioDotStyle = useMemo(
-    () => [styles.selectionRadioDot, { backgroundColor: theme.colors.accent }],
-    [theme.colors.accent],
-  );
 
   return (
     <Pressable
@@ -124,12 +143,7 @@ function QuestionOptionRow({
       aria-checked={isSelected}
     >
       <View style={styles.optionItemContent}>
-        <View style={controlStyle}>
-          {isSelected && multiSelect ? (
-            <Check size={12} color={theme.colors.accentForeground} />
-          ) : null}
-          {isSelected && !multiSelect ? <View style={radioDotStyle} /> : null}
-        </View>
+        <SelectionControl isSelected={isSelected} multiSelect={multiSelect} />
         <View style={styles.optionTextBlock}>
           <Text style={optionLabelStyle}>{displayLabel}</Text>
           {option.description ? (
@@ -264,6 +278,8 @@ interface QuestionOtherInputProps {
   accessibilityLabel: string;
   value: string;
   placeholder: string;
+  asOption: boolean;
+  multiSelect: boolean;
   isResponding: boolean;
   onChange: (qIndex: number, text: string) => void;
   onSubmit: () => void;
@@ -274,38 +290,56 @@ function QuestionOtherInput({
   accessibilityLabel,
   value,
   placeholder,
+  asOption,
+  multiSelect,
   isResponding,
   onChange,
   onSubmit,
 }: QuestionOtherInputProps) {
   const { theme } = useUnistyles();
+  const inputRef = useRef<EditingTextInputHandle>(null);
+  const isSelected = value.trim().length > 0;
   const handleChange = useCallback(
     (text: string) => {
       onChange(qIndex, text);
     },
     [onChange, qIndex],
   );
+  useEffect(() => {
+    if (inputRef.current?.getText() === value) return;
+    inputRef.current?.replaceText(value, { start: value.length, end: value.length });
+  }, [value]);
   const otherInputStyle = useMemo(
     () =>
       [
-        styles.otherInput,
+        asOption ? styles.otherInputInline : styles.otherInput,
         {
-          borderColor: value.length > 0 ? theme.colors.borderAccent : theme.colors.border,
+          borderColor: isSelected ? theme.colors.borderAccent : theme.colors.border,
           color: theme.colors.foreground,
           backgroundColor: theme.colors.surface2,
         },
         IS_WEB ? { outlineStyle: "none", outlineWidth: 0, outlineColor: "transparent" } : null,
       ] as const,
     [
-      value.length,
+      asOption,
+      isSelected,
       theme.colors.borderAccent,
       theme.colors.border,
       theme.colors.foreground,
       theme.colors.surface2,
     ],
   );
-  return (
+  const otherOptionStyle = useMemo(
+    () => [
+      styles.optionItem,
+      styles.otherOptionItem,
+      isSelected && { backgroundColor: theme.colors.surface2 },
+    ],
+    [isSelected, theme.colors.surface2],
+  );
+  const input = (
     <TextInput
+      ref={inputRef}
       // @ts-expect-error - outlineStyle is web-only
       style={otherInputStyle}
       accessibilityLabel={accessibilityLabel}
@@ -316,7 +350,21 @@ function QuestionOtherInput({
       onSubmitEditing={onSubmit}
       editable={!isResponding}
       blurOnSubmit={false}
+      testID="question-form-other-input"
     />
+  );
+
+  if (!asOption) {
+    return input;
+  }
+
+  return (
+    <View style={otherOptionStyle}>
+      <View style={styles.optionItemContent}>
+        <SelectionControl isSelected={isSelected} multiSelect={multiSelect} />
+        {input}
+      </View>
+    </View>
   );
 }
 
@@ -564,6 +612,8 @@ export function QuestionFormCard({ permission, onRespond, isResponding }: Questi
                 answerPlaceholder: t("message.question.answerPlaceholder"),
                 otherPlaceholder: t("message.question.otherPlaceholder"),
               })}
+              asOption={activeQuestion.options.length > 0}
+              multiSelect={activeQuestion.multiSelect}
               isResponding={isResponding}
               onChange={setOtherText}
               onSubmit={handlePrimaryAction}
@@ -709,11 +759,23 @@ const styles = StyleSheet.create((theme) => ({
     height: 8,
     borderRadius: 999,
   },
+  otherOptionItem: {
+    paddingVertical: theme.spacing[1],
+  },
   otherInput: {
     borderWidth: 1,
     borderRadius: theme.borderRadius.lg,
     paddingHorizontal: theme.spacing[3],
     paddingVertical: theme.spacing[3],
+    fontSize: theme.fontSize.base,
+  },
+  otherInputInline: {
+    flex: 1,
+    minWidth: 0,
+    borderWidth: 1,
+    borderRadius: theme.borderRadius.md,
+    paddingHorizontal: theme.spacing[2],
+    paddingVertical: theme.spacing[2],
     fontSize: theme.fontSize.base,
   },
   actionsContainer: {

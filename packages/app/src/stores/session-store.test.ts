@@ -169,6 +169,30 @@ describe("agent timeline state", () => {
     });
   });
 
+  it("tracks provider history availability independently from painted timeline data", () => {
+    initializeTestSession();
+    const store = useSessionStore.getState();
+    const unavailable = {
+      reason: "malformed" as const,
+      message: "The provider transcript is malformed.",
+    };
+
+    store.setAgentStreamTail(
+      "test-server",
+      new Map([["agent-1", [submittedMessage("cached-message")]]]),
+    );
+    store.setAgentHistoryUnavailable("test-server", "agent-1", unavailable);
+
+    const unavailableSession = useSessionStore.getState().sessions["test-server"];
+    expect(unavailableSession?.agentHistoryUnavailable.get("agent-1")).toEqual(unavailable);
+    expect(unavailableSession?.agentStreamTail.get("agent-1")).toHaveLength(1);
+
+    store.setAgentHistoryUnavailable("test-server", "agent-1", null);
+    expect(
+      useSessionStore.getState().sessions["test-server"]?.agentHistoryUnavailable.has("agent-1"),
+    ).toBe(false);
+  });
+
   it("represents an empty authoritative timeline without inventing a range", () => {
     initializeTestSession();
     useSessionStore.getState().applyAgentTimelineResponseState("test-server", "agent-1", {

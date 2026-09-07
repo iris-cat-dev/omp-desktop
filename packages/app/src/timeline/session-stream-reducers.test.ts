@@ -529,6 +529,39 @@ describe("processTimelineResponse", () => {
     expect(result.clearInitializing).toBe(true);
   });
 
+  it("preserves painted history when the provider transcript is unavailable", () => {
+    const paintedTail = [makeAssistantItem("cached history", "cached-history")];
+    const paintedHead = [makeAssistantItem("cached live item", "cached-live")];
+    const cursor = { epoch: "cached-epoch", startSeq: 1, endSeq: 2 };
+    const result = processTimelineResponse({
+      ...baseTimelineInput,
+      currentTail: paintedTail,
+      currentHead: paintedHead,
+      currentCursor: cursor,
+      isInitializing: true,
+      hasActiveInitDeferred: true,
+      payload: {
+        ...baseTimelineInput.payload,
+        historyUnavailable: {
+          reason: "malformed",
+          message: "The provider transcript is malformed.",
+        },
+      },
+    });
+
+    expect(result).toMatchObject({
+      commit: "discard",
+      initResolution: "resolve",
+      clearInitializing: true,
+      error: null,
+      cursorChanged: false,
+      older: "unchanged",
+    });
+    expect(result.tail).toBe(paintedTail);
+    expect(result.head).toBe(paintedHead);
+    expect(result.cursor).toBe(cursor);
+  });
+
   it("replaces tail and clears head when reset=true", () => {
     const existingTail: StreamItem[] = [
       {

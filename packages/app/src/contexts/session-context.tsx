@@ -347,6 +347,7 @@ function SessionProviderInternal({ children, serverId, client }: SessionProvider
   const markAgentHistorySynchronized = useSessionStore(
     (state) => state.markAgentHistorySynchronized,
   );
+  const setAgentHistoryUnavailable = useSessionStore((state) => state.setAgentHistoryUnavailable);
   const applyAgentTimelineResponseState = useSessionStore(
     (state) => state.applyAgentTimelineResponseState,
   );
@@ -560,11 +561,13 @@ function SessionProviderInternal({ children, serverId, client }: SessionProvider
       );
       const agentId = payload.agentId;
       const initKey = getInitKey(serverId, agentId);
-      const shouldMarkAuthoritativeHistoryApplied = isTimelineResumeSnapshotAuthoritative({
-        direction: payload.direction,
-        hasNewer: payload.hasNewer,
-        error: payload.error,
-      });
+      const shouldMarkAuthoritativeHistoryApplied =
+        !payload.historyUnavailable &&
+        isTimelineResumeSnapshotAuthoritative({
+          direction: payload.direction,
+          hasNewer: payload.hasNewer,
+          error: payload.error,
+        });
 
       // Read current store state
       const session = useSessionStore.getState().sessions[serverId];
@@ -580,6 +583,11 @@ function SessionProviderInternal({ children, serverId, client }: SessionProvider
         session?.messageSubmissions.get(agentId),
       );
 
+      if (payload.historyUnavailable) {
+        setAgentHistoryUnavailable(serverId, agentId, payload.historyUnavailable);
+      } else if (!payload.error) {
+        setAgentHistoryUnavailable(serverId, agentId, null);
+      }
       // Call pure reducer
       const result = processTimelineResponse({
         payload,
@@ -655,6 +663,7 @@ function SessionProviderInternal({ children, serverId, client }: SessionProvider
       setAgentStreamState,
       setAgentTimelineHasNewer,
       setInitializingAgents,
+      setAgentHistoryUnavailable,
     ],
   );
 

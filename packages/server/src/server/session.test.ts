@@ -430,6 +430,82 @@ function createSessionForTest(options: SessionForTestOptions = {}): Session {
   return new Session(sessionOptions);
 }
 
+test("returns persisted metadata without resuming malformed OMP history", async () => {
+  const root = mkdtempSync(join(tmpdir(), "paseo-malformed-omp-history-"));
+  const sessionFile = join(root, "session.jsonl");
+  writeFileSync(
+    sessionFile,
+    `${JSON.stringify({ type: "custom", customType: "session_exit" })}\n`,
+    "utf8",
+  );
+  const agentId = "11111111-1111-4111-8111-111111111191";
+  const resumeAgentFromPersistence = vi.fn();
+  const record: StoredAgentRecord = {
+    id: agentId,
+    provider: "omp",
+    cwd: root,
+    workspaceId: "workspace-malformed-history",
+    createdAt: "2026-09-02T09:36:53.776Z",
+    updatedAt: "2026-09-06T01:13:04.526Z",
+    lastActivityAt: "2026-09-06T01:13:04.526Z",
+    lastUserMessageAt: "2026-09-02T09:36:53.781Z",
+    title: "Persisted agent title",
+    labels: {},
+    lastStatus: "closed",
+    config: { model: "openai-codex/gpt-5.6-sol", modeId: "full" },
+    persistence: {
+      provider: "omp",
+      sessionId: "01a0617a-81a4-70ec-b12a-e4f9ba8f8e43",
+      nativeHandle: sessionFile,
+    },
+  };
+  const messages: SessionOutboundMessage[] = [];
+  const session = createSessionForTest({
+    messages,
+    agentManager: {
+      getAgent: vi.fn(() => undefined),
+      resumeAgentFromPersistence,
+    },
+    agentStorage: {
+      get: vi.fn().mockResolvedValue(record),
+    },
+  });
+  session.updateClientCapabilities({ [CLIENT_CAPS.degradedAgentHistory]: true });
+
+  try {
+    await session.handleMessage({
+      type: "fetch_agent_timeline_request",
+      agentId,
+      requestId: "malformed-history-request",
+      direction: "tail",
+    });
+
+    expect(resumeAgentFromPersistence).not.toHaveBeenCalled();
+    expect(messages).toEqual([
+      expect.objectContaining({
+        type: "fetch_agent_timeline_response",
+        payload: expect.objectContaining({
+          requestId: "malformed-history-request",
+          agentId,
+          agent: expect.objectContaining({
+            id: agentId,
+            title: "Persisted agent title",
+            cwd: root,
+          }),
+          entries: [],
+          historyUnavailable: {
+            reason: "malformed",
+            message: "The OMP session file is missing a valid session header.",
+          },
+          error: null,
+        }),
+      }),
+    ]);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test("routes host-scoped agent skills requests through the daemon owner", async () => {
   const messages: SessionOutboundMessage[] = [];
   const status = {

@@ -71,6 +71,28 @@ export interface OmpImportSessionConfig {
   thinkingOptionId?: string;
 }
 
+export type OmpSessionHistoryAvailability =
+  | { status: "available" }
+  | { status: "unavailable"; reason: "missing" | "malformed" };
+
+export async function inspectOmpSessionHistoryAvailability(
+  filePath: string,
+): Promise<OmpSessionHistoryAvailability> {
+  let headChunk: string | null;
+  try {
+    headChunk = await readHeadChunkStrict(filePath);
+  } catch (error) {
+    if (typeof error === "object" && error !== null && "code" in error && error.code === "ENOENT") {
+      return { status: "unavailable", reason: "missing" };
+    }
+    throw error;
+  }
+  if (!headChunk || !parseSessionHeaderFromChunk(headChunk)) {
+    return { status: "unavailable", reason: "malformed" };
+  }
+  return { status: "available" };
+}
+
 export async function listOmpImportableSessions(
   options: OmpSessionDescriptorOptions = {},
 ): Promise<ImportableProviderSession[]> {
@@ -235,7 +257,7 @@ async function readOmpImportableSession(
 
 async function readOmpSessionDescriptor(filePath: string): Promise<OmpSessionDescriptor | null> {
   // OMP may emit title/session_info lines before the session header.
-  const headChunk = await readHeadChunk(filePath);
+  const headChunk = await readHeadChunkStrict(filePath).catch(() => null);
   if (!headChunk) return null;
   const header = parseSessionHeaderFromChunk(headChunk);
   if (!header) return null;
@@ -271,9 +293,8 @@ function toOmpImportSessionConfig(descriptor: OmpSessionDescriptor): OmpImportSe
   };
 }
 
-async function readHeadChunk(filePath: string): Promise<string | null> {
-  const handle = await open(filePath, "r").catch(() => null);
-  if (!handle) return null;
+async function readHeadChunkStrict(filePath: string): Promise<string | null> {
+  const handle = await open(filePath, "r");
   try {
     const buffer = Buffer.alloc(HEAD_BYTES);
     const { bytesRead } = await handle.read(buffer, 0, buffer.length, 0);

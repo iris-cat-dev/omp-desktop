@@ -266,6 +266,7 @@ export interface AgentStreamViewProps {
   toast?: ToastApi | null;
   onOpenWorkspaceFile?: (request: WorkspaceFileOpenRequest) => void;
   readOnly?: boolean;
+  emptyText?: string;
   historyPagination?: {
     hasOlder: boolean;
     isLoadingOlder: boolean;
@@ -335,6 +336,7 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
       toast,
       onOpenWorkspaceFile,
       readOnly = false,
+      emptyText,
       historyPagination,
     },
     ref,
@@ -644,7 +646,8 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
       timelineEpoch,
       tail: effectiveStreamItems,
       head: effectiveStreamHead,
-      enabled: supportsChatOutline && chatOutlineEnabled,
+      enabled:
+        supportsChatOutline && chatOutlineEnabled && isAuthoritativeHistoryReady && !readOnly,
       viewportRef,
       onJumpError: handleTimelineHistoryLoadError,
       visibleItemIds: visibleHistoryItemIds,
@@ -1109,9 +1112,9 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
         renderListEmptyComponent({
           renderModel,
           emptyStateStyle,
-          emptyText: t("agentStream.empty"),
+          emptyText: emptyText ?? t("agentStream.empty"),
         }),
-      [renderModel, emptyStateStyle, t],
+      [emptyText, renderModel, emptyStateStyle, t],
     );
 
     const { boundary, auxiliary } = renderModel;
@@ -1383,6 +1386,7 @@ function agentStreamViewPropsEqual(
   if (left.toast !== right.toast) reasons.push("toast");
   if (left.onOpenWorkspaceFile !== right.onOpenWorkspaceFile) reasons.push("onOpenWorkspaceFile");
   if (left.readOnly !== right.readOnly) reasons.push("readOnly");
+  if (left.emptyText !== right.emptyText) reasons.push("emptyText");
   if (!historyPaginationPropsEqual(left.historyPagination, right.historyPagination)) {
     reasons.push("historyPagination");
   }

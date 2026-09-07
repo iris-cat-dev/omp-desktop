@@ -3,7 +3,11 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, test } from "vitest";
 
-import { listOmpImportableSessions, readOmpImportSessionConfig } from "./session-descriptor.js";
+import {
+  inspectOmpSessionHistoryAvailability,
+  listOmpImportableSessions,
+  readOmpImportSessionConfig,
+} from "./session-descriptor.js";
 
 async function writeSession(root: string, relativePath: string, lines: unknown[]): Promise<string> {
   const filePath = path.join(root, "sessions", relativePath);
@@ -13,6 +17,29 @@ async function writeSession(root: string, relativePath: string, lines: unknown[]
 }
 
 describe("OMP session descriptor", () => {
+  test("classifies missing, malformed, and valid session histories", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "paseo-omp-session-availability-"));
+    const cwd = path.join(root, "repo");
+    const malformedFile = await writeSession(root, "project/malformed.jsonl", [
+      { type: "custom", customType: "session_exit" },
+    ]);
+    const validFile = await writeSession(root, "project/valid.jsonl", [
+      { type: "title", title: "Title before header" },
+      { type: "session", version: 3, id: "valid-session", cwd },
+    ]);
+
+    await expect(
+      inspectOmpSessionHistoryAvailability(path.join(root, "sessions", "missing.jsonl")),
+    ).resolves.toEqual({ status: "unavailable", reason: "missing" });
+    await expect(inspectOmpSessionHistoryAvailability(malformedFile)).resolves.toEqual({
+      status: "unavailable",
+      reason: "malformed",
+    });
+    await expect(inspectOmpSessionHistoryAvailability(validFile)).resolves.toEqual({
+      status: "available",
+    });
+  });
+
   test("cwd filtering continues past the global candidate overscan", async () => {
     const root = await mkdtemp(path.join(tmpdir(), "paseo-omp-session-cwd-limit-"));
     const sessionsDir = path.join(root, "sessions");

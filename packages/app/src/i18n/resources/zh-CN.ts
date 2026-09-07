@@ -299,6 +299,12 @@ export const zhCN: TranslationResources = {
       reconnecting: "正在重连",
       timelineSyncFailed: "无法刷新代理历史记录。",
       timelineSyncRetrying: "正在重试…",
+      historyUnavailableTitle: "对话记录不可用",
+      historyUnavailableMissing:
+        "此 Agent 仍然存在，但 Provider 对话文件已被删除。上方如有缓存消息，仅供只读查看。",
+      historyUnavailableMalformed:
+        "此 Agent 仍然存在，但 Provider 对话文件不完整或已损坏。上方如有缓存消息，仅供只读查看。",
+      historyUnavailableEmpty: "没有可恢复的对话消息。",
       archivingTitle: "正在归档 Agent...",
       archivingSubtitle: "请稍候，我们正在归档这个 Agent。",
     },

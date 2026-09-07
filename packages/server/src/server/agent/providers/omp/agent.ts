@@ -90,7 +90,11 @@ import {
   installOmp,
 } from "./installer.js";
 import { OmpCliRuntime, OmpReadyTimeoutError } from "./cli-runtime.js";
-import { listOmpImportableSessions, readOmpImportSessionConfig } from "./session-descriptor.js";
+import {
+  inspectOmpSessionHistoryAvailability,
+  listOmpImportableSessions,
+  readOmpImportSessionConfig,
+} from "./session-descriptor.js";
 import type { OmpRuntime, OmpRuntimeSession, OmpStartSessionInput } from "./runtime.js";
 import type {
   OmpAgentSessionEvent,
@@ -133,6 +137,7 @@ const OMP_PROVIDER = "omp";
 const QUESTION_RESPONSE_HEADER = "Response";
 const QUESTION_COMMENT_HEADER = "Comment";
 const OMP_ASK_USER_FREEFORM_SENTINEL = "✏️ Type custom response...";
+const OMP_ASK_FREEFORM_SENTINEL = "Other (type your own)";
 const COMBINED_ASK_USER_METADATA = "ask_user_select_optional_comment";
 interface NodeSqliteStatement {
   all(...params: unknown[]): Array<Record<string, unknown>>;
@@ -569,8 +574,8 @@ interface ActiveAskUserDialog {
   allowMultiple: boolean;
 }
 
-interface PendingCombinedAskUserResponse {
-  comment: string;
+interface PendingAskUserFollowUpResponse {
+  comment: string | null;
   freeform: string | null;
 }
 
@@ -1180,7 +1185,7 @@ function readStringArray(value: unknown): string[] {
 }
 
 function isOmpAskUserFreeformOption(option: string): boolean {
-  return option === OMP_ASK_USER_FREEFORM_SENTINEL;
+  return option === OMP_ASK_USER_FREEFORM_SENTINEL || option === OMP_ASK_FREEFORM_SENTINEL;
 }
 
 function mapExtensionUiRequestToPermission(
@@ -1201,12 +1206,17 @@ function mapExtensionUiRequestToPermission(
           allowFreeform: options.allowFreeform === true,
         });
       }
+      const freeformSentinel = selectOptions.find(isOmpAskUserFreeformOption);
+      const visibleOptions = freeformSentinel
+        ? selectOptions.filter((option) => option !== freeformSentinel)
+        : selectOptions;
       return buildExtensionUiQuestionPermission(event, {
         provider,
         label,
         question: optionalString(event.title) ?? "Select an option",
-        options: selectOptions,
+        options: visibleOptions,
         multiSelect: false,
+        ...(freeformSentinel ? { allowOther: true, freeformSentinel } : {}),
       });
     }
     case "input": {
@@ -1286,8 +1296,10 @@ function buildExtensionUiQuestionPermission(
     options: string[];
     multiSelect: boolean;
     placeholder?: string;
+    allowOther?: boolean;
     allowEmpty?: boolean;
     dismissLabel?: string;
+    freeformSentinel?: string;
   },
 ): AgentPermissionRequest {
   return {
@@ -1303,6 +1315,7 @@ function buildExtensionUiQuestionPermission(
           header: QUESTION_RESPONSE_HEADER,
           options: input.options.map((label) => ({ label })),
           multiSelect: input.multiSelect,
+          ...(input.allowOther ? { allowOther: true } : {}),
           ...(input.placeholder ? { placeholder: input.placeholder } : {}),
           ...(input.allowEmpty ? { allowEmpty: true } : {}),
           ...(input.dismissLabel ? { dismissLabel: input.dismissLabel } : {}),
@@ -1312,6 +1325,9 @@ function buildExtensionUiQuestionPermission(
     metadata: {
       extensionUiMethod: event.method,
       answerHeader: QUESTION_RESPONSE_HEADER,
+      ...(input.freeformSentinel
+        ? { freeformSentinel: input.freeformSentinel, selectOptions: input.options }
+        : {}),
     },
   };
 }
@@ -1326,7 +1342,9 @@ function buildCombinedAskUserQuestionPermission(
     allowFreeform: boolean;
   },
 ): AgentPermissionRequest {
-  const visibleOptions = input.options.filter((option) => !isOmpAskUserFreeformOption(option));
+  const freeformSentinel =
+    input.options.find(isOmpAskUserFreeformOption) ?? OMP_ASK_USER_FREEFORM_SENTINEL;
+  const visibleOptions = input.options.filter((option) => option !== freeformSentinel);
   const allowOther = input.allowFreeform || visibleOptions.length !== input.options.length;
   return {
     id: event.id,
@@ -1359,7 +1377,7 @@ function buildCombinedAskUserQuestionPermission(
       commentHeader: QUESTION_COMMENT_HEADER,
       combinedAskUser: COMBINED_ASK_USER_METADATA,
       selectOptions: visibleOptions,
-      ...(allowOther ? { freeformSentinel: OMP_ASK_USER_FREEFORM_SENTINEL } : {}),
+      ...(allowOther ? { freeformSentinel } : {}),
     },
   };
 }
@@ -1391,7 +1409,7 @@ function buildCombinedAskUserSelectionResponse(
   response: AgentPermissionResponse,
 ): {
   uiResponse: { value?: string; cancelled?: boolean };
-  pendingResponse: PendingCombinedAskUserResponse | null;
+  pendingResponse: PendingAskUserFollowUpResponse | null;
 } {
   if (response.behavior === "deny") {
     return { uiResponse: { cancelled: true }, pendingResponse: null };
@@ -1412,6 +1430,31 @@ function buildCombinedAskUserSelectionResponse(
       comment,
       freeform: isFreeform ? answer : null,
     },
+  };
+}
+
+function buildInlineFreeformSelectionResponse(
+  request: AgentPermissionRequest,
+  response: AgentPermissionResponse,
+): {
+  uiResponse: { value?: string; cancelled?: boolean };
+  pendingResponse: PendingAskUserFollowUpResponse | null;
+} {
+  if (response.behavior === "deny") {
+    return { uiResponse: { cancelled: true }, pendingResponse: null };
+  }
+
+  const answer = permissionAnswer(response.updatedInput, QUESTION_RESPONSE_HEADER);
+  const freeformSentinel = optionalString(request.metadata?.freeformSentinel);
+  if (answer === null || !freeformSentinel) {
+    return { uiResponse: { cancelled: true }, pendingResponse: null };
+  }
+
+  const selectOptions = readStringArray(request.metadata?.selectOptions);
+  const isFreeform = !selectOptions.includes(answer);
+  return {
+    uiResponse: { value: isFreeform ? freeformSentinel : answer },
+    pendingResponse: isFreeform ? { comment: null, freeform: answer } : null,
   };
 }
 
@@ -1457,7 +1500,7 @@ export class OmpAgentSession implements AgentSession {
   private readonly activeToolCalls = new Map<string, OmpTrackedToolCall>();
   private readonly pendingExtensionUiRequests = new Map<string, AgentPermissionRequest>();
   private activeAskUserDialog: ActiveAskUserDialog | null = null;
-  private pendingCombinedAskUserResponse: PendingCombinedAskUserResponse | null = null;
+  private pendingAskUserFollowUpResponse: PendingAskUserFollowUpResponse | null = null;
   private activeTurnId: string | null = null;
   private activeClientMessageId: string | null = null;
   private activeAssistantMessageId: string | null = null;
@@ -2028,8 +2071,12 @@ export class OmpAgentSession implements AgentSession {
     this.pendingExtensionUiRequests.delete(requestId);
     if (isCombinedAskUserPermission(request)) {
       const combined = buildCombinedAskUserSelectionResponse(request, response);
-      this.pendingCombinedAskUserResponse = combined.pendingResponse;
+      this.pendingAskUserFollowUpResponse = combined.pendingResponse;
       this.runtimeSession.respondToExtensionUiRequest(requestId, combined.uiResponse);
+    } else if (optionalString(request.metadata?.freeformSentinel)) {
+      const inlineFreeform = buildInlineFreeformSelectionResponse(request, response);
+      this.pendingAskUserFollowUpResponse = inlineFreeform.pendingResponse;
+      this.runtimeSession.respondToExtensionUiRequest(requestId, inlineFreeform.uiResponse);
     } else {
       this.runtimeSession.respondToExtensionUiRequest(
         requestId,
@@ -2558,7 +2605,7 @@ export class OmpAgentSession implements AgentSession {
       return;
     }
 
-    if (this.respondToCombinedAskUserFollowUp(event)) {
+    if (this.respondToAskUserFollowUp(event)) {
       return;
     }
 
@@ -2603,28 +2650,33 @@ export class OmpAgentSession implements AgentSession {
     return { type: "assistant_message", text: lines.join("\n") };
   }
 
-  private respondToCombinedAskUserFollowUp(
+  private respondToAskUserFollowUp(
     event: Extract<OmpRuntimeEvent, { type: "extension_ui_request" }>,
   ): boolean {
-    const pending = this.pendingCombinedAskUserResponse;
-    if (!pending || event.method !== "input") {
+    const pending = this.pendingAskUserFollowUpResponse;
+    if (!pending) {
       return false;
     }
 
     const placeholder = optionalString(event.placeholder);
-    if (pending.freeform !== null && !isOptionalInputPlaceholder(placeholder)) {
-      this.pendingCombinedAskUserResponse = {
-        ...pending,
-        freeform: null,
-      };
+    const isFreeformInput =
+      event.method === "editor" ||
+      (event.method === "input" && !isOptionalInputPlaceholder(placeholder));
+    if (pending.freeform !== null && isFreeformInput) {
+      this.pendingAskUserFollowUpResponse =
+        pending.comment === null ? null : { ...pending, freeform: null };
       this.runtimeSession.respondToExtensionUiRequest(event.id, {
         value: pending.freeform,
       });
       return true;
     }
 
-    if (isOptionalInputPlaceholder(placeholder)) {
-      this.pendingCombinedAskUserResponse = null;
+    if (
+      pending.comment !== null &&
+      event.method === "input" &&
+      isOptionalInputPlaceholder(placeholder)
+    ) {
+      this.pendingAskUserFollowUpResponse = null;
       this.runtimeSession.respondToExtensionUiRequest(event.id, {
         value: pending.comment,
       });
@@ -3104,9 +3156,9 @@ export class OmpAgentSession implements AgentSession {
       this.activeToolCalls.get(event.toolCallId) ?? parseToolArgs(event.toolName, null);
     this.activeToolCalls.delete(event.toolCallId);
 
-    if (event.toolName === "ask_user") {
+    if (event.toolName === "ask_user" || event.toolName === "ask") {
       this.activeAskUserDialog = null;
-      this.pendingCombinedAskUserResponse = null;
+      this.pendingAskUserFollowUpResponse = null;
     }
 
     const result = parseToolResult(event.result);
@@ -3718,6 +3770,14 @@ export class OmpAgentClient implements AgentClient {
     const sessionFile = handle.nativeHandle;
     if (!sessionFile) {
       throw new Error("OMP resume requires a native session file handle");
+    }
+    const availability = await inspectOmpSessionHistoryAvailability(sessionFile);
+    if (availability.status === "unavailable") {
+      throw new Error(
+        availability.reason === "missing"
+          ? `OMP session file no longer exists: ${sessionFile}`
+          : `OMP session file is missing a valid session header: ${sessionFile}`,
+      );
     }
 
     const persistenceMetadata = parsePersistenceMetadata(handle.metadata);

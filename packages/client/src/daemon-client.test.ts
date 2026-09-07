@@ -5850,6 +5850,62 @@ test("parses canonical fetch_agent_timeline_response payloads without crashing",
   expect(logger.warn).not.toHaveBeenCalled();
 });
 
+test("returns unavailable agent history as a readable timeline response", async () => {
+  const mock = createMockTransport();
+  const client = new DaemonClient({
+    url: "ws://test",
+    clientId: "clsk_unit_test",
+    logger: noopLogger,
+    reconnect: { enabled: false },
+    transportFactory: () => mock.transport,
+  });
+  clients.push(client);
+
+  const connectPromise = client.connect();
+  mock.triggerOpen();
+  await connectPromise;
+  const response = client.fetchAgentTimeline("agent_cli", {
+    requestId: "req-history-unavailable",
+  });
+
+  mock.triggerMessage(
+    wrapSessionMessage({
+      type: "fetch_agent_timeline_response",
+      payload: {
+        requestId: "req-history-unavailable",
+        agentId: "agent_cli",
+        agent: null,
+        direction: "tail",
+        projection: "projected",
+        epoch: "",
+        reset: false,
+        staleCursor: false,
+        gap: false,
+        window: { minSeq: 0, maxSeq: 0, nextSeq: 0 },
+        startCursor: null,
+        endCursor: null,
+        hasOlder: false,
+        hasNewer: false,
+        entries: [],
+        historyUnavailable: {
+          reason: "malformed",
+          message: "The provider transcript is malformed.",
+        },
+        error: null,
+      },
+    }),
+  );
+
+  await expect(response).resolves.toMatchObject({
+    historyUnavailable: {
+      reason: "malformed",
+      message: "The provider transcript is malformed.",
+    },
+    entries: [],
+    error: null,
+  });
+});
+
 test("rejects and logs a correlated response that violates the protocol schema", async () => {
   const mock = createMockTransport();
   const warnings: string[] = [];
