@@ -1,6 +1,14 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ComponentType } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ComponentType,
+  type CSSProperties,
+} from "react";
 import { useTranslation } from "react-i18next";
-import { Platform, Pressable, Text, View } from "react-native";
+import { Platform, Pressable, Text, View, type ViewStyle } from "react-native";
 import { StyleSheet, useUnistyles } from "react-native-unistyles";
 import { useRouter } from "expo-router";
 import { ArrowRight, FolderOpen, Inbox } from "lucide-react-native";
@@ -114,7 +122,7 @@ function loadPosterModule(): Promise<PosterModule> {
 
 const webDotCloudScanlineStyle =
   Platform.OS === "web"
-    ? inlineUnistylesStyle({
+    ? inlineUnistylesStyle<ViewStyle & Pick<CSSProperties, "backgroundImage">>({
         backgroundImage:
           "repeating-linear-gradient(to bottom, rgba(0, 0, 0, 0.4) 0 1px, transparent 1px 3px)",
       })
