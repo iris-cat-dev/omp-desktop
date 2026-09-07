@@ -2519,6 +2519,73 @@ test("cancelAgentRun succeeds when the provider queues completion before rejecti
   }
 });
 
+test("cancelAgentRun cancels running managed descendants but not detached agents", async () => {
+  const workdir = mkdtempSync(join(tmpdir(), "agent-manager-cancel-descendants-"));
+
+  class CancellationCascadeClient extends TestAgentClient {
+    readonly sessions: SteeringTestSession[] = [];
+
+    override async createSession(config: AgentSessionConfig): Promise<AgentSession> {
+      const session = new SteeringTestSession(config);
+      this.sessions.push(session);
+      return session;
+    }
+  }
+
+  const client = new CancellationCascadeClient();
+  const manager = new AgentManager({
+    clients: { codex: client },
+    logger,
+  });
+
+  try {
+    const parent = await manager.createAgent({ provider: "codex", cwd: workdir }, undefined, {
+      workspaceId: undefined,
+    });
+    const child = await manager.createAgent({ provider: "codex", cwd: workdir }, undefined, {
+      labels: { [PARENT_AGENT_ID_LABEL]: parent.id },
+      workspaceId: undefined,
+    });
+    const grandchild = await manager.createAgent({ provider: "codex", cwd: workdir }, undefined, {
+      labels: { [PARENT_AGENT_ID_LABEL]: child.id },
+      workspaceId: undefined,
+    });
+    const detached = await manager.createAgent({ provider: "codex", cwd: workdir }, undefined, {
+      workspaceId: undefined,
+    });
+    const agents = [parent, child, grandchild, detached];
+    const drains: Promise<void>[] = [];
+
+    for (const agent of agents) {
+      const stream = manager.streamAgent(agent.id, "keep running");
+      drains.push(
+        (async () => {
+          for await (const _event of stream) {
+            // Drain until cancellation terminalizes the turn.
+          }
+        })(),
+      );
+      await manager.waitForAgentRunStart(agent.id);
+    }
+
+    await expect(manager.cancelAgentRun(parent.id)).resolves.toEqual({ status: "settled" });
+
+    expect(client.sessions.map((session) => session.interruptCount)).toEqual([1, 1, 1, 0]);
+    expect(manager.getAgent(parent.id)?.lifecycle).toBe("idle");
+    expect(manager.getAgent(child.id)?.lifecycle).toBe("idle");
+    expect(manager.getAgent(grandchild.id)?.lifecycle).toBe("idle");
+    expect(manager.getAgent(detached.id)?.lifecycle).toBe("running");
+
+    await manager.cancelAgentRun(detached.id);
+    await Promise.all(drains);
+  } finally {
+    await Promise.all(
+      manager.listAgents().map((agent) => manager.closeAgent(agent.id).catch(() => undefined)),
+    );
+    rmSync(workdir, { recursive: true, force: true });
+  }
+});
+
 test("listProviderAvailability uses registered client keys, including custom providers", async () => {
   const customClient: AgentClient = {
     provider: "zai",

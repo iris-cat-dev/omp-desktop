@@ -2750,7 +2750,43 @@ export class AgentManager {
   }
 
   async cancelAgentRun(agentId: string): Promise<AgentRunCancellationResult> {
-    return this.runForegroundMutation(agentId, () => this.cancelAgentRunNow(agentId));
+    return this.cancelAgentRunTree(agentId, new Set());
+  }
+
+  private async cancelAgentRunTree(
+    agentId: string,
+    visitedAgentIds: Set<string>,
+  ): Promise<AgentRunCancellationResult> {
+    if (visitedAgentIds.has(agentId)) {
+      return { status: "not_running" };
+    }
+    visitedAgentIds.add(agentId);
+
+    const ownCancellation = await this.runForegroundMutation(agentId, () =>
+      this.cancelAgentRunNow(agentId),
+    );
+    const childIds = Array.from(this.agents.values())
+      .filter((agent) => getParentAgentIdFromLabels(agent.labels) === agentId)
+      .map((agent) => agent.id);
+    const childCancellations = await Promise.all(
+      childIds.map((childId) =>
+        this.runLifecycleMutation(childId, async () => {
+          const child = this.agents.get(childId);
+          if (!child || getParentAgentIdFromLabels(child.labels) !== agentId) {
+            return { status: "not_running" } as const;
+          }
+          return this.cancelAgentRunTree(childId, visitedAgentIds);
+        }),
+      ),
+    );
+    const cancellations = [ownCancellation, ...childCancellations];
+    if (cancellations.some((cancellation) => cancellation.status === "refused")) {
+      return { status: "refused" };
+    }
+    if (cancellations.some((cancellation) => cancellation.status === "settled")) {
+      return { status: "settled" };
+    }
+    return { status: "not_running" };
   }
 
   private async cancelAgentRunNow(agentId: string): Promise<AgentRunCancellationResult> {
