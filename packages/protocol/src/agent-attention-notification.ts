@@ -156,7 +156,12 @@ export function findLatestAssistantMessageFromTimeline(
     return null;
   }
 
-  return chunks.toReversed().join("");
+  for (let left = 0, right = chunks.length - 1; left < right; left += 1, right -= 1) {
+    const leftChunk = chunks[left];
+    chunks[left] = chunks[right];
+    chunks[right] = leftChunk;
+  }
+  return chunks.join("");
 }
 
 export function findLatestPermissionRequest(

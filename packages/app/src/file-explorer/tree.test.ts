@@ -55,6 +55,38 @@ describe("file explorer tree", () => {
     });
   });
 
+  it("flattens entries when Array.prototype.toReversed is unavailable", () => {
+    const toReversedDescriptor = Object.getOwnPropertyDescriptor(Array.prototype, "toReversed");
+    Reflect.deleteProperty(Array.prototype, "toReversed");
+
+    try {
+      const directories = new Map([
+        [
+          ".",
+          {
+            path: ".",
+            entries: [makeDirectoryEntry("bravo", "bravo"), makeDirectoryEntry("alpha", "alpha")],
+          },
+        ],
+      ]);
+
+      const rows = flattenExplorerTree({
+        directories,
+        expandedPaths: new Set(["."]),
+        sortOption: "name",
+        showHiddenFiles: true,
+      });
+
+      expect(rows.map(({ entry }) => entry.name)).toEqual(["alpha", "bravo"]);
+    } finally {
+      if (toReversedDescriptor) {
+        Reflect.defineProperty(Array.prototype, "toReversed", toReversedDescriptor);
+      } else {
+        Reflect.deleteProperty(Array.prototype, "toReversed");
+      }
+    }
+  });
+
   it("flattens a large expanded directory without spreading its rows into the parent", () => {
     const fileCount = 150_000;
     const files = Array.from(

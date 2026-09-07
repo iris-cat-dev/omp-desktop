@@ -1,3 +1,4 @@
+import { reverseCopy } from "@/utils/reverse-copy";
 import { getNextActiveIndex } from "./combobox-keyboard";
 
 export type AutocompleteOptionsPosition = "above-input" | "below-input";
@@ -9,7 +10,7 @@ export function orderAutocompleteOptions<T>(
   if (position === "below-input") {
     return [...options];
   }
-  return [...options].toReversed();
+  return reverseCopy(options);
 }
 
 export function getAutocompleteFallbackIndex(

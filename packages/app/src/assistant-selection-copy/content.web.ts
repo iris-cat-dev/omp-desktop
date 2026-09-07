@@ -5,6 +5,7 @@ import {
   createMarkdownClipboardContent,
   type MarkdownClipboardContent,
 } from "@/utils/rich-clipboard";
+import { reverseCopy } from "@/utils/reverse-copy";
 import {
   MARKDOWN_COPY_ALIGN_ATTRIBUTE,
   MARKDOWN_COPY_IGNORE_ATTRIBUTE,
@@ -162,7 +163,7 @@ function flattenClipboardListMarkup(html: string): string {
   const container = document.createElement("div");
   container.innerHTML = html;
 
-  const lists = Array.from(container.querySelectorAll("ul, ol")).toReversed();
+  const lists = reverseCopy(Array.from(container.querySelectorAll("ul, ol")));
   for (const list of lists) {
     const replacement = document.createDocumentFragment();
     const items = Array.from(list.children).filter((child) => child.tagName === "LI");
@@ -421,7 +422,7 @@ function restoreMarkdownElements(container: HTMLElement): void {
   }
 
   const marked = Array.from(container.querySelectorAll(`[${MARKDOWN_COPY_TAG_ATTRIBUTE}]`));
-  for (const element of marked.toReversed()) {
+  for (const element of reverseCopy(marked)) {
     const tagName = element.getAttribute(MARKDOWN_COPY_TAG_ATTRIBUTE);
     if (!tagName) {
       continue;
@@ -457,12 +458,12 @@ function restoreMarkdownElements(container: HTMLElement): void {
   const generatedLinks = Array.from(
     container.querySelectorAll(`[${MARKDOWN_COPY_UNWRAP_ATTRIBUTE}]`),
   );
-  for (const element of generatedLinks.toReversed()) {
+  for (const element of reverseCopy(generatedLinks)) {
     element.replaceWith(...element.childNodes);
   }
 
   const presentational = Array.from(container.querySelectorAll("div, span"));
-  for (const element of presentational.toReversed()) {
+  for (const element of reverseCopy(presentational)) {
     if (element.hasAttribute(MARKDOWN_COPY_MATH_SOURCE_ATTRIBUTE)) {
       continue;
     }

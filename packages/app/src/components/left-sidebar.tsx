@@ -760,21 +760,21 @@ function SidebarProviderSelector({
 }
 
 function SidebarProviderAccountPanel({
+  controls,
   detailsExpanded,
   onToggleDetails,
   detailsToggleLabel,
   children,
 }: {
+  controls: AgentControlCommandCenterSource;
   detailsExpanded: boolean;
   onToggleDetails: () => void;
   detailsToggleLabel: string;
   children: ReactNode;
 }) {
-  const active = useActiveAgentControls();
-  if (!active) return null;
   return (
     <SidebarProviderAccountPanelContent
-      controls={active.controls}
+      controls={controls}
       detailsExpanded={detailsExpanded}
       onToggleDetails={onToggleDetails}
       detailsToggleLabel={detailsToggleLabel}
@@ -1439,6 +1439,9 @@ function SidebarFooter({
   const { t } = useTranslation();
   const settingsKeys = useShortcutKeys("toggle-settings");
   const active = useActiveAgentControls();
+  const lastActiveRef = useRef(active);
+  if (active) lastActiveRef.current = active;
+  const visibleActive = active ?? lastActiveRef.current;
   const [providerPanelExpanded, setProviderPanelExpanded] = useState(true);
   const toggleProviderPanel = useCallback(
     () => setProviderPanelExpanded((expanded) => !expanded),
@@ -1476,8 +1479,9 @@ function SidebarFooter({
 
   return (
     <View style={styles.sidebarFooter}>
-      {active ? (
+      {visibleActive ? (
         <SidebarProviderAccountPanel
+          controls={visibleActive.controls}
           detailsExpanded={providerPanelExpanded}
           onToggleDetails={toggleProviderPanel}
           detailsToggleLabel={providerPanelToggleLabel}

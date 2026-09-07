@@ -3,6 +3,7 @@ import {
   type MatchScore,
   scoreTextFields,
 } from "@omp-desktop/protocol/search/text-match";
+import { reverseCopy } from "@/utils/reverse-copy";
 
 export type ComboboxOptionKind = "directory" | "file";
 
@@ -111,7 +112,7 @@ export function orderVisibleComboboxOptions(
   if (optionsPosition !== "above-search") {
     return visibleOptions;
   }
-  return [...visibleOptions].toReversed();
+  return reverseCopy(visibleOptions);
 }
 
 export function getComboboxFallbackIndex(

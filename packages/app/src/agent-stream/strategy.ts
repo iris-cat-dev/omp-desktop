@@ -1,6 +1,7 @@
 import type { ComponentType, ReactElement, ReactNode, RefObject } from "react";
 import type { StyleProp, ViewStyle } from "react-native";
 import type { StreamItem } from "@/types/stream";
+import { reverseCopy } from "@/utils/reverse-copy";
 import { continuesResponse } from "./turn-membership";
 import type { StreamHistoryBoundary, StreamRenderSegments } from "./model";
 import type {
@@ -146,10 +147,8 @@ const NATIVE_SETTLING_VERIFICATION_DELAY_FRAMES = 4;
 export function createStreamStrategy(config: StreamStrategyConfig): StreamStrategy {
   return {
     render: config.render,
-    orderTail: (streamItems) =>
-      config.orderTailReverse ? [...streamItems].toReversed() : streamItems,
-    orderHead: (streamHead) =>
-      config.orderHeadReverse ? [...streamHead].toReversed() : streamHead,
+    orderTail: (streamItems) => (config.orderTailReverse ? reverseCopy(streamItems) : streamItems),
+    orderHead: (streamHead) => (config.orderHeadReverse ? reverseCopy(streamHead) : streamHead),
     getNeighborIndex: (index, relation) =>
       relation === "above"
         ? index + config.assistantTurnTraversalStep
@@ -181,7 +180,7 @@ export function createStreamStrategy(config: StreamStrategyConfig): StreamStrate
         }
         laterItem = currentItem;
       }
-      return messages.toReversed().join("\n\n");
+      return reverseCopy(messages).join("\n\n");
     },
     isNearBottom: (input) => config.isNearBottom(input),
     getBottomOffset: (metrics) => config.getBottomOffset(metrics),

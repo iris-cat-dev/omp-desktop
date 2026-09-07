@@ -1,5 +1,6 @@
 import type { ExplorerDirectory, ExplorerEntry } from "@/stores/session-store";
 import type { SortOption } from "@/stores/panel-store/state";
+import { reverseCopy } from "@/utils/reverse-copy";
 import { filterVisibleExplorerEntries } from "./visibility";
 
 export const MAX_AUTO_EXPANDED_DIRECTORY_DEPTH = 5;
@@ -54,7 +55,7 @@ export function flattenExplorerTree({
   }
 
   const rows: ExplorerTreeRow[] = [];
-  const pending = rowsForDirectory(root, 0, sortOption, showHiddenFiles).toReversed();
+  const pending = reverseCopy(rowsForDirectory(root, 0, sortOption, showHiddenFiles));
 
   while (pending.length > 0) {
     const row = pending.pop();
