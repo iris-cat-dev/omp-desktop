@@ -1,9 +1,14 @@
 import initPoster, { create_stencil } from "./poster-DKlr3gMi.js";
 
-const POSTER_ENABLED = false;
+let POSTER_ENABLED = true;
 
 globalThis.__OMP_POSTER_MODULE__ = {
-  enabled: POSTER_ENABLED,
+  get enabled() {
+    return POSTER_ENABLED;
+  },
+  set enabled(value) {
+    POSTER_ENABLED = value;
+  },
   init: () => initPoster({ module_or_path: "/poster_bg-DAFj3nST.wasm" }),
   createStencil: create_stencil,
 };

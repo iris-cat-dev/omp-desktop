@@ -1,6 +1,6 @@
 {
   "name": "@omp-desktop/desktop",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "private": true,
   "description": "OMP Desktop Electron application",
   "license": "AGPL-3.0-or-later",

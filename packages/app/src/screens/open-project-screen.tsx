@@ -11,10 +11,12 @@ import { useTranslation } from "react-i18next";
 import { Platform, Pressable, Text, View, type ViewStyle } from "react-native";
 import { StyleSheet, useUnistyles } from "react-native-unistyles";
 import { useRouter } from "expo-router";
-import { ArrowRight, FolderOpen, Inbox } from "lucide-react-native";
+import { ArrowRight, FolderOpen, Inbox, Sparkles } from "lucide-react-native";
 import { OmpIcon } from "@/components/icons/omp-icon";
 import { MenuHeader } from "@/components/headers/menu-header";
+import { Switch } from "@/components/ui/switch";
 import { useOpenAddProject } from "@/hooks/use-open-add-project";
+import { useAppSettings } from "@/hooks/use-settings";
 import { usePanelStore } from "@/stores/panel-store";
 import {
   useIsCompactFormFactor,
@@ -136,11 +138,18 @@ const webDotCloudScanlineStyle =
       })
     : null;
 
-function OmpDotCloud() {
+function OmpDotCloud({ animationsEnabled }: { animationsEnabled: boolean }) {
   const hostRef = useRef<View>(null);
 
   useEffect(() => {
     if (Platform.OS !== "web" || !("gpu" in navigator)) return;
+
+    const loadedPosterModule = window.__OMP_POSTER_MODULE__;
+    if (!animationsEnabled) {
+      if (loadedPosterModule) loadedPosterModule.enabled = false;
+      return;
+    }
+    if (loadedPosterModule) loadedPosterModule.enabled = true;
 
     const host = hostRef.current as unknown as HTMLDivElement | null;
     if (!host) return;
@@ -190,7 +199,8 @@ function OmpDotCloud() {
       animationFrame = window.requestAnimationFrame(renderFrame);
     };
     const startAnimation = () => {
-      if (!stencil || animationFrame !== null || reducedMotion.matches) return;
+      if (!stencil || animationFrame !== null || reducedMotion.matches || !animationsEnabled)
+        return;
       startedAt = performance.now() - elapsedMs;
       animationFrame = window.requestAnimationFrame(renderFrame);
     };
@@ -208,7 +218,7 @@ function OmpDotCloud() {
       });
     };
     const handleMotionChange = () => {
-      if (reducedMotion.matches) {
+      if (reducedMotion.matches || !animationsEnabled) {
         stopAnimation();
         stencil?.render(elapsedMs);
       } else {
@@ -259,7 +269,7 @@ function OmpDotCloud() {
       stencil?.free();
       canvas.remove();
     };
-  }, []);
+  }, [animationsEnabled]);
 
   return (
     <>
@@ -285,6 +295,12 @@ export function OpenProjectScreen() {
   const importClient = useHostRuntimeClient(importServerId ?? "");
   const openImportedProject = useOpenProject(importServerId);
   const [isImportSheetOpen, setIsImportSheetOpen] = useState(false);
+  const {
+    settings: { homeAnimationsEnabled: storedHomeAnimationsEnabled },
+    isLoading: areSettingsLoading,
+    updateSettings,
+  } = useAppSettings();
+  const homeAnimationsEnabled = !areSettingsLoading && storedHomeAnimationsEnabled;
 
   const isCompactLayout = useIsCompactFormFactor();
 
@@ -304,6 +320,12 @@ export function OpenProjectScreen() {
     setIsImportSheetOpen(true);
   }, [localServerId]);
   const handleCloseImportSession = useCallback(() => setIsImportSheetOpen(false), []);
+  const handleAnimationsChange = useCallback(
+    (enabled: boolean) => {
+      void updateSettings({ homeAnimationsEnabled: enabled });
+    },
+    [updateSettings],
+  );
 
   const handleImported = useCallback(
     (agent: { id: string; cwd: string }) => {
@@ -335,7 +357,7 @@ export function OpenProjectScreen() {
 
   return (
     <View style={[styles.container, backgroundStyle]}>
-      <OmpDotCloud />
+      <OmpDotCloud animationsEnabled={homeAnimationsEnabled} />
       <MenuHeader borderless />
       <View style={styles.content}>
         <TitlebarDragRegion />
@@ -349,6 +371,18 @@ export function OpenProjectScreen() {
             <Text style={styles.brandMeta}>DESKTOP</Text>
           </View>
         </View>
+        <View style={styles.motionPreference}>
+          <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+            <Sparkles size={theme.iconSize.sm} color={theme.colors.foregroundMuted} />
+          </View>
+          <Switch
+            value={homeAnimationsEnabled}
+            onValueChange={handleAnimationsChange}
+            disabled={areSettingsLoading}
+            accessibilityLabel={t("openProject.motion.accessibilityLabel")}
+            testID="home-animations-switch"
+          />
+        </View>
         <View style={styles.tiles}>
           <HomeTile
             index="01"
@@ -358,6 +392,7 @@ export function OpenProjectScreen() {
             description={t("openProject.tiles.addProject.description")}
             onPress={handleOpenPicker}
             testID="open-project-submit"
+            animationsEnabled={homeAnimationsEnabled}
           />
           <HomeTile
             index="02"
@@ -367,6 +402,7 @@ export function OpenProjectScreen() {
             description={t("openProject.tiles.importSession.description")}
             onPress={handleOpenImportSession}
             testID="open-project-import-session"
+            animationsEnabled={homeAnimationsEnabled}
           />
         </View>
       </View>
@@ -389,6 +425,7 @@ interface HomeTileProps {
   description: string;
   onPress: () => void;
   testID?: string;
+  animationsEnabled: boolean;
 }
 
 function HomeTile({
@@ -399,6 +436,7 @@ function HomeTile({
   description,
   onPress,
   testID,
+  animationsEnabled,
 }: HomeTileProps) {
   // useUnistyles is acceptable here: leaf component, off the hot path (home screen renders once).
   const { theme } = useUnistyles();
@@ -412,21 +450,22 @@ function HomeTile({
       Platform.OS === "web"
         ? inlineUnistylesStyle({
             boxShadow: hovered ? `0 18px 54px ${accentStyle.glow}` : "0 0 0 transparent",
-            transition:
-              "transform 180ms cubic-bezier(0.2, 0.8, 0.2, 1), background-color 180ms ease, border-color 180ms ease, box-shadow 180ms ease",
+            transition: animationsEnabled
+              ? "transform 180ms cubic-bezier(0.2, 0.8, 0.2, 1), background-color 180ms ease, border-color 180ms ease, box-shadow 180ms ease"
+              : "none",
           })
         : null,
-    [accentStyle.glow, hovered],
+    [accentStyle.glow, animationsEnabled, hovered],
   );
 
   const pressableStyle = useCallback(
     ({ pressed }: { pressed: boolean }) => [
       styles.tile,
-      hovered && styles.tileHovered,
+      hovered && animationsEnabled && styles.tileHovered,
       pressed && styles.tilePressed,
       webTileStyle,
     ],
-    [hovered, webTileStyle],
+    [animationsEnabled, hovered, webTileStyle],
   );
 
   return (
@@ -441,7 +480,7 @@ function HomeTile({
       <View
         style={[
           styles.tileSignal,
-          { backgroundColor: accentStyle.color, width: hovered ? 76 : 32 },
+          { backgroundColor: accentStyle.color, width: hovered && animationsEnabled ? 76 : 32 },
         ]}
       />
       <View style={styles.tileHeader}>
@@ -532,6 +571,12 @@ const styles = StyleSheet.create((theme) => ({
     fontSize: 9,
     fontWeight: theme.fontWeight.medium,
     letterSpacing: 1.8,
+  },
+  motionPreference: {
+    marginTop: theme.spacing[4],
+    flexDirection: "row",
+    alignItems: "center",
+    gap: theme.spacing[3],
   },
   tiles: {
     marginTop: { xs: theme.spacing[8], md: theme.spacing[12] },

@@ -1483,6 +1483,9 @@ export const zhCN: TranslationResources = {
     },
   },
   openProject: {
+    motion: {
+      accessibilityLabel: "开启首页动态效果",
+    },
     tiles: {
       addProject: {
         title: "添加项目",

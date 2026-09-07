@@ -1503,6 +1503,7 @@ export const ja: TranslationResources = {
     },
   },
   openProject: {
+    motion: en.openProject.motion,
     tiles: {
       addProject: {
         title: "プロジェクトを追加",

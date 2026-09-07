@@ -106,6 +106,7 @@ export interface AppSettings {
   autoExpandReasoning: boolean;
   toolCallDetailLevel: ToolCallDetailLevel;
   chatOutlineEnabled: boolean;
+  homeAnimationsEnabled: boolean;
   vimKeybindings: boolean;
 }
 
@@ -156,6 +157,7 @@ const StoredAppSettingsSchema = z.strictObject({
   toolCallDetailLevel: z.enum(["overview", "detailed"]).optional(),
   compactToolCalls: z.boolean().optional(),
   chatOutlineEnabled: z.boolean().optional(),
+  homeAnimationsEnabled: z.boolean().optional(),
   vimKeybindings: z.boolean().optional(),
   // COMPAT(sidePanelRouting): ignored since the right pane became tool-only; remove after 2027-03-04.
   openSupportingTabsInSidePanel: z.boolean().optional(),
@@ -190,6 +192,7 @@ export const DEFAULT_CLIENT_SETTINGS: AppSettings = {
   autoExpandReasoning: false,
   toolCallDetailLevel: "detailed",
   chatOutlineEnabled: true,
+  homeAnimationsEnabled: true,
   vimKeybindings: false,
 };
 
@@ -354,6 +357,9 @@ function pickBooleanAppSettings(stored: StoredAppSettings): Partial<AppSettings>
   }
   if (typeof stored.chatOutlineEnabled === "boolean") {
     result.chatOutlineEnabled = stored.chatOutlineEnabled;
+  }
+  if (typeof stored.homeAnimationsEnabled === "boolean") {
+    result.homeAnimationsEnabled = stored.homeAnimationsEnabled;
   }
   return result;
 }

@@ -1509,6 +1509,9 @@ export const en = {
     },
   },
   openProject: {
+    motion: {
+      accessibilityLabel: "Enable home screen dynamic effects",
+    },
     tiles: {
       addProject: {
         title: "Add a project",

@@ -1,6 +1,6 @@
 {
   "name": "@omp-desktop/relay",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "description": "OMP Desktop relay transport and end-to-end encryption",
   "files": [
     "dist",

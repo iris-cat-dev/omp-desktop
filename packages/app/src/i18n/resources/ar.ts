@@ -1488,6 +1488,7 @@ export const ar: TranslationResources = {
     },
   },
   openProject: {
+    motion: en.openProject.motion,
     tiles: {
       addProject: {
         title: "أضف مشروعًا",

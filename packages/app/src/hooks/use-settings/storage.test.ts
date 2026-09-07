@@ -156,6 +156,18 @@ describe("loadAppSettingsFromStorage", () => {
     expect(result.chatOutlineEnabled).toBe(false);
   });
 
+  it("loads a disabled home animations preference", async () => {
+    const deps = makeDeps({
+      storage: createInMemoryKeyValueStorage({
+        [APP_SETTINGS_KEY]: JSON.stringify({ homeAnimationsEnabled: false }),
+      }),
+    });
+
+    const result = await loadAppSettingsFromStorage(deps);
+
+    expect(result.homeAnimationsEnabled).toBe(false);
+  });
+
   it("uses the native terminal renderer by default", async () => {
     const deps = makeDeps();
 

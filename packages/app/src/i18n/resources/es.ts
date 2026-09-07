@@ -1533,6 +1533,7 @@ export const es: TranslationResources = {
     },
   },
   openProject: {
+    motion: en.openProject.motion,
     tiles: {
       addProject: {
         title: "Agregar un proyecto",

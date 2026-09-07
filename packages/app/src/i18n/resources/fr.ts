@@ -1535,6 +1535,7 @@ export const fr: TranslationResources = {
     },
   },
   openProject: {
+    motion: en.openProject.motion,
     tiles: {
       addProject: {
         title: "Ajouter un projet",

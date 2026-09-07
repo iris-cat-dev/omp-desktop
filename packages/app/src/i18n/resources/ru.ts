@@ -1524,6 +1524,9 @@ export const ru: TranslationResources = {
     },
   },
   openProject: {
+    motion: {
+      accessibilityLabel: "Включить динамические эффекты на главном экране",
+    },
     tiles: {
       addProject: {
         title: "Добавить проект",

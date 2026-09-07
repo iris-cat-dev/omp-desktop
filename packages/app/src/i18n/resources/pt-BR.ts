@@ -1519,6 +1519,7 @@ export const ptBR: TranslationResources = {
     },
   },
   openProject: {
+    motion: en.openProject.motion,
     tiles: {
       addProject: {
         title: "Adicionar um projeto",

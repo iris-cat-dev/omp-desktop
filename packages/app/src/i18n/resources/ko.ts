@@ -1499,6 +1499,7 @@ export const ko: TranslationResources = {
     },
   },
   openProject: {
+    motion: en.openProject.motion,
     tiles: {
       addProject: {
         title: "프로젝트 추가",
