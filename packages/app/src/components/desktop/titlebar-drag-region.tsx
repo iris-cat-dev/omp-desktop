@@ -226,7 +226,7 @@ export function TitlebarDragRegion() {
   return (
     <>
       {/* Drag overlay — VS Code .titlebar-drag-region (titlebarpart.css:57-64) */}
-      <div style={DRAG_OVERLAY_STYLE} />
+      <div data-window-drag-scope="true" style={DRAG_OVERLAY_STYLE} />
       {/* Top-edge resizer — VS Code .resizer (titlebarpart.css:249-256) */}
       <div style={TOP_RESIZER_STYLE} />
     </>
