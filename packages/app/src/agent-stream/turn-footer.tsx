@@ -4,6 +4,10 @@ import { StyleSheet, withUnistyles } from "react-native-unistyles";
 import { MAX_CONTENT_WIDTH } from "@/constants/layout";
 import { SPACING, type Theme } from "@/styles/theme";
 import type { TurnTiming } from "@/timeline/turn-time";
+import { TurnFileChangesBar } from "./turn-file-changes-bar";
+import type { TurnTokenStats } from "./turn-token-stats";
+import { formatTokenCount } from "./turn-token-stats";
+import { formatOutputTokenSpeed } from "./token-output-speed";
 import type { StreamItem } from "@/types/stream";
 import {
   collectAssistantResponseContentForStreamRenderStrategy,
@@ -20,7 +24,6 @@ import type { TurnFooterHost } from "./layout";
 import { AssistantForkMenu } from "@/components/assistant-fork-menu";
 import { SyncedLoader } from "@/components/synced-loader";
 import { useRetainedPanelActive } from "@/components/retained-panel";
-import { formatOutputTokenSpeed } from "./token-output-speed";
 
 const ThemedSyncedLoader = withUnistyles(SyncedLoader);
 const workingIndicatorColorMapping = (theme: Theme) => ({ color: theme.colors.foreground });
@@ -50,6 +53,9 @@ export const TurnFooter = memo(function TurnFooter({
   host,
   strategy,
   supportsTimelineCursor,
+  turnTokenStats,
+  onOpenFile,
+  onRestoreFile,
   onForkAssistantTurn,
   onForkInFlightTurn,
 }: {
@@ -59,6 +65,9 @@ export const TurnFooter = memo(function TurnFooter({
   host: TurnFooterHost | null;
   strategy: TurnContentStrategy;
   supportsTimelineCursor: boolean;
+  turnTokenStats?: TurnTokenStats | null;
+  onOpenFile?: (path: string) => void;
+  onRestoreFile?: (path: string) => void;
   onForkAssistantTurn?: AssistantTurnForkHandler;
   onForkInFlightTurn?: InFlightTurnForkHandler;
 }) {
@@ -83,6 +92,9 @@ export const TurnFooter = memo(function TurnFooter({
       timing={host.timing}
       startIndex={host.startIndex}
       supportsTimelineCursor={supportsTimelineCursor}
+      turnTokenStats={turnTokenStats}
+      onOpenFile={onOpenFile}
+      onRestoreFile={onRestoreFile}
       onForkAssistantTurn={onForkAssistantTurn}
     />
   );
@@ -94,6 +106,9 @@ export const CompletedTurnFooterRow = memo(function CompletedTurnFooterRow({
   timing,
   startIndex,
   supportsTimelineCursor,
+  turnTokenStats,
+  onOpenFile,
+  onRestoreFile,
   onForkAssistantTurn,
 }: {
   strategy: TurnContentStrategy;
@@ -101,18 +116,30 @@ export const CompletedTurnFooterRow = memo(function CompletedTurnFooterRow({
   timing?: TurnTiming;
   startIndex: number;
   supportsTimelineCursor: boolean;
+  turnTokenStats?: TurnTokenStats | null;
+  onOpenFile?: (path: string) => void;
+  onRestoreFile?: (path: string) => void;
   onForkAssistantTurn?: AssistantTurnForkHandler;
 }) {
   return (
     <TurnFooterRow>
-      <CompletedTurnFooter
-        strategy={strategy}
-        items={items}
-        timing={timing}
-        startIndex={startIndex}
-        supportsTimelineCursor={supportsTimelineCursor}
-        onForkAssistantTurn={onForkAssistantTurn}
-      />
+      <View style={stylesheet.completedTurnFooterSlot}>
+        <TurnFileChangesBar
+          items={items}
+          startIndex={startIndex}
+          onOpenFile={onOpenFile}
+          onRestoreFile={onRestoreFile}
+        />
+        <CompletedTurnFooter
+          strategy={strategy}
+          items={items}
+          timing={timing}
+          startIndex={startIndex}
+          supportsTimelineCursor={supportsTimelineCursor}
+          turnTokenStats={turnTokenStats}
+          onForkAssistantTurn={onForkAssistantTurn}
+        />
+      </View>
     </TurnFooterRow>
   );
 });
@@ -179,6 +206,7 @@ function CompletedTurnFooter({
   timing,
   startIndex,
   supportsTimelineCursor,
+  turnTokenStats,
   onForkAssistantTurn,
 }: {
   strategy: TurnContentStrategy;
@@ -186,6 +214,7 @@ function CompletedTurnFooter({
   timing?: TurnTiming;
   startIndex: number;
   supportsTimelineCursor: boolean;
+  turnTokenStats?: TurnTokenStats | null;
   onForkAssistantTurn?: AssistantTurnForkHandler;
 }) {
   const getContent = useCallback(
@@ -217,6 +246,12 @@ function CompletedTurnFooter({
         getContent={getContent}
         completedAt={timing?.completedAt}
         durationMs={timing?.durationMs}
+        tokenTotalLabel={turnTokenStats ? formatTokenCount(turnTokenStats.totalTokens) : null}
+        avgSpeedLabel={
+          turnTokenStats?.avgTokensPerSecond != null
+            ? formatOutputTokenSpeed(turnTokenStats.avgTokensPerSecond)
+            : null
+        }
         onFork={boundary && onForkAssistantTurn ? handleFork : undefined}
       />
     </View>
@@ -237,6 +272,9 @@ const stylesheet = StyleSheet.create((theme) => ({
   },
   turnFooterRow: {
     marginTop: theme.spacing[2] + 5,
+  },
+  completedTurnFooterSlot: {
+    width: "100%",
   },
   turnFooterSlot: {
     flexDirection: "row",

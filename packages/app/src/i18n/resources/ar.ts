@@ -281,6 +281,19 @@ export const ar: TranslationResources = {
       question: "كيف تريد المتابعة؟",
       proposedPlan: "الخطة المقترحة",
     },
+    turnMetadata: {
+      tokens: "توكنز",
+    },
+    turnFileChanges: {
+      added: "أُضيف {{name}}",
+      modified: "عُدّل {{name}}",
+      deleted: "حُذف {{name}}",
+      restoreTitle: "استعادة الملف المحذوف",
+      restoreMessage: 'استعادة "{{name}}"؟ سيعود إلى حالته قبل هذا التغيير.',
+      restoreConfirm: "استعادة",
+      restoreSuccess: "تمت استعادة {{name}}",
+      restoreFailed: "تعذّرت استعادة {{name}}",
+    },
   },
   agentPanel: {
     states: {

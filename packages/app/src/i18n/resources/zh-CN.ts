@@ -291,6 +291,19 @@ export const zhCN: TranslationResources = {
       question: "你想如何继续？",
       proposedPlan: "建议计划",
     },
+    turnMetadata: {
+      tokens: "tokens",
+    },
+    turnFileChanges: {
+      added: "新增 {{name}}",
+      modified: "修改 {{name}}",
+      deleted: "删除 {{name}}",
+      restoreTitle: "恢复已删除的文件",
+      restoreMessage: "恢复“{{name}}”吗？将还原到本次修改之前的状态。",
+      restoreConfirm: "恢复",
+      restoreSuccess: "已恢复 {{name}}",
+      restoreFailed: "无法恢复 {{name}}",
+    },
   },
   agentPanel: {
     states: {

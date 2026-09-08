@@ -413,6 +413,10 @@ export interface SessionState {
   agentStreamHead: Map<string, StreamItem[]>;
   agentTasks: Map<string, TodoEntry[]>;
   agentTurnLiveness: Map<string, TurnLiveness>;
+  // Completed-turn usage, keyed agentId -> turnId -> usage. Populated from
+  // turn_completed events (which carry usage) so the completed-turn footer can
+  // show this turn's token total and average speed. Bounded per agent.
+  agentTurnUsage: Map<string, Map<string, AgentUsage>>;
   messageSubmissions: Map<string, MessageSubmissionRecord[]>;
   agentTimelineCursor: Map<string, AgentTimelineCursorState>;
   agentTimelineHasOlder: Map<string, boolean>;
@@ -507,6 +511,12 @@ interface SessionStoreActions {
     serverId: string,
     agentId: string,
     transition: TurnLivenessTransition | readonly TurnLivenessTransition[],
+  ) => void;
+  recordAgentTurnUsage: (
+    serverId: string,
+    agentId: string,
+    turnId: string,
+    usage: AgentUsage,
   ) => void;
   beginAgentCancellation: (serverId: string, agentId: string) => number;
   settleAgentCancellation: (serverId: string, agentId: string, requestId: number) => void;
@@ -676,6 +686,7 @@ function createInitialSessionState(
     agentStreamHead: new Map(),
     agentTasks: new Map(),
     agentTurnLiveness: new Map(),
+    agentTurnUsage: new Map(),
     messageSubmissions: new Map(),
     agentTimelineCursor: new Map(),
     agentTimelineHasOlder: new Map(),
@@ -1157,6 +1168,33 @@ export const useSessionStore = create<SessionStore>()(
             sessions: {
               ...prev.sessions,
               [serverId]: { ...session, agentTurnLiveness },
+            },
+          };
+        });
+      },
+
+      recordAgentTurnUsage: (serverId, agentId, turnId, usage) => {
+        if (!turnId) return;
+        set((prev) => {
+          const session = prev.sessions[serverId];
+          if (!session) return prev;
+          const perAgent = session.agentTurnUsage.get(agentId) ?? new Map<string, AgentUsage>();
+          if (perAgent.get(turnId) === usage) return prev;
+          const nextPerAgent = new Map(perAgent);
+          nextPerAgent.set(turnId, usage);
+          // Bound memory: keep only the most recent turns per agent.
+          while (nextPerAgent.size > 50) {
+            const oldest = nextPerAgent.keys().next().value;
+            if (oldest === undefined) break;
+            nextPerAgent.delete(oldest);
+          }
+          const agentTurnUsage = new Map(session.agentTurnUsage);
+          agentTurnUsage.set(agentId, nextPerAgent);
+          return {
+            ...prev,
+            sessions: {
+              ...prev.sessions,
+              [serverId]: { ...session, agentTurnUsage },
             },
           };
         });

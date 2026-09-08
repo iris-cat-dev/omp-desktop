@@ -281,6 +281,19 @@ export const ja: TranslationResources = {
       question: "どのように続けますか？",
       proposedPlan: "提案されたプラン",
     },
+    turnMetadata: {
+      tokens: "トークン",
+    },
+    turnFileChanges: {
+      added: "{{name}} を追加",
+      modified: "{{name}} を変更",
+      deleted: "{{name}} を削除",
+      restoreTitle: "削除されたファイルを復元",
+      restoreMessage: "「{{name}}」を復元しますか？変更前の状態に戻ります。",
+      restoreConfirm: "復元",
+      restoreSuccess: "{{name}} を復元しました",
+      restoreFailed: "{{name}} を復元できませんでした",
+    },
   },
   agentPanel: {
     states: {

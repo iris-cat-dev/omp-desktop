@@ -574,6 +574,10 @@ interface AssistantTurnFooterProps {
   getContent: () => string;
   completedAt?: Date;
   durationMs?: number;
+  /** Compact total tokens for this turn, e.g. "4.6k". Hidden when absent. */
+  tokenTotalLabel?: string | null;
+  /** Average output tokens/second across the turn, e.g. "38.2". Hidden when absent. */
+  avgSpeedLabel?: string | null;
   onFork?: (target: AssistantForkTarget) => Promise<void> | void;
 }
 
@@ -605,6 +609,11 @@ const assistantTurnFooterStylesheet = StyleSheet.create((theme) => ({
     color: theme.colors.foregroundMuted,
     fontSize: STREAM_METADATA_FONT_SIZE,
   },
+  metadataLabel: {
+    color: theme.colors.foregroundMuted,
+    fontSize: STREAM_METADATA_FONT_SIZE,
+    fontVariant: ["tabular-nums"],
+  },
 }));
 
 const TIMESTAMP_REVEAL_MS = 3000;
@@ -619,8 +628,11 @@ export const AssistantTurnFooter = memo(function AssistantTurnFooter({
   getContent,
   completedAt,
   durationMs,
+  tokenTotalLabel,
+  avgSpeedLabel,
   onFork,
 }: AssistantTurnFooterProps) {
+  const { t } = useTranslation();
   const [hovered, setHovered] = useState(false);
   const [pressedReveal, setPressedReveal] = useState(false);
   const revealTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -693,6 +705,16 @@ export const AssistantTurnFooter = memo(function AssistantTurnFooter({
             </Text>
           </View>
         </Pressable>
+      ) : null}
+      {tokenTotalLabel ? (
+        <Text style={assistantTurnFooterStylesheet.metadataLabel} testID="turn-token-total">
+          {tokenTotalLabel} {t("agentStream.turnMetadata.tokens")}
+        </Text>
+      ) : null}
+      {avgSpeedLabel ? (
+        <Text style={assistantTurnFooterStylesheet.metadataLabel} testID="turn-avg-speed">
+          {avgSpeedLabel} t/s
+        </Text>
       ) : null}
     </View>
   );

@@ -291,6 +291,19 @@ export const ru: TranslationResources = {
       question: "Как бы вы хотели продолжить?",
       proposedPlan: "Предлагаемый план",
     },
+    turnMetadata: {
+      tokens: "токенов",
+    },
+    turnFileChanges: {
+      added: "Добавлен {{name}}",
+      modified: "Изменён {{name}}",
+      deleted: "Удалён {{name}}",
+      restoreTitle: "Восстановить удалённый файл",
+      restoreMessage: "Восстановить «{{name}}»? Файл вернётся к состоянию до этого изменения.",
+      restoreConfirm: "Восстановить",
+      restoreSuccess: "{{name}} восстановлен",
+      restoreFailed: "Не удалось восстановить {{name}}",
+    },
   },
   agentPanel: {
     states: {

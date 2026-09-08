@@ -41,6 +41,7 @@ import type {
   AgentCapabilityFlags,
   AgentPermissionAction,
   AgentPermissionResponse,
+  AgentUsage,
 } from "@omp-desktop/protocol/agent-types";
 import type { AgentScreenAgent } from "@/hooks/use-agent-screen-state-machine";
 import { useSessionStore } from "@/stores/session-store";
@@ -48,6 +49,7 @@ import { useFileExplorerActions } from "@/hooks/use-file-explorer-actions";
 import { useLoadOlderAgentHistory } from "@/hooks/use-load-older-agent-history";
 import { useSettings } from "@/hooks/use-settings";
 import type { ToastApi } from "@/components/toast-host";
+import type { TFunction } from "i18next";
 import { returnToTimelineTail } from "./timeline-tail-navigation";
 import type { DaemonClient } from "@omp-desktop/client/internal/daemon-client";
 import { ToolCallDetailsContent } from "@/components/tool-call-details";
@@ -80,8 +82,10 @@ import {
   type TurnContentStrategy,
 } from "./turn-footer";
 import { useOutputTokenSpeed } from "./token-output-speed";
+import { deriveTurnTokenStats, type TurnTokenStats } from "./turn-token-stats";
+import { toGitPathspec } from "./turn-file-changes";
 import { resolveBottomOverlayTailInset } from "./bottom-overlay-inset";
-import { layoutStream, type StreamLayoutItem } from "./layout";
+import { layoutStream, type StreamLayoutItem, type TurnFooterHost } from "./layout";
 import {
   type BottomAnchorLocalRequest,
   type BottomAnchorRouteRequest,
@@ -157,6 +161,7 @@ function renderStreamItemWithTurnFooter(input: {
   layoutItem: StreamLayoutItem;
   strategy: TurnContentStrategy;
   supportsTimelineCursor: boolean;
+  resolveTurnTokenStats?: (host: TurnFooterHost) => TurnTokenStats | null;
   onForkAssistantTurn?: AssistantTurnForkHandler;
 }): ReactNode {
   if (!input.content) {
@@ -171,6 +176,7 @@ function renderStreamItemWithTurnFooter(input: {
       timing={footerHost.timing}
       startIndex={footerHost.startIndex}
       supportsTimelineCursor={input.supportsTimelineCursor}
+      turnTokenStats={input.resolveTurnTokenStats?.(footerHost) ?? null}
       onForkAssistantTurn={input.onForkAssistantTurn}
     />
   ) : null;
@@ -376,8 +382,10 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
       (state) =>
         state.sessions[resolvedServerId]?.agents?.get(agentId)?.lastUsage?.outputTokens ?? null,
     );
-
     const client = useSessionStore((state) => state.sessions[resolvedServerId]?.client ?? null);
+    const agentTurnUsageMap = useSessionStore(
+      (state) => state.sessions[resolvedServerId]?.agentTurnUsage?.get(agentId) ?? null,
+    );
     const pendingPermissionItems = useMemo(
       () => Array.from(pendingPermissions.values()).filter((perm) => perm.agentId === agentId),
       [pendingPermissions, agentId],
@@ -506,6 +514,26 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
 
     const handleToolCallOpenFile = useStableEvent((filePath: string) => {
       handleInlinePathPress({ raw: filePath, path: filePath }, "side");
+    });
+
+    // Restores a file the turn deleted: git-discard the deletion via the
+    // daemon checkout session (git checkout -- <path>). Availability is gated
+    // on the same server feature the diff pane uses.
+    const canRestoreDeletedFiles = useSessionStore(
+      (state) =>
+        state.sessions[resolvedServerId]?.serverInfo?.features?.checkoutDiscardChanges === true,
+    );
+    const handleRestoreDeletedFile = useStableEvent(async (filePath: string) => {
+      if (!client || !canRestoreDeletedFiles) {
+        return;
+      }
+      await restoreDeletedFile({
+        client,
+        cwd: context.cwd,
+        filePath,
+        toast,
+        t,
+      });
     });
 
     const handleForkAssistantTurn: AssistantTurnForkHandler = useStableEvent(
@@ -1032,6 +1060,29 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
 
     const bottomTurnFooterHost = streamLayout.auxiliaryTurnFooter;
 
+    // Completed-turn token stats for the bottom footer: prefer the usage
+    // captured from this turn's turn_completed event; fall back to the agent's
+    // last reported usage so the footer still works on timeline replays where
+    // the live event was missed.
+    const bottomTurnTokenStats = useMemo(
+      () =>
+        isTurnActive || !bottomTurnFooterHost
+          ? null
+          : resolveTurnTokenStatsForHost({
+              host: bottomTurnFooterHost,
+              usageMap: agentTurnUsageMap,
+            }),
+      [isTurnActive, bottomTurnFooterHost, agentTurnUsageMap],
+    );
+    const resolveTurnTokenStats = useCallback(
+      (host: TurnFooterHost) =>
+        resolveTurnTokenStatsForHost({
+          host,
+          usageMap: agentTurnUsageMap,
+        }),
+      [agentTurnUsageMap],
+    );
+
     const renderStreamItem = useCallback(
       (layoutItem: StreamLayoutItem) => {
         const content = renderStreamItemContent(layoutItem);
@@ -1040,6 +1091,7 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
           layoutItem,
           strategy: streamRenderStrategy,
           supportsTimelineCursor: supportsAgentForkContextCursor,
+          resolveTurnTokenStats: resolveTurnTokenStats,
           onForkAssistantTurn: readOnly ? undefined : handleForkAssistantTurn,
         });
       },
@@ -1047,6 +1099,7 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
         handleForkAssistantTurn,
         readOnly,
         renderStreamItemContent,
+        resolveTurnTokenStats,
         streamRenderStrategy,
         supportsAgentForkContextCursor,
       ],
@@ -1072,6 +1125,9 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
             host={bottomTurnFooterHost}
             strategy={streamRenderStrategy}
             supportsTimelineCursor={supportsAgentForkContextCursor}
+            turnTokenStats={bottomTurnTokenStats}
+            onOpenFile={handleToolCallOpenFile}
+            onRestoreFile={readOnly ? undefined : handleRestoreDeletedFile}
             onForkAssistantTurn={readOnly ? undefined : handleForkAssistantTurn}
             onForkInFlightTurn={readOnly ? undefined : handleForkInFlightTurn}
           />
@@ -1079,11 +1135,14 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
       [
         handleForkAssistantTurn,
         handleForkInFlightTurn,
+        handleToolCallOpenFile,
+        handleRestoreDeletedFile,
         readOnly,
         isTurnActive,
         baseRenderModel.turnTiming.runningStartedAt,
         outputTokenSpeed,
         bottomTurnFooterHost,
+        bottomTurnTokenStats,
         streamRenderStrategy,
         supportsAgentForkContextCursor,
       ],
@@ -1699,6 +1758,69 @@ function PermissionRequestCard({
       {footer}
     </View>
   );
+}
+
+// Restores a file the turn deleted via the daemon checkout session. Extracted
+// from AgentStreamView to keep its complexity bounded.
+async function restoreDeletedFile(input: {
+  client: DaemonClient;
+  cwd: string;
+  filePath: string;
+  toast: ToastApi | null | undefined;
+  t: TFunction;
+}): Promise<void> {
+  const fileName = input.filePath.replace(/\\/g, "/").split("/").findLast(Boolean) ?? input.filePath;
+  const failed = () => input.toast?.error(input.t("agentStream.turnFileChanges.restoreFailed", { name: fileName }));
+  try {
+    const payload = await input.client.checkoutDiscardChanges(input.cwd, {
+      paths: [toGitPathspec(input.filePath, input.cwd)],
+    });
+    if (payload.success) {
+      input.toast?.show(input.t("agentStream.turnFileChanges.restoreSuccess", { name: fileName }), {
+        variant: "success",
+      });
+    } else {
+      input.toast?.error(payload.error?.message ?? input.t("agentStream.turnFileChanges.restoreFailed", { name: fileName }));
+    }
+  } catch {
+    failed?.();
+  }
+}
+
+// Completed-turn footer token stats for one footer host: resolve the host
+// slice's own turnId and use ONLY the usage recorded from that turn's
+// turn_completed event. A global last-usage fallback would paint every
+// historical footer with the newest turn's numbers, so when a turn's usage
+// was never recorded (app closed during the turn, pre-feature history) the
+// footer simply shows no token stats. Extracted to keep AgentStreamView's
+// complexity bounded.
+function resolveTurnTokenStatsForHost(input: {
+  host: TurnFooterHost;
+  usageMap: Map<string, AgentUsage> | null;
+}) {
+  const turnId = resolveHostTurnId(input.host);
+  if (turnId === null) {
+    return null;
+  }
+  const recorded = input.usageMap?.get(turnId) ?? null;
+  return recorded ? deriveTurnTokenStats(recorded, input.host.timing?.durationMs) : null;
+}
+
+// The footer host anchors on the turn's final assistant message, which newer
+// daemons stamp with the canonical turnId. Older timelines only carry it on
+// the turn's leading user_message, so walk back to the slice's own prompt.
+function resolveHostTurnId(host: TurnFooterHost): string | null {
+  const anchor = host.items[host.startIndex];
+  if (anchor && typeof anchor.turnId === "string") {
+    return anchor.turnId;
+  }
+  for (let index = Math.min(host.startIndex, host.items.length - 1); index >= 0; index -= 1) {
+    const item = host.items[index];
+    if (item.kind === "user_message" && typeof item.turnId === "string") {
+      return item.turnId;
+    }
+  }
+  return null;
 }
 
 const stylesheet = StyleSheet.create((theme) => ({
