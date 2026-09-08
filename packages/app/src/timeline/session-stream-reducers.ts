@@ -411,6 +411,26 @@ function mergeTimelineWindow(args: {
     };
   }
 
+  // An empty page still advances the window cursor; only items covered by the
+  // page's entries may be re-hydrated. Filtering retained items out by the
+  // cursor window when the page itself carries no entries would silently drop
+  // live-painted tool calls (e.g. a completed write) that the empty page never
+  // re-provided.
+  if (payload.entries.length === 0) {
+    return {
+      tail: currentTail,
+      head: currentHead,
+      cursor: mergeTimelineCoverage(currentCursor, {
+        startSeq: payload.startCursor.seq,
+        endSeq: payload.endCursor.seq,
+        hasOlder: payload.hasOlder,
+      }),
+      cursorChanged: true,
+      older: "unchanged",
+      sideEffects: [],
+      acknowledgedClientMessageIds: [],
+    };
+  }
   const startSeq = payload.startCursor.seq;
   const endSeq = payload.endCursor.seq;
   const projected = reconcileOverlappingProjectedStreamItems({

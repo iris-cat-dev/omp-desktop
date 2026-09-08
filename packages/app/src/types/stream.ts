@@ -539,20 +539,25 @@ function preserveReplacementHead(
   canonicalCoverage: CanonicalStreamReplacementInput["canonicalCoverage"],
 ): CanonicalStreamReplacementResult {
   const canonicalTailAssistant = tail.at(-1);
+  // Live-painted tool calls must survive canonical replacement: a page whose
+  // entries predate the tool call (or one that omits it entirely) must not
+  // silently erase the only record that a file was created, edited or deleted.
   const retainedHead = preserveContinuity
     ? currentHead.filter(
         (item) =>
           !item.timelineCursor ||
           isAfterCanonicalCoverage(item.timelineCursor, canonicalCoverage) ||
+          isAgentToolCallItem(item) ||
           (item.kind === "assistant_message" &&
             canonicalTailAssistant?.kind === "assistant_message" &&
             item.text.startsWith(canonicalTailAssistant.text)),
       )
     : currentHead.filter(
         (item) =>
-          item.kind === "user_message" &&
-          item.clientMessageId !== undefined &&
-          sendingClientMessageIds.has(item.clientMessageId),
+          (item.kind === "user_message" &&
+            item.clientMessageId !== undefined &&
+            sendingClientMessageIds.has(item.clientMessageId)) ||
+          isAgentToolCallItem(item),
       );
   const { tail: reconciledTail, head: unreconciledHead } = reconcileReplacementHeadAgainstTail(
     tail,
