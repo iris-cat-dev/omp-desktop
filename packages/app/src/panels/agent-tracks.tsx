@@ -16,7 +16,7 @@ import {
 import { SubagentsTrack } from "@/subagents/track";
 import { navigateToAgent } from "@/utils/navigate-to-agent";
 import { buildWorkspaceTabPersistenceKey } from "@/workspace-tabs/model";
-import { toggleSupportingTab } from "@/workspace-tabs/side-panel";
+import { openSidePanelView } from "@/workspace-tabs/side-panel";
 
 /**
  * The pane's ambient workspace changes and subagents as a row of pills above the composer.
@@ -39,12 +39,15 @@ export const AgentTracks = memo(function AgentTracks({
   archiveFinishedStatus: ArchiveFinishedStatus;
   onArchiveFinished: () => void;
 }): ReactElement | null {
-  const { openTab } = usePaneContext();
+  const { openTab, workspaceId: paneWorkspaceId } = usePaneContext();
   const hasWorkspaceDiffStat = useWorkspaceHasDiffStat(serverId, workspaceId);
   const hasWorkspaceBranch = useWorkspaceHasBranch(serverId, workspaceId);
   const isCompact = useIsCompactFormFactor();
   const canSplit = supportsDesktopPaneSplits() && !isCompact;
-  const workspaceKey = buildWorkspaceTabPersistenceKey({ serverId, workspaceId });
+  const paneWorkspaceKey = buildWorkspaceTabPersistenceKey({
+    serverId,
+    workspaceId: paneWorkspaceId,
+  });
   const canDetachSubagents = useSessionStore(
     (state) => state.sessions[serverId]?.serverInfo?.features?.agentDetach === true,
   );
@@ -75,16 +78,13 @@ export const AgentTracks = memo(function AgentTracks({
     [openTab],
   );
   const handleOpenChanges = useCallback(() => {
-    if (!workspaceKey) {
-      return;
-    }
-    toggleSupportingTab({
+    openSidePanelView({
       isCompact,
-      workspaceKey,
+      workspaceKey: paneWorkspaceKey,
       checkout: { serverId, cwd, isGit: true },
-      target: { kind: "working_diff" },
+      view: "changes",
     });
-  }, [cwd, isCompact, serverId, workspaceKey]);
+  }, [cwd, isCompact, paneWorkspaceKey, serverId]);
 
   if (
     !hasWorkspaceDiffStat &&

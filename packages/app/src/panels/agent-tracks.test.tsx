@@ -7,7 +7,12 @@ import type { DaemonClient } from "@omp-desktop/client/internal/daemon-client";
 import type * as LayoutModule from "@/constants/layout";
 import { AgentTracks } from "@/panels/agent-tracks";
 import { PaneProvider, type PaneContextValue } from "@/panels/pane-context";
-import { findPaneContainingTab, useWorkspaceLayoutStore } from "@/stores/workspace-layout-store";
+import {
+  collectAllTabs,
+  findPaneById,
+  findPaneContainingTab,
+  useWorkspaceLayoutStore,
+} from "@/stores/workspace-layout-store";
 import type { WorkspaceLayout } from "@/stores/workspace-layout-store";
 import { useSessionStore, type Agent } from "@/stores/session-store";
 import type { SubagentRow } from "@/subagents";
@@ -40,7 +45,10 @@ vi.mock("@/constants/layout", async (importOriginal) => ({
 
 vi.mock("@/composer/branch-pill", () => ({ WorkspaceBranchPill: () => null }));
 vi.mock("@/composer/workspace-branch", () => ({ useWorkspaceHasBranch: () => false }));
-vi.mock("@/composer/diff-stat-pill", () => ({ WorkspaceDiffStatPill: () => null }));
+vi.mock("@/composer/diff-stat-pill", () => ({
+  WorkspaceDiffStatPill: ({ onPress }: { onPress: () => void }) =>
+    React.createElement("button", { type: "button", onClick: onPress }, "打开更改"),
+}));
 vi.mock("@/composer/workspace-diff-stat", () => ({ useWorkspaceHasDiffStat: () => false }));
 vi.mock("@/composer/tracks", () => ({
   ComposerTrackBar: ({ children }: { children: ReactNode }) => children,
@@ -314,6 +322,27 @@ describe("AgentTracks provider 子代理路由", () => {
       parentAgentId: PARENT_AGENT_ID,
       subagentId: SUBAGENT_ID,
     });
+  });
+});
+
+describe("AgentTracks Git diff 路由", () => {
+  it("在对话归属其他工作区时仍打开宿主工作区的右侧变更面板", () => {
+    const fixture = renderAgentTracks(OTHER_WORKSPACE_ID, providerRow);
+    const otherLayoutBefore =
+      useWorkspaceLayoutStore.getState().layoutByWorkspace[fixture.otherWorkspaceKey];
+
+    fireEvent.click(screen.getByRole("button", { name: "打开更改" }));
+
+    const state = useWorkspaceLayoutStore.getState();
+    const hostLayout = state.layoutByWorkspace[fixture.hostWorkspaceKey];
+    const sidePanelPaneId = state.sidePanelPaneIdByWorkspace[fixture.hostWorkspaceKey];
+    const sidePanel = findPaneById(hostLayout.root, sidePanelPaneId);
+    const focusedTab = collectAllTabs(hostLayout.root).find(
+      (tab) => tab.tabId === sidePanel?.focusedTabId,
+    );
+    expect(sidePanel?.hidden).not.toBe(true);
+    expect(focusedTab?.target).toEqual({ kind: "working_diff" });
+    expect(state.layoutByWorkspace[fixture.otherWorkspaceKey]).toBe(otherLayoutBefore);
   });
 });
 
