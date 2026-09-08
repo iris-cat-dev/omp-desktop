@@ -25,6 +25,7 @@ import { CommandCenterProvider } from "@/command-center/provider";
 import { CommandCenterWorkspaceActions } from "@/command-center/workspace-registration";
 import { AddProjectFlowHost } from "@/components/add-project-flow-host";
 import { ConfirmDialogHost } from "@/components/confirm-dialog-host";
+import { CloseChoiceDialogHost } from "@/components/close-choice-dialog-host";
 import { PairingLinkListener } from "@/components/pairing-link-listener";
 import { AppearanceStyleBoundary } from "@/components/appearance-style-boundary";
 import { DownloadToast } from "@/components/download-toast";
@@ -539,6 +540,7 @@ function AppContainer({ children, chromeEnabled: chromeEnabledOverride }: AppCon
       <KeyboardShortcutsDialog />
       <AppDiagnosticHost />
       <ConfirmDialogHost />
+      <CloseChoiceDialogHost />
       <QuittingOverlay />
     </View>
   );

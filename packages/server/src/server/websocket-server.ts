@@ -1672,6 +1672,8 @@ export class VoiceAssistantWebSocketServer {
         forgeCheckDetails: true,
         // COMPAT(forgeSearch): added in v0.1.106, remove github_search fallback after 2026-12-28.
         forgeSearch: true,
+        // COMPAT(workspaceTextSearch): added 2026-09-08, remove gate after 2027-03-08.
+        workspaceTextSearch: true,
         // COMPAT(daemonStatusRpc): added in v0.1.76, remove gate after 2026-11-18.
         ...(this.advertiseDaemonStatusRpc ? { daemonStatusRpc: true } : {}),
         // COMPAT(daemonConfigReload): added in v0.4.0, remove gate after 2027-02-14.

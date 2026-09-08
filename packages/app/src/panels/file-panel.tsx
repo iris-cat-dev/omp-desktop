@@ -12,6 +12,7 @@ import { TreeRail } from "@/components/tree-rail";
 import { useIsCompactFormFactor } from "@/constants/layout";
 import { defaultFileState, fileStateSchema } from "@/panels/file/state";
 import { usePanelState } from "@/panels/use-panel-state";
+import type { WorkspaceFileLocation } from "@/workspace/file-open";
 
 const CENTERED_PADDED_STYLE = {
   flex: 1,
@@ -42,7 +43,7 @@ function FilePanel() {
   const treeVisible = fileState.treeVisible;
   const workspaceDirectory = useWorkspaceDirectory(serverId, workspaceId);
   const handleOpenFile = useCallback(
-    (path: string) => retargetCurrentTab({ kind: "file", path }),
+    (location: WorkspaceFileLocation) => retargetCurrentTab({ kind: "file", ...location }),
     [retargetCurrentTab],
   );
   const handleTreeWidthChange = useCallback(

@@ -577,6 +577,21 @@ export const ja: TranslationResources = {
         filePlaceholder: "ファイル名",
         folderPlaceholder: "フォルダ名",
       },
+      contentSearch: {
+        placeholder: "ファイル内を検索",
+        includePlaceholder: "含めるファイル（例: src/**）",
+        excludePlaceholder: "除外するファイル（例: dist/**）",
+        matchCase: "大文字と小文字を区別",
+        matchWholeWord: "単語単位で一致",
+        useRegularExpression: "正規表現を使用",
+        summary: "{{files}} ファイル内に {{matches}} 件",
+        partial: "一部の結果",
+        collapseAll: "すべて折りたたむ",
+        expandAll: "すべて展開",
+        refresh: "検索を更新",
+        startTyping: "入力してワークスペース全体を検索",
+        noMatches: "結果が見つかりません",
+      },
     },
     setup: {
       descriptor: {

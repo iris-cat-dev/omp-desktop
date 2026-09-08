@@ -45,6 +45,17 @@ contextBridge.exposeInMainWorld("paseoDesktop", {
   window: {
     openNew: (options?: { pendingOpenProjectPath?: string | null }) =>
       ipcRenderer.invoke("paseo:window:openNew", options),
+    closeChoice: {
+      ready: () =>
+        ipcRenderer.invoke("paseo:window:closeChoiceReady") as Promise<{
+          requestId: number;
+        } | null>,
+      respond: (response: {
+        requestId: number;
+        choice: "background" | "quit" | "cancel";
+        remember: boolean;
+      }) => ipcRenderer.invoke("paseo:window:respondCloseChoice", response) as Promise<boolean>,
+    },
     getCurrentWindow: () => ({
       toggleMaximize: () => ipcRenderer.invoke("paseo:window:toggleMaximize"),
       setFullscreen: (fullscreen: boolean) =>

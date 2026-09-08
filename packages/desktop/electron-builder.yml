@@ -17,6 +17,7 @@ files:
   - "!node_modules/@omp-desktop/**/*.test.*"
   - "!node_modules/@omp-desktop/**/*.spec.*"
   - "!node_modules/@omp-desktop/server/dist/server/web-ui/**"
+  - "!node_modules/@vscode/ripgrep*/**"
   # Workspace packages are symlinked, so anything a dev generates inside them
   # lands in the asar. CI never has these; a local .debug run adds gigabytes.
   - "!node_modules/@omp-desktop/*/.debug/**"

@@ -22,6 +22,7 @@ import {
   type WorkspaceSetupSnapshot,
   type WorkspaceDescriptorPayload,
 } from "./messages.js";
+import { searchWorkspaceText } from "./workspace-text-search.js";
 import type {
   TerminalManager,
   TerminalWorkspaceContributionChangedEvent,
@@ -693,6 +694,7 @@ export class Session {
   private viewedTimelineAgentIds = new Set<string>();
   private readonly viewedTimelineAgentIdsBySource = new Map<object, Set<string>>();
   private readonly clientCapabilitiesBySource = new Map<object, ReadonlySet<ClientCapability>>();
+  private readonly workspaceTextSearches = new Map<string, AbortController>();
   private readonly defaultTimelineSubscriptionSource = {};
   private unsubscribeTerminalWorkspaceContributionEvents: (() => void) | null = null;
   private readonly agentUpdates: AgentUpdatesService;
@@ -2354,6 +2356,11 @@ export class Session {
         return this.checkoutSession.handleBranchSuggestionsRequest(msg);
       case "directory_suggestions_request":
         return this.handleDirectorySuggestionsRequest(msg);
+      case "workspace_text_search_request":
+        return this.handleWorkspaceTextSearchRequest(msg);
+      case "workspace_text_search_cancel":
+        this.workspaceTextSearches.get(msg.searchId)?.abort();
+        return undefined;
       case "directory_exists_request":
         return this.handleDirectoryExistsRequest(msg);
       case "subscribe_checkout_diff_request":
@@ -4294,6 +4301,56 @@ export class Session {
           requestId,
         },
       });
+    }
+  }
+
+  private async handleWorkspaceTextSearchRequest(
+    msg: Extract<SessionInboundMessage, { type: "workspace_text_search_request" }>,
+  ): Promise<void> {
+    this.workspaceTextSearches.get(msg.searchId)?.abort();
+    const controller = new AbortController();
+    this.workspaceTextSearches.set(msg.searchId, controller);
+
+    try {
+      const payload = await searchWorkspaceText({
+        cwd: expandTilde(msg.cwd),
+        query: msg.query,
+        caseSensitive: msg.caseSensitive,
+        wholeWord: msg.wholeWord,
+        regexp: msg.regexp,
+        includeGlobs: msg.includeGlobs,
+        excludeGlobs: msg.excludeGlobs,
+        signal: controller.signal,
+      });
+      this.emit({
+        type: "workspace_text_search_response",
+        payload: {
+          ...payload,
+          requestId: msg.requestId,
+        },
+      });
+    } catch (error) {
+      this.emit({
+        type: "workspace_text_search_response",
+        payload: {
+          files: [],
+          matchCount: 0,
+          fileCount: 0,
+          complete: false,
+          visibleLimitHit: false,
+          cancelled: controller.signal.aborted,
+          error: controller.signal.aborted
+            ? null
+            : error instanceof Error
+              ? error.message
+              : String(error),
+          requestId: msg.requestId,
+        },
+      });
+    } finally {
+      if (this.workspaceTextSearches.get(msg.searchId) === controller) {
+        this.workspaceTextSearches.delete(msg.searchId);
+      }
     }
   }
 
@@ -7855,6 +7912,8 @@ export class Session {
   public async cleanup(): Promise<void> {
     this.sessionLogger.trace({}, "agent.session.lifecycle.cleanup");
     this.isCleanedUp = true;
+    for (const search of this.workspaceTextSearches.values()) search.abort();
+    this.workspaceTextSearches.clear();
 
     if (this.unsubscribeAgentEvents) {
       this.unsubscribeAgentEvents();

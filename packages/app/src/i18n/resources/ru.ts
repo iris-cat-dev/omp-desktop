@@ -586,6 +586,21 @@ export const ru: TranslationResources = {
         filePlaceholder: "Имя файла",
         folderPlaceholder: "Имя папки",
       },
+      contentSearch: {
+        placeholder: "Поиск в файлах",
+        includePlaceholder: "Включить файлы (например, src/**)",
+        excludePlaceholder: "Исключить файлы (например, dist/**)",
+        matchCase: "Учитывать регистр",
+        matchWholeWord: "Слово целиком",
+        useRegularExpression: "Использовать регулярное выражение",
+        summary: "{{matches}} совпадений в {{files}} файлах",
+        partial: "частичные результаты",
+        collapseAll: "Свернуть все",
+        expandAll: "Развернуть все",
+        refresh: "Обновить поиск",
+        startTyping: "Введите текст для поиска по workspace",
+        noMatches: "Результаты не найдены",
+      },
     },
     setup: {
       descriptor: {

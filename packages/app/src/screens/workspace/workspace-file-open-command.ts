@@ -2,6 +2,7 @@ import {
   createWorkspaceFileTabTarget,
   normalizeWorkspaceFileLocation,
 } from "@/workspace/file-open";
+import type { WorkspaceFileLocation } from "@/workspace/file-open";
 import {
   FOCUSED_PANE_PLACEMENT,
   type WorkspaceTabPlacement,
@@ -9,7 +10,7 @@ import {
 import type { WorkspaceTabTarget } from "@/workspace-tabs/model";
 
 interface OpenWorkspaceFileFromExplorerInput {
-  filePath: string;
+  location: WorkspaceFileLocation;
   persistenceKey: string | null;
   showMobileAgent: () => void;
   openWorkspaceTabInFocusedPane: (
@@ -25,7 +26,7 @@ export function openWorkspaceFileFromExplorer(input: OpenWorkspaceFileFromExplor
   if (!input.persistenceKey) {
     return;
   }
-  const location = normalizeWorkspaceFileLocation({ path: input.filePath });
+  const location = normalizeWorkspaceFileLocation(input.location);
   if (!location) {
     return;
   }

@@ -81,6 +81,20 @@ function pruneNativeModules(appOutDir, platform, arch) {
   console.log(`Pruned native modules: ${savedMB} MB removed (${fmtMB(before)} → ${fmtMB(after)})`);
 }
 
+async function copyRipgrep(resourcesDir, platform, arch) {
+  if (arch === "universal") {
+    throw new Error("A universal desktop build requires a universal ripgrep binary.");
+  }
+  const { binPathFor } = await import("@vscode/ripgrep-universal");
+  const source = binPathFor({ os: platform, arch });
+  const destinationDir = path.join(resourcesDir, "bin");
+  const destination = path.join(destinationDir, platform === "win32" ? "rg.exe" : "rg");
+  fs.mkdirSync(destinationDir, { recursive: true });
+  fs.copyFileSync(source, destination);
+  if (platform !== "win32") fs.chmodSync(destination, 0o755);
+  console.log(`Bundled ripgrep for ${platform}-${arch}: ${destination}`);
+}
+
 function dirSizeSync(dir) {
   let total = 0;
   for (const entry of fs.readdirSync(dir, { withFileTypes: true, recursive: true })) {
@@ -101,6 +115,11 @@ exports.default = async function afterPack(context) {
   const platform = context.electronPlatformName;
   const arch = ARCH_MAP[context.arch] || process.arch;
 
+  const resourcesDir =
+    platform === "darwin"
+      ? path.join(context.appOutDir, `${PRODUCT_NAME}.app`, "Contents", "Resources")
+      : path.join(context.appOutDir, "resources");
+  await copyRipgrep(resourcesDir, platform, arch);
   pruneNativeModules(context.appOutDir, platform, arch);
 
   if (platform === "linux" || platform === "win32") {

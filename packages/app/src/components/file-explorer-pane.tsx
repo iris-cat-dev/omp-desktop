@@ -52,6 +52,7 @@ import {
   paneContentToolbarIconButtonStyle,
 } from "@/components/ui/pane-content-toolbar";
 import { FileExplorerSearch } from "@/components/file-explorer-search";
+import { FileExplorerContentSearch } from "@/components/file-explorer-content-search";
 import {
   useOverlayFlatListScrollbar,
   type OverlayFlatListScrollbar,
@@ -85,6 +86,7 @@ import { useWorkspaceFileDragSource } from "@/attachments/use-workspace-file-dra
 import { confirmDialog } from "@/utils/confirm-dialog";
 import { useToast } from "@/contexts/toast-context";
 import { openDesktopTarget, useDesktopOpenTargets } from "@/workspace/desktop-open-targets";
+import type { WorkspaceFileLocation } from "@/workspace/file-open";
 
 const SORT_OPTIONS: { value: SortOption }[] = [
   { value: "name" },
@@ -440,7 +442,7 @@ interface FileExplorerPaneProps {
   serverId: string;
   workspaceId?: string | null;
   workspaceRoot: string;
-  onOpenFile?: (filePath: string) => void;
+  onOpenFile?: (location: WorkspaceFileLocation) => void;
   onAddToChat?: (path: string) => void;
   onAddDirectoryToChat?: (path: string) => void;
 }
@@ -497,6 +499,10 @@ export function FileExplorerPane({
   // COMPAT(fsEntryDuplicate): added in v0.3.0, remove gate after 2027-02-09.
   const fsEntryDuplicateEnabled = useSessionStore(
     (state) => state.sessions[serverId]?.serverInfo?.features?.fsEntryDuplicate === true,
+  );
+  // COMPAT(workspaceTextSearch): added 2026-09-08, remove filename-search fallback after 2027-03-08.
+  const workspaceTextSearchEnabled = useSessionStore(
+    (state) => state.sessions[serverId]?.serverInfo?.features?.workspaceTextSearch === true,
   );
   const [pendingEdit, setPendingEdit] = useState<ExplorerPendingEdit | null>(null);
   const downloadFile = useFileDownload({
@@ -591,7 +597,7 @@ export function FileExplorerPane({
       if (!hasWorkspaceScope) {
         return;
       }
-      onOpenFile?.(entry.path);
+      onOpenFile?.({ path: entry.path });
     },
     [hasWorkspaceScope, onOpenFile],
   );
@@ -736,7 +742,7 @@ export function FileExplorerPane({
         }
         if (edit.kind === "file" && payload.path) {
           selectExplorerEntry(payload.path);
-          onOpenFile?.(payload.path);
+          onOpenFile?.({ path: payload.path });
         }
       } catch (cause) {
         toast.error(cause instanceof Error ? cause.message : String(cause));
@@ -797,7 +803,7 @@ export function FileExplorerPane({
           );
           selectExplorerEntry(renamedSelection);
           if (entry.kind === "file") {
-            onOpenFile?.(renamedSelection);
+            onOpenFile?.({ path: renamedSelection });
           }
         }
       } catch (cause) {
@@ -1106,6 +1112,7 @@ export function FileExplorerPane({
         serverId={serverId}
         workspaceRoot={normalizedWorkspaceRoot}
         onOpenFile={onOpenFile}
+        workspaceTextSearchEnabled={workspaceTextSearchEnabled}
         error={error}
         isCompact={isCompact}
         showInitialLoading={showInitialLoading}
@@ -1183,7 +1190,8 @@ function RootCreationContextTarget({
 interface FileExplorerPaneContentProps {
   serverId: string;
   workspaceRoot: string;
-  onOpenFile?: (path: string) => void;
+  onOpenFile?: (location: WorkspaceFileLocation) => void;
+  workspaceTextSearchEnabled: boolean;
   error: string | null;
   isCompact: boolean;
   showInitialLoading: boolean;
@@ -1211,6 +1219,7 @@ function FileExplorerPaneContent(props: FileExplorerPaneContentProps) {
     serverId,
     workspaceRoot,
     onOpenFile,
+    workspaceTextSearchEnabled,
     error,
     isCompact,
     showInitialLoading,
@@ -1240,6 +1249,10 @@ function FileExplorerPaneContent(props: FileExplorerPaneContentProps) {
   const handleCloseSearch = useCallback(() => {
     setSearchOpen(false);
   }, []);
+  const handleOpenLegacySearchFile = useCallback(
+    (path: string) => onOpenFile?.({ path }),
+    [onOpenFile],
+  );
 
   const handleNewFileAtRoot = useCallback(() => {
     onNewEntryAtRoot?.(".", "file");
@@ -1294,13 +1307,22 @@ function FileExplorerPaneContent(props: FileExplorerPaneContentProps) {
   }
 
   if (searchOpen) {
-    return (
-      <FileExplorerSearch
+    return workspaceTextSearchEnabled ? (
+      <FileExplorerContentSearch
         key={`${serverId}\0${workspaceRoot}`}
         serverId={serverId}
         workspaceRoot={workspaceRoot}
         isCompact={isCompact}
         onOpenFile={onOpenFile}
+        onClose={handleCloseSearch}
+      />
+    ) : (
+      <FileExplorerSearch
+        key={`${serverId}\0${workspaceRoot}`}
+        serverId={serverId}
+        workspaceRoot={workspaceRoot}
+        isCompact={isCompact}
+        onOpenFile={handleOpenLegacySearchFile}
         onClose={handleCloseSearch}
       />
     );
@@ -1325,7 +1347,11 @@ function FileExplorerPaneContent(props: FileExplorerPaneContentProps) {
             hitSlop={8}
             style={iconButtonStyleProp}
             accessibilityRole="button"
-            accessibilityLabel={t("shell.commandCenter.filePlaceholder")}
+            accessibilityLabel={
+              workspaceTextSearchEnabled
+                ? t("workspace.fileExplorer.contentSearch.placeholder")
+                : t("shell.commandCenter.filePlaceholder")
+            }
             testID="files-search"
           >
             <Search

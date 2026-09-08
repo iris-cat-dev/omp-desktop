@@ -398,6 +398,55 @@ describe("shared messages stream parsing", () => {
     expect(responseParsed.success).toBe(true);
   });
 
+  it("parses workspace text search request, cancellation, and response payloads", () => {
+    expect(
+      SessionInboundMessageSchema.safeParse({
+        type: "workspace_text_search_request",
+        cwd: "/tmp/project",
+        query: "render",
+        searchId: "search-1",
+        caseSensitive: false,
+        wholeWord: true,
+        regexp: false,
+        includeGlobs: ["*.{ts,tsx}"],
+        excludeGlobs: ["dist/**"],
+        requestId: "req-search-1",
+      }).success,
+    ).toBe(true);
+    expect(
+      SessionInboundMessageSchema.safeParse({
+        type: "workspace_text_search_cancel",
+        searchId: "search-1",
+      }).success,
+    ).toBe(true);
+    expect(
+      SessionOutboundMessageSchema.safeParse({
+        type: "workspace_text_search_response",
+        payload: {
+          files: [
+            {
+              path: "src/render.ts",
+              matches: [
+                {
+                  lineNumber: 12,
+                  text: "export function render() {}",
+                  ranges: [{ start: 16, length: 6 }],
+                },
+              ],
+            },
+          ],
+          matchCount: 1,
+          fileCount: 1,
+          complete: true,
+          visibleLimitHit: false,
+          cancelled: false,
+          error: null,
+          requestId: "req-search-1",
+        },
+      }).success,
+    ).toBe(true);
+  });
+
   it("rejects websocket envelope for removed agent_stream_snapshot message type", () => {
     const fixture = {
       type: "agent_stream_snapshot",

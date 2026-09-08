@@ -9,6 +9,7 @@ import { usePaneContext } from "@/panels/pane-context";
 import type { PanelRegistration } from "@/panels/panel-registry";
 import { useAddFileToChat } from "@/panels/use-add-file-to-chat";
 import { useWorkspaceDirectory } from "@/stores/session-store-hooks";
+import type { WorkspaceFileLocation } from "@/workspace/file-open";
 
 const ThemedFolderTree = withUnistyles(FolderTree);
 
@@ -31,7 +32,7 @@ function FilesPanel() {
   const { addFile, addDirectory, canAddToChat } = useAddFileToChat({ serverId, workspaceId });
   invariant(target.kind === "files", "FilesPanel requires files target");
   const onOpenFile = useCallback(
-    (path: string) => openFileInWorkspace({ location: { path }, disposition: "main" }),
+    (location: WorkspaceFileLocation) => openFileInWorkspace({ location, disposition: "main" }),
     [openFileInWorkspace],
   );
   if (!workspaceRoot) {

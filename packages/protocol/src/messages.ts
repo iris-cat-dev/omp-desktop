@@ -2554,6 +2554,26 @@ export const DirectorySuggestionsRequestSchema = z.object({
   requestId: z.string(),
 });
 
+const WorkspaceTextSearchGlobSchema = z.string().trim().min(1).max(500);
+
+export const WorkspaceTextSearchRequestSchema = z.object({
+  type: z.literal("workspace_text_search_request"),
+  cwd: z.string().trim().min(1),
+  query: z.string().min(1).max(1000),
+  searchId: z.string().min(1).max(200),
+  caseSensitive: z.boolean(),
+  wholeWord: z.boolean(),
+  regexp: z.boolean(),
+  includeGlobs: z.array(WorkspaceTextSearchGlobSchema).max(50),
+  excludeGlobs: z.array(WorkspaceTextSearchGlobSchema).max(50),
+  requestId: z.string(),
+});
+
+export const WorkspaceTextSearchCancelSchema = z.object({
+  type: z.literal("workspace_text_search_cancel"),
+  searchId: z.string().min(1).max(200),
+});
+
 export const DirectoryExistsRequestSchema = z.object({
   type: z.literal("directory_exists_request"),
   cwd: z.string(),
@@ -3331,6 +3351,8 @@ export const SessionInboundMessageSchema = z.discriminatedUnion("type", [
   ForgeAuthLoginCancelRequestSchema,
   ForgeAuthLogoutRequestSchema,
   DirectorySuggestionsRequestSchema,
+  WorkspaceTextSearchRequestSchema,
+  WorkspaceTextSearchCancelSchema,
   DirectoryExistsRequestSchema,
   PaseoWorktreeListRequestSchema,
   PaseoWorktreeArchiveRequestSchema,
@@ -3587,6 +3609,8 @@ export const ServerInfoStatusPayloadSchema = z
         forgeCheckDetails: z.boolean().optional(),
         // COMPAT(forgeSearch): added in v0.1.106, remove github_search fallback after 2026-12-28.
         forgeSearch: z.boolean().optional(),
+        // COMPAT(workspaceTextSearch): added 2026-09-08, remove gate after 2027-03-08.
+        workspaceTextSearch: z.boolean().optional(),
         // COMPAT(daemonStatusRpc): added in v0.1.76, remove gate after 2026-11-18.
         daemonStatusRpc: z.boolean().optional(),
         // COMPAT(daemonConfigReload): added in v0.4.0, remove gate after 2027-02-14.
@@ -5799,6 +5823,36 @@ export const DirectorySuggestionsResponseSchema = z.object({
   }),
 });
 
+const WorkspaceTextSearchRangeSchema = z.object({
+  start: z.number().int().nonnegative(),
+  length: z.number().int().positive(),
+});
+
+const WorkspaceTextSearchLineSchema = z.object({
+  lineNumber: z.number().int().positive(),
+  text: z.string(),
+  ranges: z.array(WorkspaceTextSearchRangeSchema),
+});
+
+const WorkspaceTextSearchFileSchema = z.object({
+  path: z.string(),
+  matches: z.array(WorkspaceTextSearchLineSchema),
+});
+
+export const WorkspaceTextSearchResponseSchema = z.object({
+  type: z.literal("workspace_text_search_response"),
+  payload: z.object({
+    files: z.array(WorkspaceTextSearchFileSchema),
+    matchCount: z.number().int().nonnegative(),
+    fileCount: z.number().int().nonnegative(),
+    complete: z.boolean(),
+    visibleLimitHit: z.boolean(),
+    cancelled: z.boolean(),
+    error: z.string().nullable(),
+    requestId: z.string(),
+  }),
+});
+
 export const DirectoryExistsResponseSchema = z.object({
   type: z.literal("directory_exists_response"),
   payload: z.object({
@@ -6858,6 +6912,7 @@ export const SessionOutboundMessageSchema = z.discriminatedUnion("type", [
   ForgeAuthLoginCancelResponseSchema,
   ForgeAuthLogoutResponseSchema,
   DirectorySuggestionsResponseSchema,
+  WorkspaceTextSearchResponseSchema,
   DirectoryExistsResponseSchema,
   PaseoWorktreeListResponseSchema,
   PaseoWorktreeArchiveResponseSchema,
@@ -7370,6 +7425,9 @@ export type ChangeRequestCheckoutSource = z.infer<typeof ChangeRequestCheckoutSo
 export type CreatePaseoWorktreeRequest = z.infer<typeof CreatePaseoWorktreeRequestSchema>;
 export type DirectorySuggestionsRequest = z.infer<typeof DirectorySuggestionsRequestSchema>;
 export type DirectorySuggestionsResponse = z.infer<typeof DirectorySuggestionsResponseSchema>;
+export type WorkspaceTextSearchRequest = z.infer<typeof WorkspaceTextSearchRequestSchema>;
+export type WorkspaceTextSearchCancel = z.infer<typeof WorkspaceTextSearchCancelSchema>;
+export type WorkspaceTextSearchResponse = z.infer<typeof WorkspaceTextSearchResponseSchema>;
 export type DirectoryExistsRequest = z.infer<typeof DirectoryExistsRequestSchema>;
 export type DirectoryExistsResponse = z.infer<typeof DirectoryExistsResponseSchema>;
 export type PaseoWorktreeListRequest = z.infer<typeof PaseoWorktreeListRequestSchema>;

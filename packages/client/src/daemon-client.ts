@@ -66,6 +66,8 @@ import type {
   GitHubSearchResponse,
   GitHubSearchRequest,
   DirectorySuggestionsResponse,
+  WorkspaceTextSearchRequest,
+  WorkspaceTextSearchResponse,
   DirectoryExistsResponse,
   PaseoWorktreeListResponse,
   PaseoWorktreeArchiveResponse,
@@ -441,6 +443,7 @@ type BranchSuggestionsPayload = BranchSuggestionsResponse["payload"];
 type ForgeSearchPayload = ForgeSearchResponse["payload"];
 type GitHubSearchPayload = GitHubSearchResponse["payload"];
 type DirectorySuggestionsPayload = DirectorySuggestionsResponse["payload"];
+type WorkspaceTextSearchPayload = WorkspaceTextSearchResponse["payload"];
 type DirectoryExistsPayload = DirectoryExistsResponse["payload"];
 type PaseoWorktreeListPayload = PaseoWorktreeListResponse["payload"];
 type PaseoWorktreeArchivePayload = PaseoWorktreeArchiveResponse["payload"];
@@ -4495,6 +4498,28 @@ export class DaemonClient {
       responseType: "directory_suggestions_response",
       // Home-tree scans on large home dirs can take several seconds; don't cut
       // the suggestion request off early (it would surface as an empty list).
+    });
+  }
+
+  async searchWorkspaceText(
+    options: Omit<WorkspaceTextSearchRequest, "type" | "requestId">,
+    requestId?: string,
+  ): Promise<WorkspaceTextSearchPayload> {
+    return this.sendCorrelatedSessionRequest({
+      requestId,
+      message: {
+        type: "workspace_text_search_request",
+        ...options,
+      },
+      responseType: "workspace_text_search_response",
+      timeout: 15000,
+    });
+  }
+
+  cancelWorkspaceTextSearch(searchId: string): void {
+    this.sendSessionMessage({
+      type: "workspace_text_search_cancel",
+      searchId,
     });
   }
 

@@ -582,6 +582,21 @@ export const en = {
         filePlaceholder: "File name",
         folderPlaceholder: "Folder name",
       },
+      contentSearch: {
+        placeholder: "Search in files",
+        includePlaceholder: "Files to include (for example, src/**)",
+        excludePlaceholder: "Files to exclude (for example, dist/**)",
+        matchCase: "Match case",
+        matchWholeWord: "Match whole word",
+        useRegularExpression: "Use regular expression",
+        summary: "{{matches}} matches in {{files}} files",
+        partial: "partial results",
+        collapseAll: "Collapse all",
+        expandAll: "Expand all",
+        refresh: "Refresh search",
+        startTyping: "Type to search across the workspace",
+        noMatches: "No results found",
+      },
     },
     setup: {
       descriptor: {

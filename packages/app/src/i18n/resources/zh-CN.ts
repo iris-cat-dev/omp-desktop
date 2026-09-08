@@ -583,6 +583,21 @@ export const zhCN: TranslationResources = {
         filePlaceholder: "文件名",
         folderPlaceholder: "文件夹名称",
       },
+      contentSearch: {
+        placeholder: "在文件中搜索",
+        includePlaceholder: "要包含的文件（例如 src/**）",
+        excludePlaceholder: "要排除的文件（例如 dist/**）",
+        matchCase: "区分大小写",
+        matchWholeWord: "全字匹配",
+        useRegularExpression: "使用正则表达式",
+        summary: "在 {{files}} 个文件中找到 {{matches}} 个匹配项",
+        partial: "部分结果",
+        collapseAll: "全部折叠",
+        expandAll: "全部展开",
+        refresh: "刷新搜索",
+        startTyping: "输入内容以搜索整个 Workspace",
+        noMatches: "未找到结果",
+      },
     },
     setup: {
       descriptor: {

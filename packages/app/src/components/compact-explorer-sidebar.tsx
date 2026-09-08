@@ -29,6 +29,7 @@ import { useMountedTabSet } from "@/screens/workspace/use-mounted-tab-set";
 import { usePullRequestPanelAvailability } from "@/panels/pull-request-availability";
 import { PullRequestContent } from "@/panels/pull-request";
 import { useAddFileToChat } from "@/panels/use-add-file-to-chat";
+import type { WorkspaceFileLocation } from "@/workspace/file-open";
 
 function logExplorerSidebar(_event: string, _details: Record<string, unknown>): void {}
 
@@ -37,7 +38,7 @@ interface ExplorerSidebarProps {
   workspaceId?: string | null;
   workspaceRoot: string;
   isGit: boolean;
-  onOpenFile?: (filePath: string) => void;
+  onOpenFile?: (location: WorkspaceFileLocation) => void;
 }
 
 interface ExplorerSidebarSharedState {
@@ -176,7 +177,7 @@ interface SidebarContentProps {
   workspaceRoot: string;
   isGit: boolean;
   isOpen: boolean;
-  onOpenFile?: (filePath: string) => void;
+  onOpenFile?: (location: WorkspaceFileLocation) => void;
 }
 
 function ExplorerSidebarContent({
@@ -333,6 +334,7 @@ function ChangedFilesPane({
   const [changesState, setChangesState] = useState<ChangesState>(() =>
     changesStateSchema.parse(defaultChangesState),
   );
+  const handleOpenChangedFile = useCallback((path: string) => onOpenFile?.({ path }), [onOpenFile]);
   return (
     <ChangesSurface
       host="explorer"
@@ -341,7 +343,7 @@ function ChangedFilesPane({
       cwd={workspaceRoot}
       enabled={isOpen}
       modeScope="compact-explorer"
-      onOpenFile={onOpenFile}
+      onOpenFile={handleOpenChangedFile}
       onAddToChat={canAddToChat ? addFile : undefined}
       state={changesState}
       onStateChange={setChangesState}

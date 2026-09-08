@@ -577,6 +577,21 @@ export const ptBR: TranslationResources = {
         filePlaceholder: "Nome do arquivo",
         folderPlaceholder: "Nome da pasta",
       },
+      contentSearch: {
+        placeholder: "Pesquisar nos arquivos",
+        includePlaceholder: "Arquivos a incluir (por exemplo, src/**)",
+        excludePlaceholder: "Arquivos a excluir (por exemplo, dist/**)",
+        matchCase: "Diferenciar maiúsculas",
+        matchWholeWord: "Palavra inteira",
+        useRegularExpression: "Usar expressão regular",
+        summary: "{{matches}} correspondências em {{files}} arquivos",
+        partial: "resultados parciais",
+        collapseAll: "Recolher tudo",
+        expandAll: "Expandir tudo",
+        refresh: "Atualizar pesquisa",
+        startTyping: "Digite para pesquisar no workspace",
+        noMatches: "Nenhum resultado encontrado",
+      },
     },
     setup: {
       descriptor: {

@@ -29,7 +29,11 @@ import {
   sendLocalTransportMessage,
   closeLocalTransportSession,
 } from "./local-transport.js";
-import { createNodeEntrypointInvocation, resolveDaemonRunnerEntrypoint } from "./runtime-paths.js";
+import {
+  createNodeEntrypointInvocation,
+  resolveBundledRipgrepPath,
+  resolveDaemonRunnerEntrypoint,
+} from "./runtime-paths.js";
 import { runExternalCliJsonCommand, runExternalCliTextCommand } from "./cli/external.js";
 import {
   createDesktopSettingsCommandHandlers,
@@ -379,6 +383,7 @@ async function startDaemon(): Promise<DesktopDaemonStatus> {
     args: reclaimStalePidLock ? ["--reclaim-stale-pid-lock"] : [],
     baseEnv: process.env,
   });
+  const bundledRipgrepPath = resolveBundledRipgrepPath();
 
   logDesktopDaemonLifecycle("starting detached daemon", {
     appIsPackaged: app.isPackaged,
@@ -403,6 +408,7 @@ async function startDaemon(): Promise<DesktopDaemonStatus> {
       PASEO_DESKTOP_MANAGED: "1",
       PASEO_CLI: getBundledCliShimPath(),
       PASEO_WEB_UI_ENABLED: "false",
+      ...(bundledRipgrepPath ? { PASEO_RIPGREP_PATH: bundledRipgrepPath } : {}),
     },
     stdio: ["ignore", "ignore", "ignore"],
   });

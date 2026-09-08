@@ -14,7 +14,6 @@ import {
   app,
   BrowserWindow,
   clipboard,
-  dialog,
   Menu,
   ipcMain,
   nativeImage,
@@ -41,6 +40,7 @@ import {
   buildStandardContextMenuItems,
 } from "./window/window-manager.js";
 import { BackgroundModeController } from "./window/background-mode.js";
+import { CloseChoiceRequestBroker } from "./window/close-choice-request.js";
 import { setupDarwinCompositorWatchdog } from "./window/compositor-watchdog/index.js";
 import { registerDialogHandlers } from "./features/dialogs.js";
 import {
@@ -106,6 +106,7 @@ const APP_NAME = process.env.PASEO_TEST_APP_NAME?.trim() || "OMP Desktop";
 const UPDATE_QUIT_DEADLINE_MS = 5_000;
 const pendingBrowserWindowOpenRequests = new PendingBrowserWindowOpenRequests();
 const agentNavigationInbox = new AgentNavigationInbox();
+const closeChoiceRequests = new CloseChoiceRequestBroker();
 
 // A second-instance launch can arrive before the packaged protocol handler,
 // IPC handlers, and first window exist. Wait for full bootstrap, not just
@@ -361,6 +362,13 @@ ipcMain.handle("paseo:get-pending-open-project", (event) => {
 
 ipcMain.handle("paseo:agent-navigation:ready", (event) => {
   return agentNavigationInbox.windowReady(event.sender.id);
+});
+ipcMain.handle("paseo:window:closeChoiceReady", (event) => {
+  return closeChoiceRequests.getPending(event.sender.id);
+});
+
+ipcMain.handle("paseo:window:respondCloseChoice", (event, response: unknown) => {
+  return closeChoiceRequests.respond(event.sender.id, response);
 });
 
 function normalizeBrowserCaptureRect(
@@ -862,27 +870,15 @@ const backgroundModeController = new BackgroundModeController({
       return closeBehavior;
     }
 
-    const result = await dialog.showMessageBox(window as BrowserWindow, {
-      type: "question",
-      title: APP_NAME,
-      message: "点击关闭时",
-      detail: "选择最小化到系统托盘后，可通过托盘图标恢复窗口。",
-      buttons: ["最小化到系统托盘", "退出应用", "取消"],
-      defaultId: 0,
-      cancelId: 2,
-      noLink: true,
-      checkboxLabel: "记住我的选择，不再提醒",
-      checkboxChecked: false,
-    });
-    const choice = result.response === 0 ? "background" : result.response === 1 ? "quit" : "cancel";
-    if (result.checkboxChecked && choice !== "cancel") {
+    const result = await closeChoiceRequests.request((window as BrowserWindow).webContents);
+    if (result.remember && result.choice !== "cancel") {
       try {
-        await settingsStore.patch({ window: { closeBehavior: choice } });
+        await settingsStore.patch({ window: { closeBehavior: result.choice } });
       } catch (error) {
         log.error("[background mode] failed to remember close choice", error);
       }
     }
-    return choice;
+    return result.choice;
   },
   createTray: ({ restore, quit }) => {
     const iconPath = getTrayIconPath();

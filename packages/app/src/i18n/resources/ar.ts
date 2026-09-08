@@ -573,6 +573,21 @@ export const ar: TranslationResources = {
         filePlaceholder: "اسم الملف",
         folderPlaceholder: "اسم المجلد",
       },
+      contentSearch: {
+        placeholder: "البحث في الملفات",
+        includePlaceholder: "الملفات المراد تضمينها (مثال: src/**)",
+        excludePlaceholder: "الملفات المراد استبعادها (مثال: dist/**)",
+        matchCase: "مطابقة حالة الأحرف",
+        matchWholeWord: "مطابقة الكلمة بالكامل",
+        useRegularExpression: "استخدام تعبير نمطي",
+        summary: "{{matches}} تطابق في {{files}} ملف",
+        partial: "نتائج جزئية",
+        collapseAll: "طي الكل",
+        expandAll: "توسيع الكل",
+        refresh: "تحديث البحث",
+        startTyping: "اكتب للبحث في مساحة العمل",
+        noMatches: "لم يتم العثور على نتائج",
+      },
     },
     setup: {
       descriptor: {

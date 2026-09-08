@@ -577,6 +577,21 @@ export const fr: TranslationResources = {
         filePlaceholder: "Nom du fichier",
         folderPlaceholder: "Nom du dossier",
       },
+      contentSearch: {
+        placeholder: "Rechercher dans les fichiers",
+        includePlaceholder: "Fichiers à inclure (par exemple, src/**)",
+        excludePlaceholder: "Fichiers à exclure (par exemple, dist/**)",
+        matchCase: "Respecter la casse",
+        matchWholeWord: "Mot entier",
+        useRegularExpression: "Utiliser une expression régulière",
+        summary: "{{matches}} correspondances dans {{files}} fichiers",
+        partial: "résultats partiels",
+        collapseAll: "Tout réduire",
+        expandAll: "Tout développer",
+        refresh: "Actualiser la recherche",
+        startTyping: "Saisissez du texte pour rechercher dans le workspace",
+        noMatches: "Aucun résultat",
+      },
     },
     setup: {
       descriptor: {

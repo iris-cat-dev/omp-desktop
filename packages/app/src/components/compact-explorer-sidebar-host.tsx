@@ -11,6 +11,7 @@ import { useWorkspaceLayoutStore } from "@/stores/workspace-layout-store";
 import type { WorkspaceTabTarget } from "@/workspace-tabs/model";
 import { useWorkspaceCheckoutStatus } from "@/screens/workspace/use-workspace-checkout-status";
 import { openWorkspaceFileFromExplorer } from "@/screens/workspace/workspace-file-open-command";
+import type { WorkspaceFileLocation } from "@/workspace/file-open";
 import { isWeb } from "@/constants/platform";
 import {
   resolveCompactExplorerSidebarHostModel,
@@ -120,12 +121,12 @@ export function CompactExplorerSidebarHost({ children, enabled }: CompactExplore
   }, [model, openCompactFileExplorer]);
 
   const handleOpenFile = useCallback(
-    (filePath: string) => {
+    (location: WorkspaceFileLocation) => {
       if (!model) {
         return;
       }
       openWorkspaceFileFromExplorer({
-        filePath,
+        location,
         persistenceKey: model.persistenceKey,
         showMobileAgent,
         openWorkspaceTabInFocusedPane,

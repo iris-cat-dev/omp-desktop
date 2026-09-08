@@ -574,6 +574,21 @@ export const ko: TranslationResources = {
         filePlaceholder: "파일 이름",
         folderPlaceholder: "폴더 이름",
       },
+      contentSearch: {
+        placeholder: "파일에서 검색",
+        includePlaceholder: "포함할 파일(예: src/**)",
+        excludePlaceholder: "제외할 파일(예: dist/**)",
+        matchCase: "대/소문자 구분",
+        matchWholeWord: "단어 단위로 일치",
+        useRegularExpression: "정규식 사용",
+        summary: "{{files}}개 파일에서 {{matches}}개 일치",
+        partial: "일부 결과",
+        collapseAll: "모두 접기",
+        expandAll: "모두 펼치기",
+        refresh: "검색 새로고침",
+        startTyping: "입력하여 워크스페이스 전체 검색",
+        noMatches: "결과가 없습니다",
+      },
     },
     setup: {
       descriptor: {
