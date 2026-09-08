@@ -1128,7 +1128,11 @@ export function findBottomTerminalPaneId(input: {
 }
 
 function isEphemeralTab(tab: WorkspaceTab): boolean {
-  return tab.target.kind === "commit_diff" || tab.target.kind === "new_tab";
+  return (
+    tab.target.kind === "commit_diff" ||
+    tab.target.kind === "new_tab" ||
+    tab.target.kind === "local_file"
+  );
 }
 
 function stripEphemeralTabsFromNode(node: SplitNodeInternal): SplitNodeInternal {

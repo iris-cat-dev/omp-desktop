@@ -226,6 +226,36 @@ describe("toStoredAgentRecord", () => {
 });
 
 describe("toAgentPayload", () => {
+  it("projects the runtime model for live and restored agents without changing requested config", () => {
+    const agent = createManagedAgent({
+      provider: "omp",
+      config: { provider: "omp", model: "default" },
+      runtimeInfo: {
+        provider: "omp",
+        sessionId: "session-123",
+        model: "openai-codex/gpt-5.5",
+      },
+    });
+
+    expect(toAgentPayload(agent).model).toBe("openai-codex/gpt-5.5");
+    const record = toStoredAgentRecord(agent);
+    expect(record.config?.model).toBe("default");
+    expect(buildStoredAgentPayload(record, ["omp"]).model).toBe("openai-codex/gpt-5.5");
+
+    agent.runtimeInfo!.model = "anthropic/claude-sonnet-5";
+    expect(toAgentPayload(agent).model).toBe("anthropic/claude-sonnet-5");
+    expect(buildStoredAgentPayload(toStoredAgentRecord(agent), ["omp"]).model).toBe(
+      "anthropic/claude-sonnet-5",
+    );
+
+    agent.runtimeInfo = undefined;
+    expect(toAgentPayload(agent).model).toBe("default");
+    expect(buildStoredAgentPayload(toStoredAgentRecord(agent), ["omp"]).model).toBe("default");
+    agent.config.model = undefined;
+    expect(toAgentPayload(agent).model).toBeNull();
+    expect(buildStoredAgentPayload(toStoredAgentRecord(agent), ["omp"]).model).toBeNull();
+  });
+
   it("serializes dates, clones arrays, and hides session", () => {
     const permissionA = createPermission({ id: "perm-a" });
     const permissionB = createPermission({

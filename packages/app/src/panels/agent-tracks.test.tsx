@@ -160,6 +160,7 @@ function seedPaseoChild(workspaceId: string): SubagentRow {
     id: child.id,
     provider: child.provider,
     title: child.title,
+    model: child.model,
     description: null,
     subtitle: null,
     status: child.status,

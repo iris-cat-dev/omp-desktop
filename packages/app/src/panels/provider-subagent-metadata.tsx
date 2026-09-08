@@ -1,5 +1,7 @@
 import { Text, View } from "react-native";
 import { StyleSheet } from "react-native-unistyles";
+import { useTranslation } from "react-i18next";
+import { buildSubagentMetadata } from "@/subagents/track-presentation";
 
 export interface ProviderSubagentMetadataProps {
   model: string | null | undefined;
@@ -7,10 +9,8 @@ export interface ProviderSubagentMetadataProps {
 }
 
 export function ProviderSubagentMetadata({ model, subtitle }: ProviderSubagentMetadataProps) {
-  const metadata = [model?.trim(), subtitle?.trim()]
-    .filter((value): value is string => Boolean(value))
-    .join(" · ");
-  if (!metadata) return null;
+  const { t } = useTranslation();
+  const metadata = buildSubagentMetadata(t, model, subtitle);
 
   return (
     <View style={styles.header}>

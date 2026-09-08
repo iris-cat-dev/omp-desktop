@@ -1550,10 +1550,7 @@ const ChatAgentReadyContent = memo(function ChatAgentReadyContent({
       setText={agentInputDraft.replaceText}
     >
       <View style={styles.root}>
-        <FileDropZone
-          style={styles.container}
-          disabled={isArchivingCurrentAgent || Boolean(historyUnavailable)}
-        >
+        <View style={styles.container}>
           <View style={styles.conversationBody}>
             {contentContainer}
             {isTaskPanelExpanded ? (
@@ -1601,7 +1598,11 @@ const ChatAgentReadyContent = memo(function ChatAgentReadyContent({
                   onAction={controlGoal}
                 />
               ) : null}
-              {composerSection}
+              {hasActiveComposer ? (
+                composerSection
+              ) : (
+                <FileDropZone disabled>{composerSection}</FileDropZone>
+              )}
             </View>
             {isTaskPanelExpanded ? <View style={styles.composerTaskPanelSpacer} /> : null}
           </View>
@@ -1613,7 +1614,7 @@ const ChatAgentReadyContent = memo(function ChatAgentReadyContent({
           ) : null}
 
           <ToastViewport toast={toast} onDismiss={dismiss} placement="panel" />
-        </FileDropZone>
+        </View>
 
         {isArchivingCurrentAgent ? (
           <View style={styles.archivingOverlay} testID="agent-archiving-overlay">

@@ -5,6 +5,7 @@ import { providerUsage } from "./provider-usage";
 
 export const ko: TranslationResources = {
   providerUsage: providerUsage.ko,
+  externalFilePreview: en.externalFilePreview,
   common: {
     back: "뒤로",
     loading: "불러오는 중...",
@@ -1838,6 +1839,8 @@ export const ko: TranslationResources = {
   },
   subagents: {
     title: "하위 에이전트",
+    modelLabel: "모델: {{model}}",
+    modelUnknown: "알 수 없음(보고되지 않음)",
     pillLabelOne: "하위 에이전트 1개",
     pillLabelMany: "하위 에이전트 {{count}}개",
     pillLabelWorking: "{{count}}개 실행 중",

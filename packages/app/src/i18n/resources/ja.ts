@@ -5,6 +5,7 @@ import { providerUsage } from "./provider-usage";
 
 export const ja: TranslationResources = {
   providerUsage: providerUsage.ja,
+  externalFilePreview: en.externalFilePreview,
   common: {
     back: "戻る",
     loading: "読み込み中...",
@@ -1844,6 +1845,8 @@ export const ja: TranslationResources = {
   },
   subagents: {
     title: "サブエージェント",
+    modelLabel: "モデル：{{model}}",
+    modelUnknown: "不明（未報告）",
     pillLabelOne: "サブエージェント 1 件",
     pillLabelMany: "サブエージェント {{count}} 件",
     pillLabelWorking: "{{count}} 件実行中",

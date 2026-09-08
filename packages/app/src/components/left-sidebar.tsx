@@ -1442,7 +1442,7 @@ function SidebarFooter({
   const lastActiveRef = useRef(active);
   if (active) lastActiveRef.current = active;
   const visibleActive = active ?? lastActiveRef.current;
-  const [providerPanelExpanded, setProviderPanelExpanded] = useState(true);
+  const [providerPanelExpanded, setProviderPanelExpanded] = useState(false);
   const toggleProviderPanel = useCallback(
     () => setProviderPanelExpanded((expanded) => !expanded),
     [],

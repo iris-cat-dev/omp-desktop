@@ -9,6 +9,15 @@ An Electron and Web client for [Oh My Pi](https://github.com/can1357/oh-my-pi). 
 - `omp >= 16.3.9` on `PATH`
 - A configured OMP model provider
 
+## File drag and drop
+
+- Drop files onto the message input to add attachments without sending a message.
+- Drop external UTF-8 text files onto the conversation history or other ordinary areas to open local, read-only file tabs, not a dialog. Each tab offers **Preview / Source** modes; Markdown and HTML render in Preview mode. Files are not uploaded.
+  - Outside a workspace, files open on a dedicated preview page with file tabs.
+  - Preview tabs and their contents are session-only. Switching tabs retains the selected mode; closing a tab releases its content, and reloading removes local preview tabs.
+- Local text previews support files up to 2 MiB, including extensionless files. Directories, binary files, and larger files show an explanation instead.
+- Terminal surfaces keep their existing file-path drop behavior.
+
 ## Development
 
 ```bash

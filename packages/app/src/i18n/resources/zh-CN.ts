@@ -5,6 +5,21 @@ import { providerUsage } from "./provider-usage";
 
 export const zhCN: TranslationResources = {
   providerUsage: providerUsage["zh-CN"],
+  externalFilePreview: {
+    title: "本地文件预览",
+    localOnly: "只读预览。文件保留在此设备上，不会上传。",
+    dropHint: "松开以在本地预览",
+    loading: "正在读取本地文件...",
+    unnamed: "未命名项目",
+    empty: "此文件为空。",
+    expired: "此本地预览已失效，请重新拖入文件进行预览。",
+    errors: {
+      directory: "无法预览文件夹，请拖入单个文本文件。",
+      tooLarge: "此文件超过 2 MiB 的预览大小限制。",
+      unsupported: "仅支持 UTF-8 文本预览，不支持二进制文件或其他编码。",
+      unreadable: "无法从此设备读取该项目，请尝试重新拖入文件。",
+    },
+  },
   common: {
     back: "返回",
     loading: "加载中...",
@@ -1817,7 +1832,9 @@ export const zhCN: TranslationResources = {
     backdrop: "菜单背景",
   },
   subagents: {
-    title: "Subagent",
+    title: "子代理",
+    modelLabel: "模型：{{model}}",
+    modelUnknown: "未知（未上报）",
     pillLabelOne: "1 个 subagent",
     pillLabelMany: "{{count}} 个 subagent",
     pillLabelWorking: "{{count}} 个运行中",

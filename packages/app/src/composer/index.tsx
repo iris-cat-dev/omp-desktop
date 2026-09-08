@@ -47,8 +47,9 @@ import { ContextWindowMeter } from "@/components/context-window-meter";
 import { useImageAttachmentPicker } from "@/hooks/use-image-attachment-picker";
 import { selectAgentTurnPresentation, useSessionStore } from "@/stores/session-store";
 import { useFilePicker } from "@/hooks/use-file-picker";
+import { FileDropZone } from "@/components/file-drop/file-drop-zone";
 import { useFileDrop } from "@/components/file-drop/use-file-drop";
-import type { DroppedItem } from "@/components/file-drop/types";
+import type { DroppedItem, FileDropSink } from "@/components/file-drop/types";
 import {
   MessageInput,
   type AttachmentMenuItem,
@@ -1233,6 +1234,11 @@ type ComposerContentProps = Omit<ComposerProps, "isPaneFocused">;
 
 const ComposerContent = memo(ComposerContentImpl);
 
+function ComposerFileDropRegistration({ sink }: { sink: FileDropSink }) {
+  useFileDrop(sink);
+  return null;
+}
+
 // oxlint-disable-next-line complexity
 function ComposerContentImpl({
   agentId,
@@ -2376,18 +2382,6 @@ function ComposerContentImpl({
   const isSubmitDisabled =
     isSubmitLoadingVisible || (waitForGithubAutoAttachOnSubmit && githubAutoAttach.isResolving);
 
-  // Disable drops while submitting/uploading: the submit path clears and restores attachments,
-  // so a drop in that window would be lost or land on a locked draft. `disabled` hides the
-  // backdrop and rejects the drop atomically, instead of accepting a drop with no feedback.
-  useFileDrop(
-    {
-      onFiles: addImages,
-      onGenericFiles: handleGenericFilesDropped,
-      onWorkspaceFile: handleWorkspaceFileDropped,
-    },
-    { disabled: isSubmitLoadingVisible },
-  );
-
   const messageInputAutoFocus = autoFocus && isDesktopWebBreakpoint;
   const submitLoadingPressHandler = isAgentRunning ? handleCancelAgent : undefined;
   const sendErrorNode = useMemo(
@@ -2403,6 +2397,14 @@ function ComposerContentImpl({
     ? t("composer.github.searching")
     : t("composer.github.noResults");
   const autocompleteVisible = autocomplete.isVisible && mode.showAutocomplete;
+  const fileDropSink = useMemo<FileDropSink>(
+    () => ({
+      onFiles: addImages,
+      onGenericFiles: handleGenericFilesDropped,
+      onWorkspaceFile: handleWorkspaceFileDropped,
+    }),
+    [addImages, handleGenericFilesDropped, handleWorkspaceFileDropped],
+  );
 
   return (
     <>
@@ -2419,7 +2421,11 @@ function ComposerContentImpl({
       <Animated.View style={composerContainerStyle}>
         <AttachmentLightbox metadata={lightboxMetadata} onClose={handleLightboxClose} />
         {/* Input area */}
-        <View style={inputAreaContainerStyle}>
+        <FileDropZone
+          style={inputAreaContainerStyle}
+          disabled={isSubmitLoadingVisible || readOnly || !mode.showAttachments}
+        >
+          <ComposerFileDropRegistration sink={fileDropSink} />
           <View style={styles.inputAreaContent}>
             {queueList}
             {sendErrorNode}
@@ -2508,7 +2514,7 @@ function ComposerContentImpl({
               />
             </View>
           </View>
-        </View>
+        </FileDropZone>
       </Animated.View>
     </>
   );

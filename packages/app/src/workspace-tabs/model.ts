@@ -42,6 +42,7 @@ export type WorkspaceTabTarget =
   | { kind: "files" }
   | { kind: "pull_request" }
   | WorkspaceFileTabTarget
+  | { kind: "local_file"; previewId: string; name: string }
   | WorkspaceWorkingDiffTabTarget
   | PluginWorkspaceTabTarget
   | { kind: "setup"; workspaceId: string }

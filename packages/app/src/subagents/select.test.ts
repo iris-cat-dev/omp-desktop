@@ -1,8 +1,10 @@
 import type { DaemonClient } from "@omp-desktop/client/internal/daemon-client";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeAll, describe, expect, it } from "vitest";
 import { selectProviderSubagentsForParent, selectSubagentsForParent } from "./select";
 import { useProviderSubagentStore } from "./provider-store";
 import { useSessionStore, type Agent } from "@/stores/session-store";
+import { i18n } from "@/i18n/i18next";
+import { buildSubagentMetadata } from "./track-presentation";
 
 const SERVER_ID = "server-1";
 const AGENT_TIMESTAMP = new Date("2026-03-08T10:00:00.000Z");
@@ -57,6 +59,10 @@ function setAgents(agents: Agent[]): void {
     .getState()
     .setAgents(SERVER_ID, new Map(agents.map((agent) => [agent.id, agent])));
 }
+
+beforeAll(async () => {
+  if (!i18n.isInitialized) await i18n.init();
+});
 
 afterEach(() => {
   useSessionStore.getState().clearSession(SERVER_ID);
@@ -237,59 +243,31 @@ describe("selectSubagentsForParent", () => {
     expect(rows.map((row) => row.id)).toEqual(["first", "second", "third"]);
   });
 
-  it("maps only row-rendered fields and does not expose onOpen", () => {
-    const createdAt = new Date("2026-03-08T10:01:00.000Z");
-    setAgents([
-      makeAgent({ id: "parent" }),
-      makeAgent({
-        id: "child",
-        parentAgentId: "parent",
-        provider: "claude",
-        title: "Review child",
-        status: "running",
-        requiresAttention: true,
-        createdAt,
-        model: "should-not-leak",
-        cwd: "/private/project",
-      }),
-    ]);
+  it("displays the child's reported model and follows changes without inheriting the parent's", () => {
+    const parent = makeAgent({ id: "parent", model: "parent-model" });
+    const child = makeAgent({
+      id: "child",
+      parentAgentId: parent.id,
+      title: "Review child",
+      model: "anthropic/claude-opus-4-6",
+    });
+    const metadata = () => {
+      const [row] = selectSubagentsForParent(
+        useSessionStore.getState(),
+        { serverId: SERVER_ID, parentAgentId: parent.id },
+        EMPTY_PENDING_ARCHIVE_IDS,
+      );
+      return buildSubagentMetadata(i18n.getFixedT("en"), row!.model, row!.subtitle);
+    };
 
-    const rows = selectSubagentsForParent(
-      useSessionStore.getState(),
-      {
-        serverId: SERVER_ID,
-        parentAgentId: "parent",
-      },
-      EMPTY_PENDING_ARCHIVE_IDS,
-    );
+    setAgents([parent, child]);
+    expect(metadata()).toBe("Model: anthropic/claude-opus-4-6");
 
-    expect(rows).toEqual([
-      {
-        kind: "paseo",
-        id: "child",
-        provider: "claude",
-        title: "Review child",
-        description: null,
-        subtitle: null,
-        status: "running",
-        requiresAttention: true,
-        createdAt,
-      },
-    ]);
-    expect(Object.keys(rows[0] ?? {}).sort()).toEqual([
-      "createdAt",
-      "description",
-      "id",
-      "kind",
-      "provider",
-      "requiresAttention",
-      "status",
-      "subtitle",
-      "title",
-    ]);
-    expect(rows[0]).not.toHaveProperty("onOpen");
-    expect(rows[0]).not.toHaveProperty("model");
-    expect(rows[0]).not.toHaveProperty("cwd");
+    setAgents([parent, { ...child, model: "openai-codex/gpt-5.5" }]);
+    expect(metadata()).toBe("Model: openai-codex/gpt-5.5");
+
+    setAgents([parent, { ...child, model: null }]);
+    expect(metadata()).toBe("Model: Unknown (not reported)");
   });
 
   it("moves a child when parentAgentId changes", () => {

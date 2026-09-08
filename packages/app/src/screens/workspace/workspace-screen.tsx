@@ -4,7 +4,6 @@ import { getOpenAgentTabLabel } from "@omp-desktop/protocol/agent-labels";
 import {
   createElement,
   memo,
-  type ComponentProps,
   useCallback,
   useEffect,
   useLayoutEffect,
@@ -21,16 +20,15 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useRouter, type Href } from "expo-router";
 import * as Clipboard from "expo-clipboard";
 import { useTranslation } from "react-i18next";
-import { ChevronDown, PanelRight, Plus, Rows2 } from "lucide-react-native";
+import { ChevronDown, PanelRight } from "lucide-react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
 import type { Theme } from "@/styles/theme";
 import invariant from "tiny-invariant";
 import { SidebarMenuToggle } from "@/components/headers/menu-header";
 import { HeaderToggleButton } from "@/components/headers/header-toggle-button";
-import { buttonControlHeight } from "@/components/ui/control-geometry";
 import { ScreenHeader } from "@/components/headers/screen-header";
-import { DropdownMenu, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { WorkspaceHeaderActions } from "./workspace-header-actions";
 import { Combobox, type ComboboxOption } from "@/components/ui/combobox";
 import type { ShortcutKey } from "@/utils/format-shortcut";
 import {
@@ -207,54 +205,9 @@ function getWorkspaceScripts(
 const ThemedLoadingSpinner = withUnistyles(LoadingSpinner);
 const ThemedChevronDown = withUnistyles(ChevronDown);
 const ThemedPanelRight = withUnistyles(PanelRight);
-const ThemedRows2 = withUnistyles(Rows2);
-const ThemedPlus = withUnistyles(Plus);
 
 const foregroundColorMapping = (theme: Theme) => ({ color: theme.colors.foreground });
 const mutedColorMapping = (theme: Theme) => ({ color: theme.colors.foregroundMuted });
-const extraMutedColorMapping = (theme: Theme) => ({
-  color: theme.colors.foregroundExtraMuted,
-});
-const EMPTY_SHORTCUT_KEYS: ShortcutKey[] = [];
-
-interface WorkspaceBottomPaneToggleProps {
-  isOpen: boolean;
-  onPress: () => void;
-  shortcutKeys: ShortcutKey[];
-  style: ComponentProps<typeof HeaderToggleButton>["style"];
-}
-
-function WorkspaceBottomPaneToggle({
-  isOpen,
-  onPress,
-  shortcutKeys,
-  style,
-}: WorkspaceBottomPaneToggleProps) {
-  const { t } = useTranslation();
-  const label = isOpen
-    ? t("workspace.tabs.actions.closePane")
-    : t("workspace.tabs.actions.splitDown");
-  const accessibilityState = useMemo(() => ({ expanded: isOpen }), [isOpen]);
-  return (
-    <HeaderToggleButton
-      testID="workspace-header-split-pane-down"
-      onPress={onPress}
-      tooltipLabel={label}
-      tooltipKeys={isOpen ? EMPTY_SHORTCUT_KEYS : shortcutKeys}
-      tooltipSide="left"
-      style={style}
-      accessible
-      accessibilityRole="button"
-      accessibilityLabel={label}
-      accessibilityState={accessibilityState}
-    >
-      {({ hovered }) => {
-        const colorMapping = hovered ? foregroundColorMapping : extraMutedColorMapping;
-        return <ThemedRows2 size={16} uniProps={colorMapping} />;
-      }}
-    </HeaderToggleButton>
-  );
-}
 
 const GATED_WORKSPACE_HEADER_LEFT = <SidebarMenuToggle />;
 
@@ -341,6 +294,9 @@ function getFallbackTabOptionLabel(
   if (tab.target.kind === "file") {
     return tab.target.path.split("/").findLast(Boolean) ?? tab.target.path;
   }
+  if (tab.target.kind === "local_file") {
+    return tab.target.name;
+  }
   if (tab.target.kind === "working_diff") {
     const path = tab.target.focusPath;
     return path ? (path.split("/").findLast(Boolean) ?? path) : labels.changes;
@@ -403,6 +359,9 @@ function getFallbackTabOptionDescription(
   }
   if (tab.target.kind === "pull_request") {
     return labels.pullRequest;
+  }
+  if (tab.target.kind === "local_file") {
+    return tab.target.name;
   }
   if (tab.target.kind === "plugin") {
     return tab.target.panelId;
@@ -3430,56 +3389,24 @@ function WorkspaceScreenContent({
             hideLabels
           />
         ) : null}
-        {!isMobile && workspaceDirectory ? (
-          <>
-            <WorkspaceBottomPaneToggle
-              isOpen={isHeaderBottomPaneOpen}
-              onPress={handleToggleTerminalBelowFocusedPane}
-              shortcutKeys={splitPaneDownKeys?.[0] ?? []}
-              style={styles.compactHeaderActionButton}
-            />
-            <HeaderToggleButton
-              testID="workspace-explorer-toggle"
-              onPress={handleToggleSidePanel}
-              tooltipLabel={t("workspace.tabs.sidePanel.toggle")}
-              tooltipKeys={EXPLORER_TOGGLE_KEYS}
-              tooltipSide="left"
-              style={styles.compactHeaderActionButton}
-              accessible
-              accessibilityRole="button"
-              accessibilityLabel={sidePanelToggleLabel}
-              accessibilityState={sidePanelToggleAccessibilityState}
-            >
-              {({ hovered }) => {
-                const colorMapping = hovered ? foregroundColorMapping : extraMutedColorMapping;
-                return <ThemedPanelRight size={16} uniProps={colorMapping} />;
-              }}
-            </HeaderToggleButton>
-          </>
-        ) : null}
-        {!isMobile && persistenceKey ? (
-          <DropdownMenu>
-            <DropdownMenuTrigger
-              testID="workspace-header-new-tab"
-              style={styles.compactHeaderActionButton}
-              accessibilityRole="button"
-              accessibilityLabel={t("workspace.tabs.actions.newTab")}
-            >
-              {({ hovered, open }) => (
-                <ThemedPlus
-                  size={16}
-                  uniProps={hovered || open ? foregroundColorMapping : mutedColorMapping}
-                />
-              )}
-            </DropdownMenuTrigger>
-            <WorkspaceNewTabMenuContent
-              serverId={normalizedServerId}
-              purpose="primary"
-              paneId={focusedPaneIdOrUndefined}
-              align="end"
-            />
-          </DropdownMenu>
-        ) : null}
+        <WorkspaceHeaderActions
+          showPanels={!isMobile && Boolean(workspaceDirectory)}
+          showNewTab={!isMobile && Boolean(persistenceKey)}
+          bottomPaneOpen={isHeaderBottomPaneOpen}
+          onToggleBottomPane={handleToggleTerminalBelowFocusedPane}
+          bottomPaneKeys={splitPaneDownKeys?.[0] ?? []}
+          onToggleSidePanel={handleToggleSidePanel}
+          sidePanelLabel={sidePanelToggleLabel}
+          sidePanelOpen={sidePanelToggleAccessibilityState.expanded}
+          sidePanelKeys={EXPLORER_TOGGLE_KEYS}
+        >
+          <WorkspaceNewTabMenuContent
+            serverId={normalizedServerId}
+            purpose="primary"
+            paneId={focusedPaneIdOrUndefined}
+            align="end"
+          />
+        </WorkspaceHeaderActions>
         {isMobile ? (
           <HeaderToggleButton
             testID="workspace-explorer-toggle"
@@ -3791,20 +3718,6 @@ const styles = StyleSheet.create((theme) => ({
     paddingVertical: theme.spacing[2],
     paddingHorizontal: theme.spacing[2],
     borderRadius: theme.borderRadius.lg,
-  },
-  compactHeaderActionButton: {
-    width: {
-      xs: theme.spacing[8],
-      md: buttonControlHeight.xs,
-    },
-    height: {
-      xs: theme.spacing[8],
-      md: buttonControlHeight.xs,
-    },
-    padding: 0,
-    borderRadius: theme.borderRadius.lg,
-    alignItems: "center",
-    justifyContent: "center",
   },
   newTabActions: {
     flexDirection: "row",

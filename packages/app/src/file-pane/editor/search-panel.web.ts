@@ -320,7 +320,7 @@ class CursorSearchPanel implements Panel {
 
   private updateResultText(): void {
     if (!this.query.search) {
-      this.resultText.textContent = "";
+      this.resultText.textContent = "No results";
       return;
     }
     if (!this.query.valid) {

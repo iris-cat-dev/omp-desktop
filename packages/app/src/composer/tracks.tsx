@@ -10,6 +10,7 @@ import {
   type MenuTriggerState,
 } from "@/components/ui/menu";
 import { StatusRing } from "@/components/status-ring";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { STATUS_RING_HALO_INSET } from "@/components/status-ring/geometry";
 import { MAX_CONTENT_WIDTH } from "@/constants/layout";
 import { isWeb } from "@/constants/platform";
@@ -59,6 +60,8 @@ export interface ComposerTrackPillProps {
   testID: string;
   /** Spell out anything the segments abbreviate — a bare count reads as nothing out loud. */
   accessibilityLabel?: string;
+  /** Replaces the visible status text; the panel title becomes its hover hint. */
+  icon?: ReactNode;
   /** Panel body. Rendered into a popover on wide screens and a sheet on compact ones. */
   children: ReactNode;
 }
@@ -84,6 +87,7 @@ export function ComposerTrackPill({
   panelTitle,
   testID,
   accessibilityLabel,
+  icon,
   children,
 }: ComposerTrackPillProps): ReactElement {
   return (
@@ -92,6 +96,8 @@ export function ComposerTrackPill({
         segments={segments}
         testID={testID}
         accessibilityLabel={accessibilityLabel ?? segments.map((segment) => segment.text).join(" ")}
+        icon={icon}
+        tooltip={panelTitle}
       />
       <MenuSurface
         side="top"
@@ -114,10 +120,14 @@ function ComposerTrackPillTrigger({
   segments,
   testID,
   accessibilityLabel,
+  icon,
+  tooltip,
 }: {
   segments: readonly ComposerTrackPillSegment[];
   testID: string;
   accessibilityLabel: string;
+  icon?: ReactNode;
+  tooltip: string;
 }): ReactElement {
   const { open } = useMenuContext("ComposerTrackPill");
   const accessibilityState = useMemo(() => ({ expanded: open }), [open]);
@@ -136,7 +146,7 @@ function ComposerTrackPillTrigger({
     [open],
   );
 
-  return (
+  const trigger = (
     <MenuTrigger
       testID={testID}
       accessibilityRole="button"
@@ -145,21 +155,35 @@ function ComposerTrackPillTrigger({
       {...ariaExpandedProps}
       style={pillStyle}
     >
-      <View style={styles.segments}>
-        {segments.map((segment, index) => (
-          <View
-            key={segment.bucket ?? "plain"}
-            style={styles.segment}
-            testID={`${testID}-segment-${index}`}
-          >
-            <ComposerTrackMark bucket={segment.bucket} />
-            <Text style={labelStyle} numberOfLines={1}>
-              {segment.text}
-            </Text>
-          </View>
-        ))}
-      </View>
+      {icon ?? (
+        <View style={styles.segments}>
+          {segments.map((segment, index) => (
+            <View
+              key={segment.bucket ?? "plain"}
+              style={styles.segment}
+              testID={`${testID}-segment-${index}`}
+            >
+              <ComposerTrackMark bucket={segment.bucket} />
+              <Text style={labelStyle} numberOfLines={1}>
+                {segment.text}
+              </Text>
+            </View>
+          ))}
+        </View>
+      )}
     </MenuTrigger>
+  );
+
+  if (!icon) return trigger;
+  return (
+    <Tooltip delayDuration={250} enabledOnDesktop={!open} enabledOnMobile={false}>
+      <TooltipTrigger asChild>
+        <View collapsable={false}>{trigger}</View>
+      </TooltipTrigger>
+      <TooltipContent side="top" align="center" offset={8}>
+        <Text style={composerPillStyles.label}>{tooltip}</Text>
+      </TooltipContent>
+    </Tooltip>
   );
 }
 

@@ -9,16 +9,18 @@ import { useConfirmDialogStore } from "@/stores/confirm-dialog-store";
 const styles = StyleSheet.create((theme) => ({
   message: {
     color: theme.colors.foregroundMuted,
-    fontSize: theme.fontSize.base,
-    lineHeight: theme.fontSize.base * 1.5,
+    fontSize: theme.fontSize.sm,
+    lineHeight: theme.fontSize.sm * 1.5,
   },
   actions: {
     width: "100%",
     flexDirection: "row",
-    gap: theme.spacing[3],
+    justifyContent: "flex-end",
+    flexWrap: "wrap",
+    gap: theme.spacing[2],
   },
   action: {
-    flex: 1,
+    minWidth: 72,
   },
 }));
 
@@ -44,7 +46,8 @@ export function ConfirmDialogHost() {
     <View style={styles.actions}>
       <Button
         style={styles.action}
-        variant="secondary"
+        size="sm"
+        variant="outline"
         onPress={handleCancel}
         testID="confirm-dialog-cancel"
       >
@@ -52,6 +55,7 @@ export function ConfirmDialogHost() {
       </Button>
       <Button
         style={styles.action}
+        size="sm"
         variant={request.destructive ? "destructive" : "default"}
         onPress={handleConfirm}
         testID="confirm-dialog-confirm"
@@ -67,7 +71,8 @@ export function ConfirmDialogHost() {
       header={header}
       onClose={handleCancel}
       footer={footer}
-      desktopMaxWidth={440}
+      desktopMaxWidth={400}
+      density="compact"
       snapPoints={["38%"]}
       scrollable={false}
       testID="confirm-dialog"

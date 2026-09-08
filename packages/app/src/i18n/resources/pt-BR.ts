@@ -5,6 +5,7 @@ import { providerUsage } from "./provider-usage";
 
 export const ptBR: TranslationResources = {
   providerUsage: providerUsage["pt-BR"],
+  externalFilePreview: en.externalFilePreview,
   common: {
     back: "Voltar",
     loading: "Carregando...",
@@ -1860,6 +1861,8 @@ export const ptBR: TranslationResources = {
   },
   subagents: {
     title: "Subagentes",
+    modelLabel: "Modelo: {{model}}",
+    modelUnknown: "Desconhecido (não informado)",
     pillLabelOne: "1 subagente",
     pillLabelMany: "{{count}} subagentes",
     pillLabelWorking: "{{count}} em execução",

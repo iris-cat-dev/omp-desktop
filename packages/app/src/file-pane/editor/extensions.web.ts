@@ -99,11 +99,11 @@ export function editorTheme(theme: EditorVisualTheme) {
         ".cm-panel.omp-editor-search": {
           position: "absolute",
           top: "8px",
-          right: "12px",
+          right: "0",
           zIndex: "20",
           display: "flex",
           flexDirection: "column",
-          width: "min(520px, calc(100% - 24px))",
+          width: "min(480px, calc(100% - 24px))",
           maxWidth: "calc(100% - 24px)",
           boxSizing: "border-box",
           gap: "4px",
@@ -119,7 +119,7 @@ export function editorTheme(theme: EditorVisualTheme) {
         },
         ".omp-editor-search-row": {
           display: "grid",
-          gridTemplateColumns: "20px minmax(120px, 1fr) 52px 99px",
+          gridTemplateColumns: "20px minmax(120px, 1fr) 64px 99px",
           alignItems: "center",
           gap: "4px",
           minWidth: "0",
@@ -159,11 +159,11 @@ export function editorTheme(theme: EditorVisualTheme) {
           opacity: "0.72",
         },
         ".omp-editor-search-result": {
-          minWidth: "52px",
-          color: theme.foregroundMuted,
-          fontSize: "11px",
+          minWidth: "64px",
+          color: theme.foreground,
+          fontSize: "12px",
           lineHeight: "1",
-          textAlign: "right",
+          textAlign: "left",
           whiteSpace: "nowrap",
         },
         ".omp-editor-search-actions": {

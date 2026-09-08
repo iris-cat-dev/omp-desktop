@@ -696,6 +696,7 @@ export default function TerminalEmulator({
     <div
       ref={rootRef}
       data-testid={testId}
+      data-file-drop-owner="terminal"
       data-terminal-scrollbar-root="true"
       style={rootDivStyle}
       onPointerDown={handleRootPointerDown}

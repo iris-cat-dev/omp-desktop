@@ -714,7 +714,10 @@ describe("OMP history mapper", () => {
     ]);
   });
 
-  test("rehydrates structured batch and nested task transcripts with stable status and time", async () => {
+  test.each([
+    { provider: "openai-codex", modelId: "gpt-5.5" },
+    { model: "openai-codex/gpt-5.5" },
+  ])("rehydrates batch and nested transcripts with child models from %j", async (modelEntry) => {
     const dir = mkdtempSync(join(tmpdir(), "omp-subagent-history-"));
     const parentFile = join(dir, "parent.jsonl");
     const parentStem = parentFile.slice(0, -".jsonl".length);
@@ -736,14 +739,29 @@ describe("OMP history mapper", () => {
         timestamp: "2026-07-07T03:00:00Z",
       },
       {
+        type: "model_change",
+        id: "nested-model",
+        parentId: "nested-root",
+        model: "openai-codex/gpt-5.5",
+      },
+      {
         type: "message",
         id: "nested-answer",
-        parentId: "nested-root",
+        parentId: "nested-model",
         timestamp: "2026-07-07T03:00:01Z",
         message: {
           role: "assistant",
+          provider: "anthropic",
+          model: "claude-sonnet-5",
+          responseModel: "claude-sonnet-5-20260701",
           content: [{ type: "text", text: "Nested answer" }],
         },
+      },
+      {
+        type: "message",
+        id: "nested-followup",
+        parentId: "nested-answer",
+        message: { role: "assistant", content: [{ type: "text", text: "Done" }] },
       },
     ]);
     writeEntries(echoFile, [
@@ -758,8 +776,7 @@ describe("OMP history mapper", () => {
         id: "echo-model",
         parentId: "echo-root",
         timestamp: "2026-07-07T02:00:00.500Z",
-        provider: "openai-codex",
-        modelId: "gpt-5.5",
+        ...modelEntry,
       },
       {
         type: "message",
@@ -817,6 +834,18 @@ describe("OMP history mapper", () => {
         parentId: null,
         timestamp: 1_752_000_000,
       },
+      {
+        type: "message",
+        id: "aborted-answer",
+        parentId: "aborted-root",
+        message: {
+          role: "assistant",
+          content: [],
+          provider: "anthropic",
+          model: "claude-sonnet-5",
+          responseModel: " ",
+        },
+      },
     ]);
     writeEntries(parentFile, [
       {
@@ -832,12 +861,14 @@ describe("OMP history mapper", () => {
         timestamp: "2026-07-07T01:00:01Z",
         message: {
           role: "assistant",
+          provider: "parent-provider",
+          model: "parent-model",
           content: [
             {
               type: "toolCall",
               id: "task-1",
               name: "task",
-              arguments: { agent: "task" },
+              arguments: { agent: "task", model: "default" },
             },
           ],
         },
@@ -857,6 +888,7 @@ describe("OMP history mapper", () => {
               { id: echoId, agent: "task", exitCode: 0 },
               { id: "FailedChild", exitCode: 2, error: "boom" },
               { id: "AbortedChild", aborted: true },
+              { id: "MissingChild", exitCode: 1 },
             ],
           },
         },
@@ -906,9 +938,18 @@ describe("OMP history mapper", () => {
           status: "completed",
           timestamp: "2026-07-07T02:00:03Z",
         }),
-        expect.objectContaining({ id: "FailedChild", status: "failed" }),
-        expect.objectContaining({ id: "AbortedChild", status: "canceled" }),
-        expect.objectContaining({ id: "NestedChild", status: "completed" }),
+        expect.objectContaining({ id: "FailedChild", status: "failed", model: null }),
+        expect.objectContaining({
+          id: "AbortedChild",
+          status: "canceled",
+          model: "anthropic/claude-sonnet-5",
+        }),
+        expect.objectContaining({ id: "MissingChild", status: "failed", model: null }),
+        expect.objectContaining({
+          id: "NestedChild",
+          status: "completed",
+          model: "anthropic/claude-sonnet-5-20260701",
+        }),
       ]),
     );
   });

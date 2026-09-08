@@ -21,6 +21,7 @@ export function FilePanelBar({
   cursor,
   vimMode,
   conflict,
+  showTreeToggle = true,
 }: {
   size: number;
   lineCount?: number;
@@ -30,6 +31,7 @@ export function FilePanelBar({
   cursor?: { line: number; column: number };
   vimMode?: string | null;
   conflict?: FileConflictAlertState;
+  showTreeToggle?: boolean;
 }) {
   const { t } = useTranslation();
   const previewModes = [
@@ -109,7 +111,7 @@ export function FilePanelBar({
               options={previewModes}
             />
           ) : null}
-          <FileTreeToggle />
+          {showTreeToggle ? <FileTreeToggle /> : null}
         </View>
       </PaneContentToolbar>
       {conflict ? <FileConflictAlert state={conflict} /> : null}

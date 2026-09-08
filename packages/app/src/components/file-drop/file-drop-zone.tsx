@@ -12,11 +12,13 @@ import type { FileDropSink } from "./types";
 
 interface FileDropZoneProps {
   children: ReactNode;
-  /** When true, no drops are accepted and the backdrop stays hidden. */
+  /** When true, drops are consumed without delivery and the backdrop stays hidden. */
   disabled?: boolean;
-  /** Styles the drop area (defaults to filling its parent). The backdrop fills this area. */
+  /** Styles and sizes the drop area. The backdrop fills this area. */
   style?: StyleProp<ViewStyle>;
 }
+
+const DROP_OWNER_DATASET = { "file-drop-owner": "attachment" };
 
 /**
  * Defines a drag-and-drop area and renders its dim backdrop. Files are consumed by any
@@ -67,7 +69,11 @@ export function FileDropZone({ children, disabled = false, style }: FileDropZone
 
   return (
     <FileDropContext.Provider value={ctx}>
-      <View ref={containerRef as unknown as RefObject<View>} style={targetStyle}>
+      <View
+        ref={containerRef as unknown as RefObject<View>}
+        style={targetStyle}
+        dataSet={DROP_OWNER_DATASET}
+      >
         {children}
         <FileDropBackdrop />
       </View>

@@ -2,6 +2,7 @@ import type { AgentStreamEvent } from "../../agent-sdk-types.js";
 import { OmpHistoryMapper } from "./message-history.js";
 import type { OmpAgentMessage, OmpAgentSessionEvent } from "./rpc-types.js";
 import { OMP_HISTORY_MAPPER_HOOKS } from "./history-hooks.js";
+import { readOmpAssistantModel } from "./subagent-model.js";
 import type {
   OmpSubagentEventPayload,
   OmpSubagentLifecyclePayload,
@@ -35,7 +36,7 @@ export class OmpSubagentIndex {
     state.title = payload.agent || state.title;
     state.description = payload.progress.description ?? payload.assignment ?? state.description;
     if (payload.progress.resolvedModel?.trim()) {
-      state.resolvedModel = payload.progress.resolvedModel;
+      state.resolvedModel = payload.progress.resolvedModel.trim();
     }
     state.toolCallId = payload.parentToolCallId ?? state.toolCallId;
     state.status = mapProgressStatus(payload.progress.status);
@@ -44,23 +45,27 @@ export class OmpSubagentIndex {
 
   handleEvent(parent: object, payload: OmpSubagentEventPayload): AgentStreamEvent[] {
     const state = this.stateFor(parent, payload.id, "OMP subagent");
+    const model = modelFromSessionEvent(payload.event);
+    const events: AgentStreamEvent[] = [];
+    if (model !== null && model !== state.resolvedModel) {
+      state.resolvedModel = model;
+      events.push(this.upsert(payload.id, state.status, state));
+    }
     const messages = messagesFromSessionEvent(payload.event);
-    return state.mapper.mapMessages(messages).flatMap((mapped) =>
-      mapped.type === "timeline"
-        ? [
-            {
-              type: "provider_subagent" as const,
-              provider: "omp",
-              event: {
-                type: "timeline" as const,
-                id: payload.id,
-                item: mapped.item,
-                ...(mapped.timestamp ? { timestamp: mapped.timestamp } : {}),
-              },
-            },
-          ]
-        : [],
-    );
+    for (const mapped of state.mapper.mapMessages(messages)) {
+      if (mapped.type !== "timeline") continue;
+      events.push({
+        type: "provider_subagent",
+        provider: "omp",
+        event: {
+          type: "timeline",
+          id: payload.id,
+          item: mapped.item,
+          ...(mapped.timestamp ? { timestamp: mapped.timestamp } : {}),
+        },
+      });
+    }
+    return events;
   }
 
   terminalizeRunning(parent: object): AgentStreamEvent[] {
@@ -119,6 +124,23 @@ export class OmpSubagentIndex {
       },
     };
   }
+}
+
+function modelFromSessionEvent(event: OmpAgentSessionEvent): string | null {
+  if (
+    event.type === "message_start" ||
+    event.type === "message_update" ||
+    event.type === "message_end"
+  ) {
+    return readOmpAssistantModel(event.message);
+  }
+  if (event.type === "agent_end" && event.messages) {
+    for (let index = event.messages.length - 1; index >= 0; index -= 1) {
+      const model = readOmpAssistantModel(event.messages[index]!);
+      if (model !== null) return model;
+    }
+  }
+  return null;
 }
 
 function messagesFromSessionEvent(event: OmpAgentSessionEvent): OmpAgentMessage[] {

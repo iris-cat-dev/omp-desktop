@@ -18,29 +18,28 @@ const styles = StyleSheet.create((theme) => ({
   },
   footerContent: {
     width: "100%",
-    gap: theme.spacing[2],
+    gap: theme.spacing[4],
   },
   actions: {
     flexDirection: "row",
+    justifyContent: "flex-end",
+    flexWrap: "wrap",
     gap: theme.spacing[2],
   },
   action: {
-    flex: 1,
-  },
-  backgroundAction: {
-    flex: 1.35,
+    minWidth: 64,
   },
   rememberRow: {
     alignSelf: "flex-start",
     flexDirection: "row",
     alignItems: "center",
     gap: theme.spacing[2],
-    paddingHorizontal: theme.spacing[2],
+    paddingHorizontal: 0,
     paddingVertical: theme.spacing[1],
   },
   checkbox: {
-    width: 18,
-    height: 18,
+    width: 16,
+    height: 16,
     alignItems: "center",
     justifyContent: "center",
     borderRadius: theme.borderRadius.sm,
@@ -153,7 +152,7 @@ export function CloseChoiceDialogHost() {
         <Button
           style={styles.action}
           size="sm"
-          variant="secondary"
+          variant="ghost"
           disabled={responding}
           onPress={handleCancel}
           testID="close-choice-cancel"
@@ -163,7 +162,7 @@ export function CloseChoiceDialogHost() {
         <Button
           style={styles.action}
           size="sm"
-          variant="secondary"
+          variant="outline"
           disabled={responding}
           onPress={handleQuit}
           testID="close-choice-quit"
@@ -171,7 +170,7 @@ export function CloseChoiceDialogHost() {
           退出应用
         </Button>
         <Button
-          style={[styles.action, styles.backgroundAction]}
+          style={styles.action}
           size="sm"
           variant="default"
           disabled={responding}
@@ -191,6 +190,7 @@ export function CloseChoiceDialogHost() {
       onClose={handleCancel}
       footer={footer}
       desktopMaxWidth={400}
+      density="compact"
       snapPoints={["42%"]}
       scrollable={false}
       testID="close-choice-dialog"

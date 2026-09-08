@@ -1,7 +1,7 @@
 import { useCallback, useMemo, type ReactElement } from "react";
 import { Pressable, Text, View } from "react-native";
 import { useTranslation } from "react-i18next";
-import { Archive, Unlink } from "lucide-react-native";
+import { Archive, Bot, Unlink } from "lucide-react-native";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
 import { getProviderIcon } from "@/components/provider-icons";
 import { ComposerTrackActions, ComposerTrackPill, ComposerTrackRow } from "@/composer/tracks";
@@ -17,12 +17,14 @@ import type { SubagentRow } from "./select";
 import type { ArchiveFinishedStatus } from "./use-archive-finished";
 import {
   buildSubagentPillPresentation,
+  buildSubagentMetadata,
   buildSubagentRowPresentationData,
   countFinishedSubagents,
 } from "./track-presentation";
 
 const ThemedArchive = withUnistyles(Archive);
 const ThemedUnlink = withUnistyles(Unlink);
+const ThemedBot = withUnistyles(Bot);
 
 const foregroundColorMapping = (theme: Theme) => ({ color: theme.colors.foreground });
 const foregroundMutedColorMapping = (theme: Theme) => ({
@@ -64,6 +66,7 @@ export function SubagentsTrack({
   onDetachSubagent,
 }: SubagentsTrackProps): ReactElement | null {
   const { t } = useTranslation();
+  const icon = useMemo(() => <ThemedBot size={16} uniProps={foregroundMutedColorMapping} />, []);
 
   const isArchivingFinished = archiveFinishedStatus.kind === "archiving";
   const isArchiveFinishedFailed = archiveFinishedStatus.kind === "failed";
@@ -81,6 +84,7 @@ export function SubagentsTrack({
       segments={pill.segments}
       accessibilityLabel={pill.accessibilityLabel}
       panelTitle={t("subagents.title")}
+      icon={icon}
     >
       {showArchiveFinished && onArchiveFinished ? (
         <ComposerTrackActions divided={rows.length > 0}>
@@ -181,6 +185,7 @@ function SubagentsTrackRow({
   const { t } = useTranslation();
   const isCompact = useIsCompactFormFactor();
   const presentation = useMemo(() => buildRowPresentation(row), [row]);
+  const metadata = buildSubagentMetadata(t, row.model, presentation.subtitle);
   const displayLabel =
     presentation.titleState === "loading" ? t("common.states.loading") : presentation.label;
   const handlePress = useCallback(() => {
@@ -205,11 +210,13 @@ function SubagentsTrackRow({
         <Text style={styles.rowLabel} numberOfLines={1}>
           {displayLabel}
         </Text>
-        {presentation.subtitle ? (
-          <Text style={styles.rowTrailing} numberOfLines={1}>
-            {presentation.subtitle}
-          </Text>
-        ) : null}
+        <Text
+          style={styles.rowTrailing}
+          numberOfLines={1}
+          testID={`subagents-track-model-${row.id}`}
+        >
+          {metadata}
+        </Text>
         {row.kind === "paseo" ? (
           <SubagentRowActions
             rowId={row.id}
@@ -226,6 +233,7 @@ function SubagentsTrackRow({
       displayLabel,
       handleArchivePress,
       handleDetachPress,
+      metadata,
       onDetachSubagent,
       presentation,
       row.kind,
@@ -235,7 +243,7 @@ function SubagentsTrackRow({
 
   return (
     <ComposerTrackRow
-      accessibilityLabel={displayLabel}
+      accessibilityLabel={`${displayLabel}, ${metadata}`}
       testID={`subagents-track-row-${row.id}`}
       onPress={handlePress}
     >

@@ -8,6 +8,7 @@ function paseo(id: string, status: PaseoSubagentRow["status"] = "idle"): PaseoSu
     id,
     provider: "codex",
     title: id,
+    model: null,
     description: null,
     subtitle: null,
     status,

@@ -3,6 +3,22 @@ import { providerUsage } from "./provider-usage";
 
 export const en = {
   providerUsage: providerUsage.en,
+  externalFilePreview: {
+    title: "Local file preview",
+    localOnly: "Read-only. Files stay on this device and are not uploaded.",
+    dropHint: "Drop to preview locally",
+    loading: "Reading local file...",
+    unnamed: "Unnamed item",
+    empty: "This file is empty.",
+    expired: "This local preview has expired. Drop the file again to preview it.",
+    errors: {
+      directory: "Directories cannot be previewed. Drop individual text files instead.",
+      tooLarge: "This file exceeds the 2 MiB preview limit.",
+      unsupported:
+        "Preview supports UTF-8 text only. Binary files and other encodings are not supported.",
+      unreadable: "This item could not be read from your device. Try dropping the file again.",
+    },
+  },
   common: {
     back: "Back",
     loading: "Loading...",
@@ -1850,6 +1866,8 @@ export const en = {
   },
   subagents: {
     title: "Subagents",
+    modelLabel: "Model: {{model}}",
+    modelUnknown: "Unknown (not reported)",
     pillLabelOne: "1 subagent",
     pillLabelMany: "{{count}} subagents",
     pillLabelWorking: "{{count}} working",

@@ -516,6 +516,9 @@ function getFallbackTabLabel(
   if (tab.target.kind === "file") {
     return tab.target.path.split("/").findLast(Boolean) ?? tab.target.path;
   }
+  if (tab.target.kind === "local_file") {
+    return tab.target.name;
+  }
   if (tab.target.kind === "working_diff") {
     const path = tab.target.focusPath;
     return path ? (path.split("/").findLast(Boolean) ?? path) : labels.changes;

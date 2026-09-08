@@ -3,21 +3,18 @@ import { router } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { StyleSheet as RNStyleSheet, Text, View } from "react-native";
 import ReanimatedAnimated from "react-native-reanimated";
-import { StyleSheet, withUnistyles } from "react-native-unistyles";
+import { StyleSheet } from "react-native-unistyles";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { MessageSquarePlus, PanelRight } from "lucide-react-native";
+import { MessageSquarePlus } from "lucide-react-native";
 import { Composer } from "@/composer";
 import { GoalBar, type GoalControlAction } from "@/composer/goal-bar";
-import { FileDropZone } from "@/components/file-drop/file-drop-zone";
 import {
   resolveComposerAttachmentSubmitFormat,
   splitComposerAttachmentsForSubmit,
 } from "@/composer/attachments/submit";
 import { TitlebarDragRegion } from "@/components/desktop/titlebar-drag-region";
 import { SidebarMenuToggle } from "@/components/headers/menu-header";
-import { HeaderToggleButton } from "@/components/headers/header-toggle-button";
 import { ScreenHeader } from "@/components/headers/screen-header";
-import { buttonControlHeight } from "@/components/ui/control-geometry";
 import { HEADER_INNER_HEIGHT, MAX_CONTENT_WIDTH, useIsCompactFormFactor } from "@/constants/layout";
 import { useToast } from "@/contexts/toast-context";
 import { useAgentInputDraft, type AgentInputDraft } from "@/composer/draft/input-draft";
@@ -65,7 +62,6 @@ import {
   useHostProjects,
   type HostProjectListItem,
 } from "@/projects/host-projects";
-import type { Theme } from "@/styles/theme";
 import type { ComposerAttachment } from "@/attachments/types";
 import { useDraftWorkspaceAttachmentScopeKey } from "@/attachments/workspace-attachments-store";
 import type { MessagePayload } from "@/composer/types";
@@ -79,6 +75,12 @@ import {
   WorkspaceDesktopTabsRow,
   type WorkspaceDesktopTabRowItem,
 } from "@/screens/workspace/workspace-desktop-tabs-row";
+import { WorkspaceHeaderActions } from "./workspace/workspace-header-actions";
+import { WorkspaceNewTabMenuContent } from "./workspace/workspace-new-tab-menu";
+import { NewTabLauncherProvider, type NewTabLauncher } from "@/workspace-tabs/launcher";
+import type { NewTabSelection } from "@/workspace-tabs/new-tab";
+import { createWorkspaceBrowser } from "@/desktop/browser/store";
+import { getIsElectron } from "@/constants/platform";
 import { isEmptyWorkspaceSubmission, runCreateEmptyWorkspace } from "./new-workspace-empty";
 import {
   getWorkspaceNamingAttachments,
@@ -91,9 +93,6 @@ import {
 } from "./new-workspace-initial-context";
 import { useNewWorkspaceProjectPicker } from "./new-workspace/project-picker";
 
-const ThemedPanelRight = withUnistyles(PanelRight);
-const foregroundMutedColorMapping = (theme: Theme) => ({ color: theme.colors.foregroundMuted });
-const foregroundColorMapping = (theme: Theme) => ({ color: theme.colors.foreground });
 const noopWorkspaceTabAction = () => {};
 
 function useIsNewWorkspaceDraftHandoffActive(input: {
@@ -967,70 +966,75 @@ export function NewWorkspaceScreen({
     ],
   );
 
-  const handleSubmitTerminalLaunch = useCallback(async () => {
-    try {
-      setErrorMessage(null);
-      await updateFormPreferences({ launchTarget });
-      setPendingAction("terminal");
-      await runCreateTerminalWorkspace({
-        cwd: selectedSourceDirectory ?? "",
-        prompt: terminalPromptText,
-        profile: selectedTerminalProfile,
-        profileName: selectedTerminalProfile?.name,
-        ensureWorkspace,
-        createTerminal: async (input) => {
-          const connectedClient = withConnectedClient();
-          const createdTerminal = await connectedClient.createTerminal(
-            input.workspaceDirectory,
-            input.name,
-            undefined,
-            {
-              command:
-                input.command ??
-                resolveDesktopDefaultTerminalShell({
-                  activeConnection: terminalActiveConnection,
-                  loginShell: getDesktopHost()?.loginShell,
-                }),
-              args: input.args,
-              workspaceId: input.workspaceId,
-            },
-          );
-          if (!createdTerminal.terminal) {
-            throw new Error(
-              createdTerminal.error ?? t("newWorkspace.errors.createWorkspaceFailed"),
+  const launchTerminal = useCallback(
+    async (profile: TerminalProfile | null, prompt: string, preserveDraft = false) => {
+      try {
+        setErrorMessage(null);
+        await updateFormPreferences({ launchTarget });
+        setPendingAction("terminal");
+        await runCreateTerminalWorkspace({
+          cwd: selectedSourceDirectory ?? "",
+          prompt,
+          profile,
+          profileName: profile?.name,
+          ensureWorkspace,
+          createTerminal: async (input) => {
+            const connectedClient = withConnectedClient();
+            const createdTerminal = await connectedClient.createTerminal(
+              input.workspaceDirectory,
+              input.name,
+              undefined,
+              {
+                command:
+                  input.command ??
+                  resolveDesktopDefaultTerminalShell({
+                    activeConnection: terminalActiveConnection,
+                    loginShell: getDesktopHost()?.loginShell,
+                  }),
+                args: input.args,
+                workspaceId: input.workspaceId,
+              },
             );
-          }
-          return { terminalId: createdTerminal.terminal.id };
-        },
-        sendTerminalInput: (terminalId, data) => {
-          withConnectedClient().sendTerminalInput(terminalId, { type: "input", data });
-        },
-        serverId: selectedServerId,
-        navigate: (targetServerId, workspaceId, target) => {
-          completeSidebarConversationDraft();
-          navigateToWorkspace({ serverId: targetServerId, workspaceId, target });
-        },
-      });
-    } catch (error) {
-      const message = toErrorMessage(error);
-      setPendingAction(null);
-      setErrorMessage(message);
-      toast.error(message);
-    }
-  }, [
-    ensureWorkspace,
-    completeSidebarConversationDraft,
-    launchTarget,
-    selectedServerId,
-    terminalActiveConnection,
-    selectedSourceDirectory,
-    selectedTerminalProfile,
-    t,
-    terminalPromptText,
-    toast,
-    updateFormPreferences,
-    withConnectedClient,
-  ]);
+            if (!createdTerminal.terminal) {
+              throw new Error(
+                createdTerminal.error ?? t("newWorkspace.errors.createWorkspaceFailed"),
+              );
+            }
+            return { terminalId: createdTerminal.terminal.id };
+          },
+          sendTerminalInput: (terminalId, data) => {
+            withConnectedClient().sendTerminalInput(terminalId, { type: "input", data });
+          },
+          serverId: selectedServerId,
+          navigate: (targetServerId, workspaceId, target) => {
+            if (!preserveDraft) completeSidebarConversationDraft();
+            navigateToWorkspace({ serverId: targetServerId, workspaceId, target });
+          },
+        });
+      } catch (error) {
+        const message = toErrorMessage(error);
+        setPendingAction(null);
+        setErrorMessage(message);
+        toast.error(message);
+      }
+    },
+    [
+      ensureWorkspace,
+      completeSidebarConversationDraft,
+      launchTarget,
+      selectedServerId,
+      terminalActiveConnection,
+      selectedSourceDirectory,
+      t,
+      toast,
+      updateFormPreferences,
+      withConnectedClient,
+    ],
+  );
+  const handleSubmitTerminalLaunch = useCallback(
+    () => launchTerminal(selectedTerminalProfile, terminalPromptText),
+    [launchTerminal, selectedTerminalProfile, terminalPromptText],
+  );
 
   const contentStyle = useMemo(
     () => getContentStyle({ isCompact, insetBottom: insets.bottom }),
@@ -1082,13 +1086,6 @@ export function NewWorkspaceScreen({
   );
 
   const screenHeaderLeft = useMemo(() => <SidebarMenuToggle />, []);
-  const headerWorkspaceKey = useMemo(
-    () =>
-      lastWorkspaceSelectionForHeader
-        ? buildWorkspaceTabPersistenceKey(lastWorkspaceSelectionForHeader)
-        : null,
-    [lastWorkspaceSelectionForHeader],
-  );
   const handleCloseNewConversationTab = useCallback(() => {
     if (lastWorkspaceSelectionForHeader) {
       navigateToWorkspace(lastWorkspaceSelectionForHeader);
@@ -1096,44 +1093,106 @@ export function NewWorkspaceScreen({
     }
     router.replace("/");
   }, [lastWorkspaceSelectionForHeader]);
+  const launchHeaderTab = useCallback(
+    async (selection: NewTabSelection) => {
+      if (isPending) return;
+      if (selection.kind === "terminal") {
+        await launchTerminal(selection.profile ?? null, "", true);
+        return;
+      }
+      setPendingAction("empty");
+      try {
+        const nextWorkspace = await ensureWorkspace({
+          cwd: selectedSourceDirectory ?? "",
+          prompt: "",
+          attachments: [],
+          withInitialAgent: false,
+        });
+        let target: WorkspaceTabTarget;
+        if (selection.kind === "target") {
+          target = selection.target;
+        } else if (selection.kind === "browser") {
+          target = { kind: "browser", browserId: createWorkspaceBrowser().browserId };
+        } else {
+          target = { kind: "draft", draftId: generateDraftId() };
+        }
+        const workspaceKey = buildWorkspaceTabPersistenceKey({
+          serverId: selectedServerId,
+          workspaceId: nextWorkspace.id,
+        });
+        if (selection.kind === "target") {
+          openSupportingTab({ isCompact: false, workspaceKey, target });
+        }
+        navigateToWorkspace({ serverId: selectedServerId, workspaceId: nextWorkspace.id, target });
+      } catch (error) {
+        const message = toErrorMessage(error);
+        setErrorMessage(message);
+        toast.error(message);
+      } finally {
+        setPendingAction(null);
+      }
+    },
+    [ensureWorkspace, isPending, launchTerminal, selectedServerId, selectedSourceDirectory, toast],
+  );
+  const headerLauncher = useMemo<NewTabLauncher>(
+    () => ({
+      showChanges: false,
+      showPullRequest: false,
+      showBrowser: getIsElectron(),
+      terminalDisabled: isPending,
+      launch: (selection) => {
+        void launchHeaderTab(selection);
+      },
+    }),
+    [isPending, launchHeaderTab],
+  );
+  const handleOpenHeaderTerminal = useCallback(() => {
+    void launchHeaderTab({ kind: "terminal" });
+  }, [launchHeaderTab]);
   const handleOpenHeaderExplorer = useCallback(() => {
-    if (!lastWorkspaceSelectionForHeader || !headerWorkspaceKey) return;
-    openSupportingTab({
-      isCompact: false,
-      workspaceKey: headerWorkspaceKey,
-      target: { kind: "files" },
-    });
-    navigateToWorkspace(lastWorkspaceSelectionForHeader);
-  }, [headerWorkspaceKey, lastWorkspaceSelectionForHeader]);
+    void launchHeaderTab({ kind: "target", target: { kind: "files" } });
+  }, [launchHeaderTab]);
   const screenHeaderRight = useMemo(
     () =>
-      !isCompact && lastWorkspaceSelectionForHeader ? (
-        <View style={styles.headerRight}>
-          <HeaderToggleButton
-            testID="new-workspace-explorer-toggle"
-            onPress={handleOpenHeaderExplorer}
-            tooltipLabel={t("workspace.tabs.sidePanel.open")}
-            tooltipKeys={["mod", "E"]}
-            tooltipSide="left"
-            style={styles.compactHeaderActionButton}
-            accessible
-            accessibilityRole="button"
-            accessibilityLabel={t("workspace.tabs.sidePanel.open")}
-          >
-            {({ hovered }) => (
-              <ThemedPanelRight
-                size={16}
-                uniProps={hovered ? foregroundColorMapping : foregroundMutedColorMapping}
+      !isCompact ? (
+        <NewTabLauncherProvider value={headerLauncher}>
+          <View style={styles.headerRight}>
+            <WorkspaceHeaderActions
+              showPanels
+              showNewTab
+              bottomPaneOpen={false}
+              onToggleBottomPane={handleOpenHeaderTerminal}
+              bottomPaneKeys={[]}
+              onToggleSidePanel={handleOpenHeaderExplorer}
+              sidePanelLabel={t("workspace.tabs.sidePanel.open")}
+              sidePanelOpen={false}
+              sidePanelKeys={[]}
+              disabled={isPending || !selectedSourceDirectory || !isConnected}
+            >
+              <WorkspaceNewTabMenuContent
+                serverId={selectedServerId}
+                purpose="primary"
+                align="end"
               />
-            )}
-          </HeaderToggleButton>
-        </View>
+            </WorkspaceHeaderActions>
+          </View>
+        </NewTabLauncherProvider>
       ) : null,
-    [handleOpenHeaderExplorer, isCompact, lastWorkspaceSelectionForHeader, t],
+    [
+      headerLauncher,
+      isCompact,
+      isConnected,
+      isPending,
+      handleOpenHeaderTerminal,
+      handleOpenHeaderExplorer,
+      selectedServerId,
+      selectedSourceDirectory,
+      t,
+    ],
   );
 
   return (
-    <FileDropZone style={styles.container}>
+    <View style={styles.container}>
       <ScreenHeader left={screenHeaderLeft} right={screenHeaderRight} borderless />
       {!isCompact ? (
         <View style={styles.newConversationTabs}>
@@ -1241,7 +1300,7 @@ export function NewWorkspaceScreen({
           {errorMessage ? <Text style={styles.errorText}>{errorMessage}</Text> : null}
         </ReanimatedAnimated.View>
       </View>
-    </FileDropZone>
+    </View>
   );
 }
 
@@ -1257,14 +1316,6 @@ const styles = StyleSheet.create((theme) => ({
     flexDirection: "row",
     alignItems: "center",
     gap: theme.spacing[2],
-  },
-  compactHeaderActionButton: {
-    width: buttonControlHeight.xs,
-    height: buttonControlHeight.xs,
-    padding: 0,
-    borderRadius: theme.borderRadius.lg,
-    alignItems: "center",
-    justifyContent: "center",
   },
   container: {
     flex: 1,

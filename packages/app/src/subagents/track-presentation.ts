@@ -21,8 +21,7 @@ export interface SubagentRowPresentationData {
 }
 
 export function buildSubagentRowPresentationData(row: SubagentRow): SubagentRowPresentationData {
-  // The task distinguishes siblings in a fan-out, so it names the row when present. Providers
-  // own the compact secondary context because model, effort, and usage semantics differ.
+  // The task distinguishes siblings in a fan-out; provider context stays secondary.
   const description = resolveRowLabel(row.description);
   const title = resolveRowLabel(row.title);
   const label = description ?? title;
@@ -40,6 +39,25 @@ export function buildSubagentRowPresentationData(row: SubagentRow): SubagentRowP
       requiresAttention: false,
     }),
   };
+}
+
+/** The reported model is explicit even when a provider has not supplied one yet. */
+export function buildSubagentMetadata(
+  t: TFunction,
+  model: string | null | undefined,
+  subtitle: string | null | undefined,
+): string {
+  const reportedModel = model?.trim() || null;
+  const modelLabel = t("subagents.modelLabel", {
+    model: reportedModel ?? t("subagents.modelUnknown"),
+  });
+  // Remove only exact model segments, never model-like words in provider-owned context.
+  const context = subtitle
+    ?.split(" · ")
+    .map((part) => part.trim())
+    .filter((part) => part && part !== reportedModel && part !== modelLabel)
+    .join(" · ");
+  return context ? `${modelLabel} · ${context}` : modelLabel;
 }
 
 type ActiveStatusBucket = Exclude<SidebarStateBucket, "done">;

@@ -9,7 +9,6 @@ import { useContainerWidthBelow } from "@/hooks/use-container-width";
 import invariant from "tiny-invariant";
 import { Composer } from "@/composer";
 import { GoalBar, type GoalControlAction } from "@/composer/goal-bar";
-import { FileDropZone } from "@/components/file-drop/file-drop-zone";
 import { ComposerImportPill } from "@/composer/draft/import-pill";
 import { COMPOSER_PILL_CLEARANCE } from "@/composer/pill-styles";
 import { AgentStreamView } from "@/agent-stream/view";
@@ -672,7 +671,7 @@ export function WorkspaceDraftAgentTab({
     [draftOnSetFeature],
   );
   return (
-    <FileDropZone style={styles.container}>
+    <View style={styles.container}>
       <View style={styles.contentContainer}>
         {isSubmitting && draftAgent ? (
           <View style={styles.streamContainer}>
@@ -743,7 +742,7 @@ export function WorkspaceDraftAgentTab({
           isCompactLayout={isCompactComposerLayout}
         />
       </ReanimatedAnimated.View>
-    </FileDropZone>
+    </View>
   );
 }
 

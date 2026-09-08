@@ -7,6 +7,7 @@ import type { OmpAgentMessage } from "./rpc-types.js";
 import type { OmpRuntimeSession } from "./runtime.js";
 import { OMP_HISTORY_MAPPER_HOOKS } from "./history-hooks.js";
 import { resolveOmpDiagnosticPaths } from "./provider-config.js";
+import { buildOmpModelId, readOmpAssistantModel } from "./subagent-model.js";
 
 interface OmpSessionEntry {
   type?: string;
@@ -22,23 +23,15 @@ function extractOmpSubagentModel(entries: readonly OmpSessionEntry[]): string | 
   for (const entry of entries) {
     let candidate: string | null = null;
     if (entry.type === "model_change") {
-      candidate = buildOmpModelId(entry.provider, entry.modelId);
-    } else if (entry.type === "message" && entry.message?.role === "assistant") {
-      candidate = buildOmpModelId(
-        entry.message.provider,
-        entry.message.responseModel ?? entry.message.model,
-      );
+      candidate =
+        buildOmpModelId(entry.provider, entry.modelId) ??
+        (typeof entry.model === "string" && entry.model.trim() ? entry.model.trim() : null);
+    } else if (entry.type === "message" && entry.message) {
+      candidate = readOmpAssistantModel(entry.message);
     }
     resolvedModel = candidate ?? resolvedModel;
   }
   return resolvedModel;
-}
-
-function buildOmpModelId(provider: unknown, model: unknown): string | null {
-  if (typeof provider !== "string" || typeof model !== "string") return null;
-  const normalizedProvider = provider.trim();
-  const normalizedModel = model.trim();
-  return normalizedProvider && normalizedModel ? `${normalizedProvider}/${normalizedModel}` : null;
 }
 
 export async function* streamOmpHistory(input: {

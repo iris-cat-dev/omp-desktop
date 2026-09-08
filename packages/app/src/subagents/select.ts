@@ -11,6 +11,7 @@ export interface PaseoSubagentRow {
   id: Agent["id"];
   provider: Agent["provider"];
   title: Agent["title"];
+  model: Agent["model"];
   /** Managed agents have a real title, so the union's task line is always absent for them. */
   description: null;
   subtitle: null;
@@ -57,6 +58,7 @@ function toSubagentRow(agent: Agent): SubagentRow {
     id: agent.id,
     provider: agent.provider,
     title: agent.title,
+    model: agent.model,
     description: null,
     subtitle: null,
     status: agent.status,

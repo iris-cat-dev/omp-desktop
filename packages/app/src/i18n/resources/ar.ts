@@ -5,6 +5,7 @@ import { providerUsage } from "./provider-usage";
 
 export const ar: TranslationResources = {
   providerUsage: providerUsage.ar,
+  externalFilePreview: en.externalFilePreview,
   common: {
     back: "خلف",
     loading: "تحميل...",
@@ -1826,6 +1827,8 @@ export const ar: TranslationResources = {
   },
   subagents: {
     title: "الوكلاء الفرعيون",
+    modelLabel: "النموذج: {{model}}",
+    modelUnknown: "غير معروف (لم يُبلّغ عنه)",
     pillLabelOne: "وكيل فرعي واحد",
     pillLabelMany: "{{count}} وكلاء فرعيين",
     pillLabelWorking: "{{count}} قيد التشغيل",

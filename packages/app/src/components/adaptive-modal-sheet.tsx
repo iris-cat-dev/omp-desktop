@@ -88,6 +88,33 @@ const styles = StyleSheet.create((theme) => ({
     borderWidth: 1,
     borderColor: theme.colors.surface2,
   },
+  compactCard: {
+    borderRadius: theme.borderRadius.lg,
+    borderColor: theme.colors.borderAccent,
+  },
+  compactHeaderContainer: {
+    borderBottomWidth: 0,
+  },
+  compactHeaderRow: {
+    paddingHorizontal: theme.spacing[4],
+    paddingTop: theme.spacing[3],
+    paddingBottom: theme.spacing[2],
+  },
+  compactCloseButton: {
+    padding: theme.spacing[1],
+    borderRadius: theme.borderRadius.sm,
+  },
+  compactContent: {
+    paddingHorizontal: theme.spacing[4],
+    paddingTop: 0,
+    paddingBottom: theme.spacing[4],
+  },
+  compactFooter: {
+    paddingHorizontal: theme.spacing[4],
+    paddingTop: 0,
+    paddingBottom: theme.spacing[4],
+    borderTopWidth: 0,
+  },
   headerContainer: {
     borderBottomWidth: 1,
     borderBottomColor: theme.colors.surface2,
@@ -284,11 +311,13 @@ export function SheetHeaderView({
   onClose,
   showCloseButton = true,
   testID,
+  density = "default",
 }: {
   header: SheetHeader;
   onClose: () => void;
   showCloseButton?: boolean;
   testID?: string;
+  density?: "default" | "compact";
 }) {
   const { theme } = useUnistyles();
   const { t } = useTranslation();
@@ -307,8 +336,11 @@ export function SheetHeaderView({
   );
 
   return (
-    <View style={styles.headerContainer} testID={testID}>
-      <View style={styles.headerRow}>
+    <View
+      style={[styles.headerContainer, density === "compact" && styles.compactHeaderContainer]}
+      testID={testID}
+    >
+      <View style={[styles.headerRow, density === "compact" && styles.compactHeaderRow]}>
         {handleBackPress ? (
           <Pressable
             onPress={handleBackPress}
@@ -338,7 +370,7 @@ export function SheetHeaderView({
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={t("common.actions.close")}
-            style={styles.closeButton}
+            style={[styles.closeButton, density === "compact" && styles.compactCloseButton]}
             onPress={onClose}
           >
             {({ pressed }) => (
@@ -444,6 +476,8 @@ export interface AdaptiveModalSheetProps {
   testID?: string;
   /** Override the max width of the desktop card. */
   desktopMaxWidth?: number;
+  /** Compact spacing for short confirmation and decision dialogs. */
+  density?: "default" | "compact";
   scrollable?: boolean;
   presentation?: "push" | "replace";
   /** Layout intent for the sheet body, composed over the sheet's own content inset. */
@@ -463,6 +497,7 @@ export function AdaptiveModalSheet({
   snapPoints,
   testID,
   desktopMaxWidth,
+  density = "default",
   scrollable = true,
   presentation,
   contentStyle,
@@ -488,34 +523,40 @@ export function AdaptiveModalSheet({
   );
   const compactContentStyle = useMemo(
     () => [
+      density === "compact" && styles.compactContent,
       contentStyle,
       compactSafeAreaPadding.contentPaddingBottom != null
         ? { paddingBottom: compactSafeAreaPadding.contentPaddingBottom }
         : null,
     ],
-    [compactSafeAreaPadding.contentPaddingBottom, contentStyle],
+    [compactSafeAreaPadding.contentPaddingBottom, contentStyle, density],
   );
   const compactStaticContentStyle = useMemo(
     () => [styles.compactStaticContent, compactContentStyle],
     [compactContentStyle],
   );
   const desktopScrollContentStyle = useMemo(
-    () => [styles.contentGrow, contentStyle],
-    [contentStyle],
+    () => [styles.contentGrow, density === "compact" && styles.compactContent, contentStyle],
+    [contentStyle, density],
   );
   const desktopStaticContentStyle = useMemo(
-    () => [styles.desktopStaticContent, contentStyle],
-    [contentStyle],
+    () => [
+      styles.desktopStaticContent,
+      density === "compact" && styles.compactContent,
+      contentStyle,
+    ],
+    [contentStyle, density],
   );
   const footerStyle = useMemo(
     () => [
       styles.footer,
+      density === "compact" && styles.compactFooter,
       footerContainerStyle,
       compactSafeAreaPadding.footerPaddingBottom != null
         ? { paddingBottom: compactSafeAreaPadding.footerPaddingBottom }
         : null,
     ],
-    [compactSafeAreaPadding.footerPaddingBottom, footerContainerStyle],
+    [compactSafeAreaPadding.footerPaddingBottom, footerContainerStyle, density],
   );
   const handleIndicatorStyle = useMemo(
     () => ({ backgroundColor: theme.colors.palette.zinc[600] }),
@@ -550,8 +591,12 @@ export function AdaptiveModalSheet({
   );
 
   const desktopCardStyle = useMemo(
-    () => [styles.desktopCard, desktopMaxWidth != null && { maxWidth: desktopMaxWidth }],
-    [desktopMaxWidth],
+    () => [
+      styles.desktopCard,
+      density === "compact" && styles.compactCard,
+      desktopMaxWidth != null && { maxWidth: desktopMaxWidth },
+    ],
+    [desktopMaxWidth, density],
   );
   const desktopOverlayStyle = useMemo(
     () => [
@@ -615,7 +660,7 @@ export function AdaptiveModalSheet({
   if (isMobile) {
     const sheetContent = (
       <>
-        <SheetHeaderView header={header} onClose={onClose} testID={testID} />
+        <SheetHeaderView header={header} onClose={onClose} testID={testID} density={density} />
         {scrollable ? (
           <BottomSheetScrollView
             style={sizeContentToCurrentSnapPoint ? styles.bottomSheetVisibleScroll : undefined}
@@ -660,7 +705,7 @@ export function AdaptiveModalSheet({
 
   const cardInner = (
     <OverlayLayerProvider layer={modalLayer}>
-      <SheetHeaderView header={header} onClose={onClose} />
+      <SheetHeaderView header={header} onClose={onClose} density={density} />
       {scrollable ? (
         <View style={styles.desktopScrollContainer}>
           <ScrollView

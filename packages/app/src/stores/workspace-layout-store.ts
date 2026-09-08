@@ -209,6 +209,11 @@ const WorkspaceTabTargetStorageSchema = z.discriminatedUnion("kind", [
     lineEnd: z.number().int().positive().optional(),
   }),
   z.strictObject({
+    kind: z.literal("local_file"),
+    previewId: z.string(),
+    name: z.string(),
+  }),
+  z.strictObject({
     kind: z.literal("working_diff"),
     focusPath: z.string().optional(),
     focusRequestId: z.number().optional(),
@@ -391,9 +396,7 @@ function findMainWorkspacePaneId(
 }
 
 function isWorkspaceConversationTarget(target: WorkspaceTabTarget): boolean {
-  return (
-    target.kind === "agent" || target.kind === "provider_subagent" || target.kind === "draft"
-  );
+  return target.kind === "agent" || target.kind === "provider_subagent" || target.kind === "draft";
 }
 
 interface CanonicalPaneResult {
@@ -473,9 +476,7 @@ function moveTabsToCanonicalPane(input: {
   preservedPaneIds: ReadonlySet<string>;
 }): WorkspaceLayout {
   const targetPane = findPaneById(input.layout.root, input.paneId);
-  const targetTabsById = new Map(
-    collectAllTabs(input.layout.root).map((tab) => [tab.tabId, tab]),
-  );
+  const targetTabsById = new Map(collectAllTabs(input.layout.root).map((tab) => [tab.tabId, tab]));
   const placeholderTabId =
     targetPane?.tabIds.length === 1 &&
     targetTabsById.get(targetPane.tabIds[0] ?? "")?.target.kind === "new_tab"
@@ -1040,10 +1041,7 @@ export function createWorkspaceLayoutStore(
             sourcePane?.id === prepared.sidePanelPaneId &&
             !isWorkspaceSidePanelToolTarget(normalizedTarget)
           ) {
-            const mainPaneId = findMainWorkspacePaneId(
-              nextLayout,
-              prepared.sidePanelPaneId,
-            );
+            const mainPaneId = findMainWorkspacePaneId(nextLayout, prepared.sidePanelPaneId);
             if (mainPaneId) {
               nextLayout =
                 moveTabToPaneInLayout({
@@ -1245,10 +1243,7 @@ export function createWorkspaceLayoutStore(
             return null;
           }
 
-          const currentLayout = getWorkspaceLayout(
-            get().layoutByWorkspace,
-            normalizedWorkspaceKey,
-          );
+          const currentLayout = getWorkspaceLayout(get().layoutByWorkspace, normalizedWorkspaceKey);
           const result = splitPaneInLayout({
             layout: currentLayout,
             tabId: normalizedTabId,
@@ -1705,8 +1700,8 @@ export function createWorkspaceLayoutStore(
         partialize: (state) => {
           const layoutByWorkspace: Record<string, WorkspaceLayout> = {};
           for (const key in state.layoutByWorkspace) {
-            // Strip ephemeral (commit diff) tabs before persisting so they are
-            // dropped on reload rather than restored pointing at a rebased SHA.
+            // Local File handles and commit targets are session-only; do not restore
+            // tabs whose content or referenced revision may no longer be available.
             layoutByWorkspace[key] = stripEphemeralTabsFromLayout(
               normalizeLayout(state.layoutByWorkspace[key]),
             );

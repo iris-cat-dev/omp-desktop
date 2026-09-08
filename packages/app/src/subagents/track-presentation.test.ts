@@ -3,6 +3,7 @@ import { i18n } from "@/i18n/i18next";
 import type { PaseoSubagentRow, ProviderSubagentRow, SubagentRow } from "./select";
 import {
   buildSubagentPillPresentation,
+  buildSubagentMetadata,
   buildSubagentRowPresentationData,
   countFinishedSubagents,
   resolveRowLabel,
@@ -16,6 +17,7 @@ function row(
     id: overrides.id,
     provider: overrides.provider ?? "codex",
     title: overrides.title ?? `Agent ${overrides.id}`,
+    model: overrides.model ?? null,
     description: null,
     subtitle: null,
     status: overrides.status ?? "idle",
@@ -294,5 +296,39 @@ describe("provider-owned row subtitles", () => {
         providerRow({ description: null, subtitle: null, title: "general-purpose" }),
       ).subtitle,
     ).toBe("");
+  });
+});
+
+describe("subagent model metadata", () => {
+  beforeAll(async () => {
+    if (!i18n.isInitialized) await i18n.init();
+  });
+
+  it("shows a reported model once while retaining provider context", () => {
+    expect(
+      buildSubagentMetadata(
+        i18n.getFixedT("en"),
+        "  anthropic/claude-opus-4-6  ",
+        "Explore · anthropic/claude-opus-4-6 · High · 16.5k tokens",
+      ),
+    ).toBe("Model: anthropic/claude-opus-4-6 · Explore · High · 16.5k tokens");
+  });
+
+  it("does not remove model-like words from provider context", () => {
+    expect(
+      buildSubagentMetadata(i18n.getFixedT("en"), "opus", "Review opus migration · 4k tokens"),
+    ).toBe("Model: opus · Review opus migration · 4k tokens");
+  });
+
+  it.each([null, undefined, "", "   "])("reports unknown for an absent model (%s)", (model) => {
+    expect(buildSubagentMetadata(i18n.getFixedT("en"), model, "Explore")).toBe(
+      "Model: Unknown (not reported) · Explore",
+    );
+  });
+
+  it("localizes the model label and missing-report state in Chinese", () => {
+    const t = i18n.getFixedT("zh-CN");
+    expect(buildSubagentMetadata(t, "openai/gpt-5", null)).toBe("模型：openai/gpt-5");
+    expect(buildSubagentMetadata(t, null, null)).toBe("模型：未知（未上报）");
   });
 });

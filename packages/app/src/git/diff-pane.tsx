@@ -1271,16 +1271,18 @@ function StagingChangesTree({
 
   return (
     <View style={styles.stagingTree} testID="changes-staging-tree">
-      <StagingSectionHeader
-        operation="unstage"
-        title={t("workspace.git.diff.staging.stagedChanges")}
-        count={stagedFiles.length}
-        collapsed={stagedCollapsed}
-        disabled={mutationPending}
-        onToggle={toggleStaged}
-        onApplyAll={unstageAll}
-        testID="staged-changes-header"
-      />
+      {stagedFiles.length > 0 ? (
+        <StagingSectionHeader
+          operation="unstage"
+          title={t("workspace.git.diff.staging.stagedChanges")}
+          count={stagedFiles.length}
+          collapsed={stagedCollapsed}
+          disabled={mutationPending}
+          onToggle={toggleStaged}
+          onApplyAll={unstageAll}
+          testID="staged-changes-header"
+        />
+      ) : null}
       {!stagedCollapsed && stagedFiles.length > 0 ? (
         <ChangedFilesTree
           files={stagedFiles}

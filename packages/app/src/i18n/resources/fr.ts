@@ -5,6 +5,7 @@ import { providerUsage } from "./provider-usage";
 
 export const fr: TranslationResources = {
   providerUsage: providerUsage.fr,
+  externalFilePreview: en.externalFilePreview,
   common: {
     back: "Dos",
     loading: "Chargement...",
@@ -1877,6 +1878,8 @@ export const fr: TranslationResources = {
   },
   subagents: {
     title: "Sous-agents",
+    modelLabel: "Modèle : {{model}}",
+    modelUnknown: "Inconnu (non communiqué)",
     pillLabelOne: "1 sous-agent",
     pillLabelMany: "{{count}} sous-agents",
     pillLabelWorking: "{{count}} en cours",

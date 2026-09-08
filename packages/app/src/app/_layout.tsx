@@ -26,6 +26,7 @@ import { CommandCenterWorkspaceActions } from "@/command-center/workspace-regist
 import { AddProjectFlowHost } from "@/components/add-project-flow-host";
 import { ConfirmDialogHost } from "@/components/confirm-dialog-host";
 import { CloseChoiceDialogHost } from "@/components/close-choice-dialog-host";
+import { ExternalFileDropPreview } from "@/components/file-drop/external-file-drop-preview";
 import { PairingLinkListener } from "@/components/pairing-link-listener";
 import { AppearanceStyleBoundary } from "@/components/appearance-style-boundary";
 import { DownloadToast } from "@/components/download-toast";
@@ -755,6 +756,7 @@ function AppWithSidebar({ children }: { children: ReactNode }) {
       pathname === "/new" ||
       pathname === "/sessions" ||
       pathname === "/schedules" ||
+      pathname === "/file-preview" ||
       routeHasKnownHost);
 
   return <AppContainer chromeEnabled={shouldShowAppChrome}>{children}</AppContainer>;
@@ -783,6 +785,7 @@ function RootStack() {
         <Stack.Screen name="open-project" />
         <Stack.Screen name="sessions" />
         <Stack.Screen name="schedules" />
+        <Stack.Screen name="file-preview" />
       </Stack.Protected>
       <Stack.Screen name="h/[serverId]" />
       <Stack.Screen name="settings/hosts/[serverId]/index" />
@@ -870,6 +873,7 @@ function RootAppTree() {
         <RootProviders>
           <RuntimeProviders>
             <AppShell />
+            <ExternalFileDropPreview />
           </RuntimeProviders>
         </RootProviders>
       </View>

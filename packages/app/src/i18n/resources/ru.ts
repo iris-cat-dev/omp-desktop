@@ -1,10 +1,11 @@
-import type { TranslationResources } from "./en";
+import { en, type TranslationResources } from "./en";
 import { pluginSettings } from "./plugin-settings";
 import { ompProviderSettings } from "./omp-provider-settings";
 import { providerUsage } from "./provider-usage";
 
 export const ru: TranslationResources = {
   providerUsage: providerUsage.ru,
+  externalFilePreview: en.externalFilePreview,
   common: {
     back: "Назад",
     loading: "Загрузка...",
@@ -1869,6 +1870,8 @@ export const ru: TranslationResources = {
   },
   subagents: {
     title: "Субагенты",
+    modelLabel: "Модель: {{model}}",
+    modelUnknown: "Неизвестно (не сообщено)",
     pillLabelOne: "1 субагент",
     pillLabelMany: "Субагентов: {{count}}",
     pillLabelWorking: "{{count}} в работе",
