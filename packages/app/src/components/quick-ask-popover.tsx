@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Pressable, ScrollView, Text, View } from "react-native";
 import { useTranslation } from "react-i18next";
-import { X } from "lucide-react-native";
+import { Check, X } from "lucide-react-native";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
 import { AdaptiveTextInput } from "@/components/adaptive-modal-sheet";
 import { Button } from "@/components/ui/button";
@@ -16,15 +16,47 @@ import type { Theme } from "@/styles/theme";
 
 const ThemedLoadingSpinner = withUnistyles(LoadingSpinner);
 const ThemedCloseIcon = withUnistyles(X);
+const ThemedCheckIcon = withUnistyles(Check);
 const mutedSpinnerColor = (theme: Theme) => ({ color: theme.colors.foregroundMuted });
 const mutedIconColor = (theme: Theme) => ({ color: theme.colors.foregroundMuted });
+const checkedIconColor = (theme: Theme) => ({ color: theme.colors.accentForeground });
+
+function ContextCheckbox({
+  checked,
+  disabled,
+  onPress,
+}: {
+  checked: boolean;
+  disabled: boolean;
+  onPress: () => void;
+}) {
+  const { t } = useTranslation();
+  const accessibilityState = useMemo(() => ({ checked, disabled }), [checked, disabled]);
+  return (
+    <Pressable
+      accessibilityRole="checkbox"
+      accessibilityLabel={t("quickAsk.includeContext")}
+      accessibilityState={accessibilityState}
+      aria-checked={checked}
+      disabled={disabled}
+      onPress={onPress}
+      style={styles.contextRow}
+      testID="quick-ask-include-context"
+    >
+      <View style={[styles.checkbox, checked ? styles.checkboxChecked : null]}>
+        {checked ? <ThemedCheckIcon size={13} uniProps={checkedIconColor} /> : null}
+      </View>
+      <Text style={styles.mutedText}>{t("quickAsk.includeContext")}</Text>
+    </Pressable>
+  );
+}
 
 interface QuickAskPopoverProps {
   visible: boolean;
   anchorRect: Rect | null;
   selectedText: string;
   onClose: () => void;
-  onAsk: (question: string) => Promise<string>;
+  onAsk: (question: string, includeContext: boolean) => Promise<string>;
 }
 
 export function QuickAskPopover({
@@ -35,6 +67,7 @@ export function QuickAskPopover({
   onAsk,
 }: QuickAskPopoverProps) {
   const { t } = useTranslation();
+  const [includeContext, setIncludeContext] = useState(true);
   const [question, setQuestion] = useState("");
   const [answer, setAnswer] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -43,11 +76,13 @@ export function QuickAskPopover({
   const anchorRef = useRef<View>(null);
   const inputRef = useRef<EditingTextInputHandle>(null);
   const requestVersionRef = useRef(0);
+  const toggleContext = useCallback(() => setIncludeContext((current) => !current), []);
 
   useEffect(() => {
     if (!visible) return;
     requestVersionRef.current += 1;
     setQuestion("");
+    setIncludeContext(true);
     setAnswer(null);
     setError(null);
     setIsPending(false);
@@ -73,7 +108,7 @@ export function QuickAskPopover({
     setAnswer(null);
     setError(null);
     try {
-      const result = await onAsk(trimmedQuestion);
+      const result = await onAsk(trimmedQuestion, includeContext);
       if (requestVersionRef.current === requestVersion) setAnswer(result);
     } catch (caught) {
       if (requestVersionRef.current === requestVersion) {
@@ -82,7 +117,7 @@ export function QuickAskPopover({
     } finally {
       if (requestVersionRef.current === requestVersion) setIsPending(false);
     }
-  }, [isPending, onAsk, question, t]);
+  }, [includeContext, isPending, onAsk, question, t]);
   const handleAskVoid = useCallback(() => {
     void handleAsk();
   }, [handleAsk]);
@@ -142,6 +177,11 @@ export function QuickAskPopover({
             />
 
             <View style={styles.actions}>
+              <ContextCheckbox
+                checked={includeContext}
+                disabled={isPending}
+                onPress={toggleContext}
+              />
               <Button
                 variant="default"
                 size="sm"
@@ -241,8 +281,29 @@ const styles = StyleSheet.create((theme) => ({
   },
   actions: {
     flexDirection: "row",
-    justifyContent: "flex-end",
+    alignItems: "center",
+    justifyContent: "space-between",
     gap: theme.spacing[2],
+  },
+  contextRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: theme.spacing[2],
+    paddingVertical: theme.spacing[1],
+  },
+  checkbox: {
+    width: 16,
+    height: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: theme.borderRadius.sm,
+    borderWidth: 1,
+    borderColor: theme.colors.borderAccent,
+    backgroundColor: theme.colors.surface2,
+  },
+  checkboxChecked: {
+    borderColor: theme.colors.accent,
+    backgroundColor: theme.colors.accent,
   },
   loading: {
     flexDirection: "row",

@@ -17,6 +17,22 @@ describe("checkout query keys", () => {
   const serverId = "server-1";
   const cwd = "/tmp/repo";
 
+  it("isolates summary, full, and exact path selections in the cache", () => {
+    const client = new QueryClient();
+    const key = (detail: "summary" | "full", paths?: string[]) =>
+      checkoutDiffQueryKey(serverId, cwd, "uncommitted", undefined, false, detail, paths);
+    client.setQueryData(key("summary"), "summary");
+    client.setQueryData(key("full"), "all details");
+    client.setQueryData(key("full", []), "no paths");
+    client.setQueryData(key("full", ["a.ts", "b.ts"]), "selected details");
+    expect(client.getQueryData(key("summary"))).toBe("summary");
+    expect(client.getQueryData(key("full"))).toBe("all details");
+    expect(client.getQueryData(key("full", []))).toBe("no paths");
+    expect(client.getQueryData(key("full", ["b.ts", "a.ts", "a.ts"]))).toBe("selected details");
+    expect(client.getQueryData(key("full", ["a.ts"]))).toBeUndefined();
+    expect(client.getQueryData(key("full", [" a.ts"]))).toBeUndefined();
+  });
+
   it("invalidates every query for a checkout without touching other checkouts", async () => {
     const queryClient = new QueryClient();
 

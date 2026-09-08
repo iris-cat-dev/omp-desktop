@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import {
   buildWorkspaceAttachmentScopeKey,
   useWorkspaceAttachmentsStore,
@@ -22,6 +22,141 @@ interface UseWorkingDiffOptions {
   enabled: boolean;
   queryScope?: string;
   modeScope: string;
+  summarySupported: boolean;
+  detailsEnabled: boolean;
+  focusPath?: string;
+  collapsedFilePaths: string[];
+}
+type WorkingDiffQuery = ReturnType<typeof useCheckoutDiffQuery>;
+type WorkingDiffComparison = Pick<
+  Parameters<typeof useCheckoutDiffQuery>[0],
+  "serverId" | "cwd" | "mode" | "baseRef" | "ignoreWhitespace" | "enabled" | "queryScope"
+>;
+
+function useLazyWorkingDiffDetails({
+  comparison,
+  summarySupported,
+  modeScope,
+  files,
+  detailsEnabled,
+  focusPath,
+  collapsedFilePaths,
+}: {
+  comparison: WorkingDiffComparison;
+  summarySupported: boolean;
+  modeScope: string;
+  files: WorkingDiffQuery["files"];
+  detailsEnabled: boolean;
+  focusPath?: string;
+  collapsedFilePaths: string[];
+}) {
+  const detailPaths = useMemo(
+    () =>
+      focusPath !== undefined
+        ? [focusPath]
+        : files.filter((file) => !collapsedFilePaths.includes(file.path)).map((file) => file.path),
+    [collapsedFilePaths, files, focusPath],
+  );
+  const detailDiff = useCheckoutDiffQuery({
+    ...comparison,
+    detail: "full",
+    paths: detailPaths,
+    enabled: summarySupported && comparison.enabled && detailsEnabled && detailPaths.length > 0,
+    queryScope: `${comparison.queryScope ?? modeScope}:details`,
+  });
+  const fullFiles = summarySupported ? detailDiff.files : files;
+  const documentFiles = useMemo(() => {
+    if (!summarySupported) return files;
+    const byPath = new Map(fullFiles.map((file) => [file.path, file]));
+    return files.map((file) => byPath.get(file.path) ?? file);
+  }, [files, fullFiles, summarySupported]);
+  return { detailDiff, fullFiles, documentFiles };
+}
+
+function useWorkingDiffReview({
+  comparison,
+  summarySupported,
+  modeScope,
+  listDiff,
+  detailDiff,
+  fullFiles,
+  detailsEnabled,
+  reviewDraftKey,
+  reviewActions,
+  diffMode,
+}: {
+  comparison: WorkingDiffComparison;
+  summarySupported: boolean;
+  modeScope: string;
+  listDiff: WorkingDiffQuery;
+  detailDiff: WorkingDiffQuery;
+  fullFiles: WorkingDiffQuery["files"];
+  detailsEnabled: boolean;
+  reviewDraftKey: string;
+  reviewActions: ReturnType<typeof useInlineReviewController>;
+  diffMode: "uncommitted" | "base";
+}) {
+  // Drafts outlive a file's expanded state. Their full hunks remain subscribed
+  // independently of the document selection, including in the tree view.
+  const reviewPaths = useMemo(
+    () => [
+      ...new Set(
+        [...reviewActions.commentsByTarget.values()].flatMap((comments) =>
+          comments.map((comment) => comment.filePath),
+        ),
+      ),
+    ],
+    [reviewActions.commentsByTarget],
+  );
+  const reviewDiff = useCheckoutDiffQuery({
+    ...comparison,
+    detail: "full",
+    paths: reviewPaths,
+    enabled: summarySupported && comparison.enabled && reviewPaths.length > 0,
+    queryScope: `${comparison.queryScope ?? modeScope}:review`,
+  });
+  const files = listDiff.files;
+  const reviewFiles = useMemo(() => {
+    if (!summarySupported) return files;
+    const byPath = new Map(
+      (detailsEnabled && !detailDiff.payloadError && !detailDiff.diffTooLarge ? fullFiles : []).map(
+        (file) => [file.path, file],
+      ),
+    );
+    if (!reviewDiff.payloadError && !reviewDiff.diffTooLarge) {
+      for (const file of reviewDiff.files) byPath.set(file.path, file);
+    }
+    return [...byPath.values()];
+  }, [
+    summarySupported,
+    files,
+    detailsEnabled,
+    detailDiff.payloadError,
+    detailDiff.diffTooLarge,
+    fullFiles,
+    reviewDiff.payloadError,
+    reviewDiff.diffTooLarge,
+    reviewDiff.files,
+  ]);
+  const reviewReady =
+    listDiff.hasSnapshot &&
+    !listDiff.isLoading &&
+    !listDiff.payloadError &&
+    !listDiff.diffTooLarge &&
+    (!summarySupported ||
+      reviewPaths.every(
+        (path) =>
+          !files.some((file) => file.path === path) ||
+          reviewFiles.some((file) => file.path === path && file.status !== "too_large"),
+      ));
+  const reviewAttachment = useReviewAttachmentSnapshot({
+    key: reviewDraftKey,
+    diffFiles: reviewReady ? reviewFiles : [],
+    cwd: comparison.cwd,
+    mode: diffMode,
+    baseRef: comparison.baseRef,
+  });
+  return { reviewDiff, reviewReady, reviewAttachment };
 }
 
 export function useWorkingDiff({
@@ -32,6 +167,10 @@ export function useWorkingDiff({
   enabled,
   queryScope,
   modeScope,
+  summarySupported,
+  detailsEnabled,
+  focusPath,
+  collapsedFilePaths,
 }: UseWorkingDiffOptions) {
   const {
     status,
@@ -84,12 +223,7 @@ export function useWorkingDiff({
   const selectUncommitted = useCallback(() => selectDiffMode("uncommitted"), [selectDiffMode]);
   const selectBase = useCallback(() => selectDiffMode("base"), [selectDiffMode]);
 
-  const {
-    files,
-    payloadError: diffPayloadError,
-    diffTooLarge,
-    isLoading: isDiffLoading,
-  } = useCheckoutDiffQuery({
+  const comparison: WorkingDiffComparison = {
     serverId,
     cwd,
     mode: diffMode,
@@ -97,7 +231,18 @@ export function useWorkingDiff({
     ignoreWhitespace,
     enabled: enabled && isGit,
     queryScope,
+  };
+  const listDiff = useCheckoutDiffQuery({
+    ...comparison,
+    detail: summarySupported ? "summary" : undefined,
   });
+  const {
+    files,
+    staging,
+    payloadError: diffPayloadError,
+    diffTooLarge,
+    isLoading: isDiffLoading,
+  } = listDiff;
   const reviewDraftKey = useMemo(
     () =>
       buildReviewDraftKey({
@@ -111,12 +256,26 @@ export function useWorkingDiff({
     [baseRef, cwd, diffMode, ignoreWhitespace, serverId, workspaceId],
   );
   const reviewActions = useInlineReviewController({ reviewDraftKey });
-  const reviewAttachment = useReviewAttachmentSnapshot({
-    key: reviewDraftKey,
-    diffFiles: files,
-    cwd,
-    mode: diffMode,
-    baseRef,
+  const { detailDiff, fullFiles, documentFiles } = useLazyWorkingDiffDetails({
+    comparison,
+    summarySupported,
+    modeScope,
+    files,
+    detailsEnabled,
+    focusPath,
+    collapsedFilePaths,
+  });
+  const { reviewDiff, reviewReady, reviewAttachment } = useWorkingDiffReview({
+    comparison,
+    summarySupported,
+    modeScope,
+    listDiff,
+    detailDiff,
+    fullFiles,
+    detailsEnabled,
+    reviewDraftKey,
+    reviewActions,
+    diffMode,
   });
 
   return {
@@ -131,6 +290,12 @@ export function useWorkingDiff({
     selectUncommitted,
     selectBase,
     files,
+    staging,
+    documentFiles,
+    detailDiff,
+    fullFiles,
+    reviewDiff,
+    reviewReady,
     diffPayloadError,
     diffTooLarge,
     isDiffLoading,
@@ -145,12 +310,14 @@ export function usePublishWorkingDiffAttachment({
   cwd,
   attachment,
   enabled,
+  ready,
 }: {
   serverId: string;
   workspaceId?: string;
   cwd: string;
   attachment: ReturnType<typeof useWorkingDiff>["reviewAttachment"];
   enabled: boolean;
+  ready: boolean;
 }) {
   const scopeKey = useMemo(
     () => buildWorkspaceAttachmentScopeKey({ serverId, workspaceId, cwd }),
@@ -163,17 +330,30 @@ export function usePublishWorkingDiffAttachment({
     (state) => state.clearWorkspaceAttachments,
   );
 
+  const publishedRef = useRef<{
+    scopeKey: string;
+    attachments: NonNullable<typeof attachment>[];
+  } | null>(null);
+
+  // Only release our last publication when its owner leaves the scope. A pending
+  // detail request must not clear a complete snapshot (ours or another panel's).
+  useEffect(
+    () => () => {
+      const published = publishedRef.current;
+      if (!published || published.scopeKey !== scopeKey) return;
+      const current = useWorkspaceAttachmentsStore.getState().attachmentsByScope[scopeKey];
+      if (current === published.attachments) clearWorkspaceAttachments({ scopeKey });
+      publishedRef.current = null;
+    },
+    [clearWorkspaceAttachments, scopeKey],
+  );
+
   useEffect(() => {
-    if (!enabled) {
-      return;
-    }
+    if (!enabled || !ready) return;
     const attachments = attachment ? [attachment] : [];
     setWorkspaceAttachments({ scopeKey, attachments });
-    return () => {
-      const current = useWorkspaceAttachmentsStore.getState().attachmentsByScope[scopeKey];
-      if (current === attachments) {
-        clearWorkspaceAttachments({ scopeKey });
-      }
-    };
-  }, [attachment, clearWorkspaceAttachments, enabled, scopeKey, setWorkspaceAttachments]);
+    if (useWorkspaceAttachmentsStore.getState().attachmentsByScope[scopeKey] === attachments) {
+      publishedRef.current = { scopeKey, attachments };
+    }
+  }, [attachment, enabled, ready, scopeKey, setWorkspaceAttachments]);
 }

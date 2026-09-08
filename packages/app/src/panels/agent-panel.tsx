@@ -345,6 +345,17 @@ function storeFetchedAgentDetail(input: {
   return hydrated;
 }
 
+function resolveAgentDescriptorIdentity(agent: Agent | null) {
+  return {
+    provider: agent?.provider ?? "codex",
+    title: agent?.title ?? null,
+    status: agent?.status ?? null,
+    pendingPermissionCount: agent?.pendingPermissions.length ?? 0,
+    requiresAttention: agent?.requiresAttention ?? false,
+    attentionReason: agent?.attentionReason ?? null,
+  };
+}
+
 function useAgentPanelDescriptor(
   target: { kind: "agent"; agentId: string },
   context: { serverId: string },
@@ -362,15 +373,10 @@ function useAgentPanelDescriptor(
         : null;
       const isRootAgent = Boolean(agent && !agent.parentAgentId);
       return {
-        provider: agent?.provider ?? "codex",
-        title: agent?.title ?? null,
-        status: agent?.status ?? null,
+        ...resolveAgentDescriptorIdentity(agent),
         workspaceName: isRootAgent ? (workspace?.name ?? null) : null,
         workspaceBranch: isRootAgent ? (workspace?.gitRuntime?.currentBranch ?? null) : null,
         isRootAgent,
-        pendingPermissionCount: agent?.pendingPermissions.length ?? 0,
-        requiresAttention: agent?.requiresAttention ?? false,
-        attentionReason: agent?.attentionReason ?? null,
         isTurnActive: selectAgentTurnPresentation(session, target.agentId).isActive,
       };
     }),
@@ -1252,6 +1258,28 @@ function ChatAgentContent({
   );
 }
 
+function useAgentTaskPanel(tasks: TodoEntry[] | undefined) {
+  const [collapsed, setCollapsed] = useState(true);
+  const collapse = useCallback(() => setCollapsed(true), []);
+  const expand = useCallback(() => setCollapsed(false), []);
+  const isExpanded = Boolean(tasks?.length && !collapsed);
+  const content = (
+    <>
+      {isExpanded ? (
+        <View style={styles.taskPanel}>
+          <AgentTaskPanel tasks={tasks} onCollapse={collapse} />
+        </View>
+      ) : null}
+      {tasks?.length && collapsed ? (
+        <View style={styles.taskPanelToggle}>
+          <AgentTaskPanelToggle tasks={tasks} onExpand={expand} />
+        </View>
+      ) : null}
+    </>
+  );
+  return { isExpanded, content };
+}
+
 const ChatAgentReadyContent = memo(function ChatAgentReadyContent({
   serverId,
   workspaceId,
@@ -1363,10 +1391,7 @@ const ChatAgentReadyContent = memo(function ChatAgentReadyContent({
   const tasks = useSessionStore((state): TodoEntry[] | undefined =>
     state.sessions[serverId]?.agentTasks.get(agentId),
   );
-  const [taskPanelCollapsed, setTaskPanelCollapsed] = useState(true);
-  const collapseTaskPanel = useCallback(() => setTaskPanelCollapsed(true), []);
-  const expandTaskPanel = useCallback(() => setTaskPanelCollapsed(false), []);
-  const isTaskPanelExpanded = Boolean(tasks?.length && !taskPanelCollapsed);
+  const { isExpanded: isTaskPanelExpanded, content: taskPanelContent } = useAgentTaskPanel(tasks);
   const archiveFinishedSubagents = useArchiveFinishedSubagents({
     serverId,
     parentAgentId: agentId,
@@ -1514,7 +1539,7 @@ const ChatAgentReadyContent = memo(function ChatAgentReadyContent({
     [agentInputDraft],
   );
   const handleAskSelection = useCallback(
-    (selectedText: string, question: string) => {
+    (selectedText: string, question: string, includeContext: boolean) => {
       if (!client) return Promise.reject(new Error(t("quickAsk.disconnected")));
       if (!agentState.provider || !cwd) {
         return Promise.reject(new Error(t("quickAsk.unavailable")));
@@ -1531,9 +1556,10 @@ const ChatAgentReadyContent = memo(function ChatAgentReadyContent({
         },
         selectedText,
         question,
+        sourceAgentId: includeContext ? agentId : undefined,
       });
     },
-    [agentState, client, cwd, t],
+    [agentId, agentState, client, cwd, t],
   );
   const streamContainer = <View style={styles.contentContainer}>{streamContent}</View>;
   const contentContainer = hasActiveComposer ? (
@@ -1553,16 +1579,7 @@ const ChatAgentReadyContent = memo(function ChatAgentReadyContent({
         <View style={styles.container}>
           <View style={styles.conversationBody}>
             {contentContainer}
-            {isTaskPanelExpanded ? (
-              <View style={styles.taskPanel}>
-                <AgentTaskPanel tasks={tasks} onCollapse={collapseTaskPanel} />
-              </View>
-            ) : null}
-            {tasks?.length && taskPanelCollapsed ? (
-              <View style={styles.taskPanelToggle}>
-                <AgentTaskPanelToggle tasks={tasks} onExpand={expandTaskPanel} />
-              </View>
-            ) : null}
+            {taskPanelContent}
           </View>
 
           {showHistorySyncError ? (

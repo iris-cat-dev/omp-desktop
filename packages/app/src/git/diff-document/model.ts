@@ -48,14 +48,18 @@ export function buildDiffDocumentModel(input: BuildDiffDocumentModelInput): Diff
     documentTop += FILE_HEADER_HEIGHT;
     const bodyTop = documentTop;
     const rowStart = rows.length;
+    const statusLabel = input.fileStatus?.[file.path];
     const gutterWidth = lineNumberGutterWidth(maximumLineNumber(file), input.typography.size);
     let maximumHorizontalOverflow = 0;
 
     const reusableModel = input.reuseFrom?.find((candidate) =>
-      candidate.files.some((entry) => entry.file === file && !entry.isCollapsed),
+      candidate.files.some(
+        (entry) => entry.file === file && !entry.isCollapsed && entry.statusLabel === statusLabel,
+      ),
     );
     const reusableFile = reusableModel?.files.find(
-      (candidate) => candidate.file === file && !candidate.isCollapsed,
+      (candidate) =>
+        candidate.file === file && !candidate.isCollapsed && candidate.statusLabel === statusLabel,
     );
 
     if (!isCollapsed && reusableFile) {
@@ -87,7 +91,7 @@ export function buildDiffDocumentModel(input: BuildDiffDocumentModelInput): Diff
       maximumHorizontalOverflow = Math.max(0, reusableFile.contentWidth - input.viewportWidth);
       documentTop += DIFF_BODY_BORDER_HEIGHT;
     } else if (!isCollapsed) {
-      if (file.status === "binary" || file.status === "too_large") {
+      if (statusLabel !== undefined || file.status === "binary" || file.status === "too_large") {
         const height = input.typography.lineHeight + 24;
         rows.push({
           kind: "status",
@@ -96,7 +100,8 @@ export function buildDiffDocumentModel(input: BuildDiffDocumentModelInput): Diff
           path: file.path,
           top: documentTop,
           height,
-          label: file.status === "binary" ? input.labels.binary : input.labels.tooLarge,
+          label:
+            statusLabel ?? (file.status === "binary" ? input.labels.binary : input.labels.tooLarge),
         });
         documentTop += height;
       } else {
@@ -145,6 +150,7 @@ export function buildDiffDocumentModel(input: BuildDiffDocumentModelInput): Diff
 
     files.push({
       file,
+      statusLabel,
       fileIndex,
       path: file.path,
       top: fileTop,

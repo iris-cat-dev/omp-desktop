@@ -386,6 +386,7 @@ describe("CheckoutDiffManager", () => {
       structured: [{ path: "tracked.ts", additions: 2, deletions: 1, status: "modified" }],
     });
     await vi.waitFor(() => {
+      expect(listener).toHaveBeenCalledTimes(1);
       expect(getCheckoutDiff).toHaveBeenCalledTimes(3);
       expect(listener).toHaveBeenLastCalledWith({
         cwd: "/tmp/repo",
@@ -393,6 +394,114 @@ describe("CheckoutDiffManager", () => {
         error: null,
       });
     });
+  });
+
+  test("publishes both staging lists immediately after a mutation", async () => {
+    const stagedFiles = [{ path: "tracked.ts", additions: 1, deletions: 0, hunks: [] }];
+    const getCheckoutDiff = vi
+      .fn()
+      .mockResolvedValueOnce({
+        diff: "",
+        structured: stagedFiles,
+        staging: { stagedFiles: [], unstagedFiles: stagedFiles },
+      })
+      .mockResolvedValue({
+        diff: "",
+        structured: stagedFiles,
+        staging: { stagedFiles, unstagedFiles: [] },
+      });
+    const { manager, getOnChange } = createManager({
+      getCheckoutDiffImplementation: getCheckoutDiff,
+    });
+    const listener = vi.fn();
+    await manager.subscribe(
+      { cwd: "/tmp/repo", compare: { mode: "uncommitted", detail: "summary" } },
+      listener,
+    );
+
+    getOnChange()?.();
+    manager.scheduleRefreshForCwd("/tmp/repo");
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(listener).toHaveBeenCalledExactlyOnceWith({
+      cwd: "/tmp/repo",
+      files: stagedFiles,
+      staging: { stagedFiles, unstagedFiles: [] },
+      error: null,
+    });
+    await vi.advanceTimersByTimeAsync(150);
+    expect(listener).toHaveBeenCalledTimes(1);
+    manager.dispose();
+  });
+
+  test("does not replace newer staging state with an in-flight pre-mutation snapshot", async () => {
+    const staleRead = createDeferred<{
+      diff: string;
+      structured: never[];
+      staging: { stagedFiles: never[]; unstagedFiles: never[] };
+    }>();
+    const file = { path: "tracked.ts", additions: 1, deletions: 0, hunks: [] };
+    const getCheckoutDiff = vi
+      .fn()
+      .mockResolvedValueOnce({ diff: "", structured: [] })
+      .mockImplementationOnce(() => staleRead.promise)
+      .mockResolvedValue({
+        diff: "",
+        structured: [file],
+        staging: { stagedFiles: [file], unstagedFiles: [] },
+      });
+    const { manager } = createManager({ getCheckoutDiffImplementation: getCheckoutDiff });
+    const listener = vi.fn();
+    await manager.subscribe(
+      { cwd: "/tmp/repo", compare: { mode: "uncommitted", detail: "summary" } },
+      listener,
+    );
+
+    manager.scheduleRefreshForCwd("/tmp/repo");
+    manager.scheduleRefreshForCwd("/tmp/repo");
+    staleRead.resolve({
+      diff: "",
+      structured: [],
+      staging: { stagedFiles: [], unstagedFiles: [] },
+    });
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(listener).toHaveBeenCalledExactlyOnceWith({
+      cwd: "/tmp/repo",
+      files: [file],
+      staging: { stagedFiles: [file], unstagedFiles: [] },
+      error: null,
+    });
+    manager.dispose();
+  });
+
+  test("a mutation during initial loading returns the refreshed staging snapshot", async () => {
+    const initialRead = createDeferred<{ diff: string; structured: never[] }>();
+    const file = { path: "tracked.ts", additions: 1, deletions: 0, hunks: [] };
+    const getCheckoutDiff = vi
+      .fn()
+      .mockImplementationOnce(() => initialRead.promise)
+      .mockResolvedValue({
+        diff: "",
+        structured: [file],
+        staging: { stagedFiles: [file], unstagedFiles: [] },
+      });
+    const { manager } = createManager({ getCheckoutDiffImplementation: getCheckoutDiff });
+    const subscription = manager.subscribe(
+      { cwd: "/tmp/repo", compare: { mode: "uncommitted", detail: "summary" } },
+      vi.fn(),
+    );
+    await vi.advanceTimersByTimeAsync(0);
+    manager.scheduleRefreshForCwd("/tmp/repo");
+    initialRead.resolve({ diff: "", structured: [] });
+
+    expect((await subscription).initial).toEqual({
+      cwd: "/tmp/repo",
+      files: [file],
+      staging: { stagedFiles: [file], unstagedFiles: [] },
+      error: null,
+    });
+    manager.dispose();
   });
 
   test("base diff subscriptions ignore ordinary working tree edits", async () => {

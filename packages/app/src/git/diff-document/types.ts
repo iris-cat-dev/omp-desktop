@@ -4,6 +4,8 @@ import type { ReviewableDiffTarget } from "@/utils/diff-layout";
 
 interface DiffDocumentBaseProps {
   files: ParsedDiffFile[];
+  /** Status text for summary-only files; these must not be treated as loaded hunks. */
+  fileStatus?: Readonly<Record<string, string>>;
   displayPreferences: {
     layout: "unified" | "split";
     wrapLines: boolean;
@@ -127,6 +129,7 @@ export type DiffRow = DiffLineRow | DiffStatusRow;
 
 export interface DiffFileSection {
   file: ParsedDiffFile;
+  statusLabel?: string;
   fileIndex: number;
   path: string;
   top: number;
@@ -158,6 +161,7 @@ export interface TextMeasurer {
 
 export interface BuildDiffDocumentModelInput {
   files: readonly ParsedDiffFile[];
+  fileStatus?: Readonly<Record<string, string>>;
   collapsedFilePaths: ReadonlySet<string>;
   layout: "unified" | "split";
   wrapLines: boolean;

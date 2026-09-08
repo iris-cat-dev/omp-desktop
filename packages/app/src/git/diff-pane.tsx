@@ -1,4 +1,12 @@
-import { createElement, useState, useCallback, useEffect, useMemo, type ReactElement } from "react";
+import {
+  createElement,
+  Fragment,
+  useState,
+  useCallback,
+  useEffect,
+  useMemo,
+  type ReactElement,
+} from "react";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import { TreeRail } from "@/components/tree-rail";
@@ -8,6 +16,7 @@ import {
   Text,
   Pressable,
   FlatList,
+  ScrollView,
   type PressableStateCallbackType,
   type StyleProp,
   type ViewStyle,
@@ -1039,8 +1048,7 @@ function ChangedFilesTree({
   onCollapsedFolderPathsChange,
   stageAction,
   discardAction,
-  listStyle,
-  fitContent,
+  inline = false,
   testID = "changes-file-tree",
 }: {
   files: ParsedDiffFile[];
@@ -1050,8 +1058,7 @@ function ChangedFilesTree({
   onCollapsedFolderPathsChange: (paths: string[]) => void;
   stageAction?: ChangeStageAction;
   discardAction?: ChangeDiscardAction;
-  listStyle?: StyleProp<ViewStyle>;
-  fitContent?: boolean;
+  inline?: boolean;
   testID?: string;
 }) {
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
@@ -1062,11 +1069,6 @@ function ChangedFilesTree({
     () => flattenDiffTree(compressedTree, collapsedFolders),
     [collapsedFolders, compressedTree],
   );
-  const fittedListStyle = useMemo(() => {
-    if (!fitContent) return undefined;
-    const height = Math.min(items.length * 24, 240);
-    return { height, flexBasis: height, flexShrink: 0 };
-  }, [fitContent, items.length]);
   const handleSelectPath = useCallback((path: string) => setSelectedPath(path), []);
   const handleSelectFile = useCallback(
     (path: string) => {
@@ -1189,12 +1191,22 @@ function ChangedFilesTree({
     [],
   );
 
+  if (inline) {
+    return (
+      <View testID={testID}>
+        {items.map((item) => (
+          <Fragment key={keyExtractor(item)}>{renderItem({ item })}</Fragment>
+        ))}
+      </View>
+    );
+  }
+
   return (
     <FlatList
       data={items}
       renderItem={renderItem}
       keyExtractor={keyExtractor}
-      style={[styles.scrollView, listStyle, fittedListStyle]}
+      style={styles.scrollView}
       contentContainerStyle={styles.contentContainer}
       testID={testID}
     />
@@ -1270,7 +1282,11 @@ function StagingChangesTree({
   const toggleUnstaged = useCallback(() => setUnstagedCollapsed((current) => !current), []);
 
   return (
-    <View style={styles.stagingTree} testID="changes-staging-tree">
+    <ScrollView
+      style={styles.stagingTree}
+      contentContainerStyle={styles.contentContainer}
+      testID="changes-staging-tree"
+    >
       {stagedFiles.length > 0 ? (
         <StagingSectionHeader
           operation="unstage"
@@ -1291,8 +1307,7 @@ function StagingChangesTree({
           collapsedFolderPaths={collapsedFolderPaths}
           onCollapsedFolderPathsChange={onCollapsedFolderPathsChange}
           stageAction={unstageAction}
-          listStyle={styles.stagedChangesList}
-          fitContent
+          inline
           testID="staged-changes-tree"
         />
       ) : null}
@@ -1316,11 +1331,11 @@ function StagingChangesTree({
           onCollapsedFolderPathsChange={onCollapsedFolderPathsChange}
           stageAction={stageAction}
           discardAction={discardAction}
-          listStyle={styles.unstagedChangesList}
+          inline
           testID="unstaged-changes-tree"
         />
       ) : null}
-    </View>
+    </ScrollView>
   );
 }
 
@@ -1548,6 +1563,198 @@ function resolveChangesViewState({
     showChangesTreeRail,
   };
 }
+type ChangesDiffQuery = ReturnType<typeof useCheckoutDiffQuery>;
+
+interface ChangesStagingOptions {
+  serverId: string;
+  cwd: string;
+  ignoreWhitespace: boolean;
+  enabled: boolean | undefined;
+  modeScope: string;
+  summarySupported: boolean;
+  stagingSupported: boolean;
+  diffMode: "uncommitted" | "base";
+  isGit: boolean;
+  documentOnly: boolean;
+  staging: ChangesDiffQuery["staging"];
+}
+
+function useChangesStagingData({
+  serverId,
+  cwd,
+  ignoreWhitespace,
+  enabled,
+  modeScope,
+  summarySupported,
+  stagingSupported,
+  diffMode,
+  isGit,
+  documentOnly,
+  staging,
+}: ChangesStagingOptions) {
+  const queriesEnabled = canQueryStagingDiffs(stagingSupported, diffMode, isGit, enabled);
+  const legacyEnabled = queriesEnabled && !summarySupported;
+  const stagedDiff = useCheckoutDiffQuery({
+    serverId,
+    cwd,
+    mode: "staged",
+    ignoreWhitespace,
+    enabled: legacyEnabled,
+    queryScope: `${modeScope}:staged`,
+  });
+  const unstagedDiff = useCheckoutDiffQuery({
+    serverId,
+    cwd,
+    mode: "unstaged",
+    ignoreWhitespace,
+    enabled: legacyEnabled,
+    queryScope: `${modeScope}:unstaged`,
+  });
+  const commitSummary = useCheckoutDiffQuery({
+    serverId,
+    cwd,
+    mode: "uncommitted",
+    detail: "summary",
+    ignoreWhitespace,
+    enabled:
+      summarySupported &&
+      stagingSupported &&
+      diffMode === "base" &&
+      isGit &&
+      enabled !== false &&
+      !documentOnly,
+    queryScope: `${modeScope}:commit-summary`,
+  });
+  if (!summarySupported) {
+    return {
+      queriesEnabled,
+      stagedFiles: stagedDiff.files,
+      unstagedFiles: unstagedDiff.files,
+      stagedLoading: stagedDiff.isLoading,
+      unstagedLoading: unstagedDiff.isLoading,
+      payloadError: stagedDiff.payloadError ?? unstagedDiff.payloadError,
+      diffTooLarge: stagedDiff.diffTooLarge || unstagedDiff.diffTooLarge,
+    };
+  }
+  let snapshot = staging;
+  let payloadError: ChangesDiffQuery["payloadError"] = null;
+  if (diffMode === "base") {
+    snapshot = commitSummary.staging;
+    payloadError = commitSummary.payloadError;
+  }
+  return {
+    queriesEnabled,
+    stagedFiles: snapshot?.stagedFiles ?? [],
+    unstagedFiles: snapshot?.unstagedFiles ?? [],
+    stagedLoading: false,
+    unstagedLoading: false,
+    payloadError,
+    diffTooLarge: false,
+  };
+}
+
+function resolveChangesAvailability({
+  files,
+  diffMode,
+  stagingSupported,
+  summarySupported,
+  stagingData,
+  diffPayloadError,
+  diffTooLarge,
+}: {
+  files: ParsedDiffFile[];
+  diffMode: "uncommitted" | "base";
+  stagingSupported: boolean;
+  summarySupported: boolean;
+  stagingData: ReturnType<typeof useChangesStagingData>;
+  diffPayloadError: ChangesDiffQuery["payloadError"];
+  diffTooLarge: boolean;
+}) {
+  const hasStagingChanges =
+    stagingData.stagedFiles.length > 0 || stagingData.unstagedFiles.length > 0;
+  const hasChanges =
+    files.length > 0 || (diffMode === "uncommitted" && stagingSupported && hasStagingChanges);
+  const canCommit =
+    (diffMode === "uncommitted" || (summarySupported && stagingSupported)) &&
+    hasCommittableChanges(stagingSupported, stagingData.stagedFiles);
+  return {
+    hasChanges,
+    canCommit,
+    diffErrorMessage: resolveDiffError(diffPayloadError, stagingData.payloadError, undefined),
+    bodyDiffTooLarge: diffTooLarge || stagingData.diffTooLarge,
+  };
+}
+
+function WorkingReviewFeedback({
+  summarySupported,
+  ready,
+  reviewActions,
+  reviewDiff,
+}: {
+  summarySupported: boolean;
+  ready: boolean;
+  reviewActions: WorkingDiffMode["reviewActions"];
+  reviewDiff: ChangesDiffQuery;
+}) {
+  const { t } = useTranslation();
+  if (!summarySupported || ready || !reviewActions || reviewActions.commentsByTarget.size === 0) {
+    return null;
+  }
+  let message = t("common.states.loading");
+  if (reviewDiff.diffTooLarge || reviewDiff.files.some((file) => file.status === "too_large")) {
+    message = t("workspace.git.diff.previewTooLargeDescription");
+  }
+  if (reviewDiff.payloadError) message = reviewDiff.payloadError.message;
+  return (
+    <View style={styles.forgeSetupCallout} testID="changes-review-pending">
+      <Text style={styles.forgeSetupCalloutText}>
+        {t("message.attachments.review")}: {message}
+      </Text>
+    </View>
+  );
+}
+
+function useWorkingFileStatus({
+  summarySupported,
+  fullFiles,
+  displayedFiles,
+  detailDiff,
+  emptyMessage,
+}: {
+  summarySupported: boolean;
+  fullFiles: ParsedDiffFile[];
+  displayedFiles: ParsedDiffFile[];
+  detailDiff: ChangesDiffQuery;
+  emptyMessage: string;
+}) {
+  const { t } = useTranslation();
+  return useMemo(() => {
+    if (!summarySupported) return undefined;
+    let message = emptyMessage;
+    if (detailDiff.isLoading || !detailDiff.hasSnapshot) message = t("common.states.loading");
+    if (detailDiff.diffTooLarge) message = t("workspace.git.diff.previewTooLargeDescription");
+    if (detailDiff.payloadError) message = detailDiff.payloadError.message;
+    const loadedPaths = new Set(fullFiles.map((file) => file.path));
+    const fileStatuses: Record<string, string> = Object.create(null);
+    for (const file of displayedFiles) {
+      if (loadedPaths.has(file.path) && !detailDiff.payloadError && !detailDiff.diffTooLarge)
+        continue;
+      fileStatuses[file.path] = message;
+    }
+    return fileStatuses;
+  }, [
+    summarySupported,
+    fullFiles,
+    displayedFiles,
+    detailDiff.payloadError,
+    detailDiff.diffTooLarge,
+    detailDiff.isLoading,
+    detailDiff.hasSnapshot,
+    emptyMessage,
+    t,
+  ]);
+}
+
 export function ChangesSurface({
   serverId,
   workspaceId,
@@ -1572,6 +1779,11 @@ export function ChangesSurface({
   const desktopTreeVisible = instanceState.treeVisible;
   const effectiveLayout = resolveDiffLayout(instanceState.layout, canUseSplitLayout);
   const collapsedFilePaths = instanceState.collapsedFilePaths;
+  const documentOnly = host === "panel" && Boolean(focusPath);
+  const [panelView, setPanelView] = useState<"tree" | "diff">(() =>
+    host === "panel" && focusPath ? "diff" : "tree",
+  );
+  const showTreeAsPrimaryContent = shouldShowChangesTree(host, panelView);
   const updateCollapsedFilePaths = useCallback(
     (paths: string[]) => updateState({ ...instanceState, collapsedFilePaths: paths }),
     [instanceState, updateState],
@@ -1626,6 +1838,9 @@ export function ChangesSurface({
   const stagingSupported = useSessionStore(
     (s) => s.sessions[serverId]?.serverInfo?.features?.checkoutStageChanges === true,
   );
+  const summarySupported = useSessionStore(
+    (s) => s.sessions[serverId]?.serverInfo?.features?.checkoutDiffSummary === true,
+  );
   const client = useSessionStore((state) => state.sessions[serverId]?.client);
   // COMPAT(fsEntryDuplicate): added in v0.3.0, remove gate after 2027-02-09.
   const fsEntryDuplicateEnabled = useSessionStore(
@@ -1657,6 +1872,12 @@ export function ChangesSurface({
     selectUncommitted: handleSelectUncommitted,
     selectBase: handleSelectBase,
     files,
+    staging,
+    documentFiles,
+    detailDiff,
+    fullFiles,
+    reviewDiff,
+    reviewReady,
     diffPayloadError,
     diffTooLarge,
     isDiffLoading,
@@ -1669,24 +1890,24 @@ export function ChangesSurface({
     ignoreWhitespace: instanceState.hideWhitespace,
     enabled: enabled !== false,
     modeScope,
+    summarySupported,
+    detailsEnabled: !showTreeAsPrimaryContent,
+    focusPath: documentOnly ? focusPath : undefined,
+    collapsedFilePaths,
   });
   const discardActions = useDiscardChangesActions({ serverId, cwd, diffMode });
-  const stagingQueriesEnabled = canQueryStagingDiffs(stagingSupported, diffMode, isGit, enabled);
-  const stagedDiff = useCheckoutDiffQuery({
+  const stagingData = useChangesStagingData({
     serverId,
     cwd,
-    mode: "staged",
     ignoreWhitespace: instanceState.hideWhitespace,
-    enabled: stagingQueriesEnabled,
-    queryScope: `${modeScope}:staged`,
-  });
-  const unstagedDiff = useCheckoutDiffQuery({
-    serverId,
-    cwd,
-    mode: "unstaged",
-    ignoreWhitespace: instanceState.hideWhitespace,
-    enabled: stagingQueriesEnabled,
-    queryScope: `${modeScope}:unstaged`,
+    enabled,
+    modeScope,
+    summarySupported,
+    stagingSupported,
+    diffMode,
+    isGit,
+    documentOnly,
+    staging,
   });
   const runStageChanges = useCheckoutGitActionsStore((s) => s.stageChanges);
   const runUnstageChanges = useCheckoutGitActionsStore((s) => s.unstageChanges);
@@ -1726,6 +1947,7 @@ export function ChangesSurface({
     cwd,
     attachment: reviewAttachment,
     enabled: !changesTabOpen,
+    ready: reviewReady,
   });
   const {
     githubFeaturesEnabled,
@@ -1864,10 +2086,6 @@ export function ChangesSurface({
     [client, cwd, t, toast],
   );
   const onRevertPath = discardActions.discardAll;
-  const documentOnly = host === "panel" && Boolean(focusPath);
-  const [panelView, setPanelView] = useState<"tree" | "diff">(() =>
-    host === "panel" && focusPath ? "diff" : "tree",
-  );
   useEffect(() => {
     if (host === "panel" && focusPath) {
       setPanelView("diff");
@@ -1889,14 +2107,14 @@ export function ChangesSurface({
         return;
       }
       setPanelView("diff");
+      updateCollapsedFilePaths(collapsedFilePaths.filter((entry) => entry !== path));
       setLocalFocusRequest((current) => ({
         path,
         revision: Math.max(Date.now(), (current?.revision ?? 0) + 1),
       }));
     },
-    [host, onChangesFilePress],
+    [host, onChangesFilePress, collapsedFilePaths, updateCollapsedFilePaths],
   );
-  const showTreeAsPrimaryContent = shouldShowChangesTree(host, panelView);
   const handleShowTree = useCallback(() => setPanelView("tree"), []);
   const workingMode = useMemo(
     () => ({
@@ -1936,19 +2154,25 @@ export function ChangesSurface({
     ],
   );
 
-  const hasChanges = files.length > 0;
-  const stagedFiles = stagedDiff.files;
-  const unstagedFiles = unstagedDiff.files;
-  const hasStagedChanges = hasCommittableChanges(stagingSupported, stagedFiles);
+  const { stagedFiles, unstagedFiles } = stagingData;
+  const { hasChanges, canCommit, diffErrorMessage, bodyDiffTooLarge } = resolveChangesAvailability({
+    files,
+    diffMode,
+    stagingSupported,
+    summarySupported,
+    stagingData,
+    diffPayloadError,
+    diffTooLarge,
+  });
   const { displayedFiles, isStagingDiffLoading, allFilesCollapsed, showChangesTreeRail } = useMemo(
     () =>
       resolveChangesViewState({
-        files,
+        files: showTreeAsPrimaryContent ? files : documentFiles,
         focusPath,
         documentOnly,
-        stagingQueriesEnabled,
-        stagedLoading: stagedDiff.isLoading,
-        unstagedLoading: unstagedDiff.isLoading,
+        stagingQueriesEnabled: stagingData.queriesEnabled,
+        stagedLoading: stagingData.stagedLoading,
+        unstagedLoading: stagingData.unstagedLoading,
         collapsedFilePaths,
         host,
         panelView,
@@ -1960,13 +2184,15 @@ export function ChangesSurface({
       desktopTreeVisible,
       documentOnly,
       files,
+      documentFiles,
+      showTreeAsPrimaryContent,
       focusPath,
       host,
       isMobile,
       panelView,
-      stagedDiff.isLoading,
-      stagingQueriesEnabled,
-      unstagedDiff.isLoading,
+      stagingData.stagedLoading,
+      stagingData.queriesEnabled,
+      stagingData.unstagedLoading,
     ],
   );
   const handleCollapseAllFiles = useCallback(
@@ -1977,10 +2203,13 @@ export function ChangesSurface({
     () => updateCollapsedFilePaths([]),
     [updateCollapsedFilePaths],
   );
-  const diffErrorMessage = resolveDiffError(
-    diffPayloadError,
-    stagedDiff.payloadError,
-    unstagedDiff.payloadError,
+  const reviewFeedback = (
+    <WorkingReviewFeedback
+      summarySupported={summarySupported}
+      ready={reviewReady}
+      reviewActions={reviewActions}
+      reviewDiff={reviewDiff}
+    />
   );
   const prErrorMessage = resolvePrStatusErrorMessage({
     featuresEnabled: githubFeaturesEnabled,
@@ -2002,6 +2231,13 @@ export function ChangesSurface({
     hiddenWhitespace: t("workspace.git.diff.emptyHiddenWhitespace"),
     uncommitted: t("workspace.git.diff.emptyUncommitted"),
     againstBase: (label) => t("workspace.git.diff.emptyAgainstBase", { baseRef: label }),
+  });
+  const fileStatus = useWorkingFileStatus({
+    summarySupported,
+    fullFiles,
+    displayedFiles,
+    detailDiff,
+    emptyMessage,
   });
   const emptyAction = computeChangesEmptyAction({
     hideWhitespace: instanceState.hideWhitespace,
@@ -2050,6 +2286,7 @@ export function ChangesSurface({
     primaryChangesContent = (
       <DiffDocument
         files={displayedFiles}
+        fileStatus={fileStatus}
         collapseState={collapseState}
         displayPreferences={sharedDisplayPreferences}
         mode={workingMode}
@@ -2064,7 +2301,7 @@ export function ChangesSurface({
       notGit={notGit}
       isDiffLoading={isDiffLoading || isStagingDiffLoading}
       diffErrorMessage={diffErrorMessage}
-      diffTooLarge={diffTooLarge || stagedDiff.diffTooLarge || unstagedDiff.diffTooLarge}
+      diffTooLarge={bodyDiffTooLarge}
       hasChanges={documentOnly ? displayedFiles.length > 0 : hasChanges}
       emptyMessage={emptyMessage}
       emptyAction={emptyAction}
@@ -2100,6 +2337,7 @@ export function ChangesSurface({
         style={styles.container}
         testID="working-file-diff"
       >
+        {reviewFeedback}
         <View style={styles.diffContainer}>{bodyContent}</View>
       </View>
     );
@@ -2168,7 +2406,7 @@ export function ChangesSurface({
               serverId={serverId}
               cwd={cwd}
               branchName={currentBranchName}
-              hasChanges={diffMode === "uncommitted" && hasStagedChanges}
+              hasChanges={canCommit}
             />
             {showGenericChangesHeader ? (
               <View style={styles.changesSectionHeader} testID="changes-tree-header">
@@ -2207,6 +2445,7 @@ export function ChangesSurface({
             <Text style={styles.forgeSetupCalloutText}>{prErrorMessage}</Text>
           </View>
         ) : null}
+        {reviewFeedback}
 
         <View style={styles.changesAndCommitsContainer} onLayout={handleChangesAndCommitsLayout}>
           <View style={styles.diffContainer}>{bodyContent}</View>
@@ -2329,15 +2568,6 @@ const styles = StyleSheet.create((theme) => ({
   stageActionDisabled: {
     opacity: 0.5,
   },
-  stagedChangesList: {
-    flexGrow: 0,
-    flexShrink: 1,
-    maxHeight: 240,
-  },
-  unstagedChangesList: {
-    flex: 1,
-    minHeight: 0,
-  },
   changesSectionHeader: {
     flexDirection: "row",
     alignItems: "center",
@@ -2377,6 +2607,7 @@ const styles = StyleSheet.create((theme) => ({
   diffContainer: {
     flex: 1,
     minHeight: 0,
+    overflow: "hidden",
     position: "relative",
   },
   scrollView: {

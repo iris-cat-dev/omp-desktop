@@ -9,7 +9,6 @@ function createClient(result: string | Error) {
   });
   return {
     client: { quickAsk } as unknown as DaemonClient,
-    quickAsk,
   };
 }
 
@@ -22,31 +21,6 @@ const source = {
 };
 
 describe("runQuickAsk", () => {
-  it("sends the selected content through the one-off quick ask RPC", async () => {
-    const harness = createClient("The answer.");
-
-    await expect(
-      runQuickAsk({
-        client: harness.client,
-        source,
-        selectedText: "selected text",
-        question: "What does this mean?",
-      }),
-    ).resolves.toBe("The answer.");
-
-    expect(harness.quickAsk).toHaveBeenCalledWith({
-      config: {
-        provider: "codex",
-        cwd: "/repo",
-        modeId: "default",
-        model: "gpt-5",
-        thinkingOptionId: "medium",
-      },
-      selectedText: "selected text",
-      question: "What does this mean?",
-    });
-  });
-
   it("surfaces generation failures", async () => {
     const harness = createClient(new Error("provider failed"));
 

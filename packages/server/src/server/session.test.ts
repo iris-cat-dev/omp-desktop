@@ -2542,18 +2542,6 @@ describe("session checkout merge handling", () => {
 
 describe("session checkout commit handling", () => {
   const tempDirs: string[] = [];
-  const PRE_CHANGE_COMMIT_PROMPT = `Write a concise git commit message for the changes below.
-
-Concise, imperative mood, no trailing period.
-
-Return JSON only with a single field 'message'.
-
-Files changed:
-M\tfile.txt\t(+1 -0)
-
-diff --git a/file.txt b/file.txt
-+hello
-`;
 
   afterEach(() => {
     for (const dir of tempDirs.splice(0)) {
@@ -2565,54 +2553,6 @@ diff --git a/file.txt b/file.txt
     const root = realpathSync(mkdtempSync(join(tmpdir(), "commit-metadata-session-test-")));
     tempDirs.push(root);
     return root;
-  }
-
-  function writeConfig(repoRoot: string, config: unknown): void {
-    writeFileSync(join(repoRoot, "paseo.json"), `${JSON.stringify(config)}\n`);
-  }
-
-  async function generateCommitPromptWithConfig(config: unknown): Promise<string> {
-    const repoRoot = makeRoot();
-    if (typeof config === "string") {
-      writeFileSync(join(repoRoot, "paseo.json"), config);
-    } else if (config !== undefined) {
-      writeConfig(repoRoot, config);
-    }
-
-    const workspaceGitService = {
-      getCheckoutDiff: vi.fn().mockResolvedValue({
-        diff: "diff --git a/file.txt b/file.txt\n+hello\n",
-        structured: [
-          {
-            path: "file.txt",
-            additions: 1,
-            deletions: 0,
-            isNew: false,
-            isDeleted: false,
-            hunks: [],
-            status: "ok",
-          },
-        ],
-      }),
-      getSnapshot: vi.fn().mockResolvedValue({}),
-      resolveRepoRoot: vi.fn().mockResolvedValue(repoRoot),
-    };
-    agentResponseMocks.generateStructuredAgentResponseWithFallback.mockResolvedValue({
-      message: "Update file",
-    });
-    checkoutGitMocks.commitChanges.mockResolvedValue(undefined);
-    const session = createSessionForTest({ workspaceGitService });
-
-    await session.handleMessage({
-      type: "checkout_commit_request",
-      cwd: join(repoRoot, "nested"),
-      message: "",
-      requestId: "request-generated-commit",
-    });
-
-    return String(
-      agentResponseMocks.generateStructuredAgentResponseWithFallback.mock.calls[0]?.[0].prompt,
-    );
   }
 
   test("forces a workspace git snapshot refresh after committing", async () => {
@@ -2708,58 +2648,6 @@ diff --git a/file.txt b/file.txt
         requestId: "request-generated-commit",
       },
     });
-  });
-
-  test.each([
-    ["paseo.json missing", undefined],
-    ["paseo.json exists but invalid JSON", "{ nope"],
-    ["paseo.json valid but missing metadataGeneration", {}],
-    ["metadataGeneration is schema-invalid", { metadataGeneration: "not an object" }],
-    [
-      "metadataGeneration exists but missing commitMessage",
-      { metadataGeneration: { pullRequest: { instructions: "Write a punchy PR." } } },
-    ],
-    [
-      "commitMessage exists but instructions is undefined",
-      { metadataGeneration: { commitMessage: {} } },
-    ],
-    [
-      "commitMessage exists but instructions is empty",
-      { metadataGeneration: { commitMessage: { instructions: "" } } },
-    ],
-    [
-      "commitMessage exists but instructions is whitespace-only",
-      { metadataGeneration: { commitMessage: { instructions: "   \n\t " } } },
-    ],
-  ])("renders the default commit style when no override applies (%s)", async (_name, config) => {
-    const prompt = await generateCommitPromptWithConfig(config);
-
-    expect(prompt).toBe(PRE_CHANGE_COMMIT_PROMPT);
-  });
-
-  test("commit instructions replace the default commit style", async () => {
-    const prompt = await generateCommitPromptWithConfig({
-      metadataGeneration: {
-        commitMessage: {
-          instructions: "Use conventional commits.\nAccept XML-ish <scope> text.",
-        },
-      },
-    });
-
-    expect(prompt).toContain("Use conventional commits.\nAccept XML-ish <scope> text.");
-    expect(prompt).not.toContain("Concise, imperative mood, no trailing period.");
-
-    const contractIndex = prompt.indexOf("Write a concise git commit message");
-    const styleIndex = prompt.indexOf("Use conventional commits.");
-    const jsonContractIndex = prompt.indexOf("Return JSON only");
-    const fileListIndex = prompt.indexOf("Files changed:");
-    const patchIndex = prompt.indexOf("diff --git");
-
-    expect(contractIndex).toBeGreaterThanOrEqual(0);
-    expect(contractIndex).toBeLessThan(styleIndex);
-    expect(styleIndex).toBeLessThan(jsonContractIndex);
-    expect(jsonContractIndex).toBeLessThan(fileListIndex);
-    expect(fileListIndex).toBeLessThan(patchIndex);
   });
 
   test("keeps the commit fallback when structured generation fails", async () => {

@@ -60,16 +60,9 @@ export function buildSubagentMetadata(
   return context ? `${modelLabel} · ${context}` : modelLabel;
 }
 
-type ActiveStatusBucket = Exclude<SidebarStateBucket, "done">;
-
-/** The sidebar's list order, minus the state that earns no mark. */
-const ACTIVE_STATUS_BUCKET_ORDER = STATUS_BUCKET_ORDER.filter(
-  (bucket): bucket is ActiveStatusBucket => bucket !== "done",
-);
-
 /** One state the pill reports, and how many children are in it. */
 interface SubagentStatusCount {
-  bucket: ActiveStatusBucket;
+  bucket: SidebarStateBucket;
   count: number;
 }
 
@@ -86,10 +79,6 @@ export interface SubagentPillPresentation {
  * mixed fan-out into the most urgent state the way a sidebar project row does: a red dot beside
  * "1 failed" over a child that is still working says the fan-out has stopped. Every state present
  * gets its own mark and its own count, in the order the sidebar's status groups list them.
- *
- * It stays one line because subagent rows only ever reach three states — see
- * `buildSubagentRowPresentationData`, which reports no attention of its own — so the pill is two
- * segments at worst, and falls back to naming what it opens once nothing is happening.
  */
 export function buildSubagentPillPresentation(
   t: TFunction,
@@ -109,7 +98,7 @@ export function buildSubagentPillPresentation(
 }
 
 /** Wording comes from the sidebar's status groups — one name per state across the whole app. */
-function statusLabel(t: TFunction, bucket: ActiveStatusBucket, count: number): string {
+function statusLabel(t: TFunction, bucket: SidebarStateBucket, count: number): string {
   switch (bucket) {
     case "running":
       return t("subagents.pillLabelWorking", { count });
@@ -121,6 +110,8 @@ function statusLabel(t: TFunction, bucket: ActiveStatusBucket, count: number): s
         : t("subagents.pillLabelNeedsInputMany", { count });
     case "attention":
       return t("subagents.pillLabelReadyToReview", { count });
+    case "done":
+      return t("subagents.pillLabelCompleted", { count });
   }
 }
 
@@ -129,12 +120,9 @@ function totalLabel(t: TFunction, total: number): string {
   return total === 1 ? t("subagents.pillLabelOne") : t("subagents.pillLabelMany", { count: total });
 }
 
-/**
- * Empty when every child is done: a finished fan-out is not worth a colour above the composer.
- */
 function summarizeSubagentStatus(rows: readonly SubagentRow[]): SubagentStatusCount[] {
   const buckets = rows.map((row) => buildSubagentRowPresentationData(row).statusBucket);
-  return ACTIVE_STATUS_BUCKET_ORDER.flatMap((bucket) => {
+  return STATUS_BUCKET_ORDER.flatMap((bucket) => {
     const count = buckets.filter((candidate) => candidate === bucket).length;
     return count > 0 ? [{ bucket, count }] : [];
   });

@@ -60,7 +60,7 @@ export interface ComposerTrackPillProps {
   testID: string;
   /** Spell out anything the segments abbreviate — a bare count reads as nothing out loud. */
   accessibilityLabel?: string;
-  /** Replaces the visible status text; the panel title becomes its hover hint. */
+  /** Leads the status counts; the panel title becomes the pill's hover hint. */
   icon?: ReactNode;
   /** Panel body. Rendered into a popover on wide screens and a sheet on compact ones. */
   children: ReactNode;
@@ -155,22 +155,21 @@ function ComposerTrackPillTrigger({
       {...ariaExpandedProps}
       style={pillStyle}
     >
-      {icon ?? (
-        <View style={styles.segments}>
-          {segments.map((segment, index) => (
-            <View
-              key={segment.bucket ?? "plain"}
-              style={styles.segment}
-              testID={`${testID}-segment-${index}`}
-            >
-              <ComposerTrackMark bucket={segment.bucket} />
-              <Text style={labelStyle} numberOfLines={1}>
-                {segment.text}
-              </Text>
-            </View>
-          ))}
-        </View>
-      )}
+      <View style={styles.segments}>
+        {icon}
+        {segments.map((segment, index) => (
+          <View
+            key={segment.bucket ?? "plain"}
+            style={styles.segment}
+            testID={`${testID}-segment-${index}`}
+          >
+            <ComposerTrackMark bucket={segment.bucket} />
+            <Text style={labelStyle} numberOfLines={1}>
+              {segment.text}
+            </Text>
+          </View>
+        ))}
+      </View>
     </MenuTrigger>
   );
 
@@ -403,6 +402,7 @@ const styles = StyleSheet.create((theme) => {
     dotNeedsInput: statusDot("needs_input"),
     dotFailed: statusDot("failed"),
     dotAttention: statusDot("attention"),
-    dotDone: statusDot("done"),
+    // Completed work remains a visible success in the track, unlike inactive sidebar rows.
+    dotDone: statusDot("attention"),
   };
 });

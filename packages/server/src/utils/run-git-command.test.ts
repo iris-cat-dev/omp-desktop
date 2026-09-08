@@ -1,4 +1,5 @@
 import { EventEmitter } from "node:events";
+import { Writable } from "node:stream";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 interface FakeSpawnBehavior {
@@ -12,6 +13,7 @@ interface FakeSpawnBehavior {
   spawnError?: Error;
   stderrData?: Buffer | string;
   stdoutData?: Buffer | string;
+  stdinError?: NodeJS.ErrnoException;
 }
 
 interface FakeSpawnController {
@@ -46,6 +48,7 @@ class FakeChildProcess extends EventEmitter {
   public readonly pid: number;
   public readonly stderr = new EventEmitter();
   public readonly stdout = new EventEmitter();
+  public readonly stdin: Writable;
   public killed = false;
   public killSignals: NodeJS.Signals[] = [];
   public closed = false;
@@ -57,6 +60,11 @@ class FakeChildProcess extends EventEmitter {
   public constructor(behavior: FakeSpawnBehavior) {
     super();
     this.behavior = behavior;
+    this.stdin = new Writable({
+      write(_chunk, _encoding, callback) {
+        callback(behavior.stdinError);
+      },
+    });
     this.pid = fakeSpawnController.nextPid;
     fakeSpawnController.nextPid += 1;
 
@@ -641,5 +649,62 @@ describe("runGitCommand", () => {
       expect.objectContaining({ exitCode: 0, stdout: "third", truncated: false }),
       expect.objectContaining({ exitCode: 0, stdout: "fourth", truncated: false }),
     ]);
+  });
+
+  it("uses the child exit status after an early stdin EPIPE", async () => {
+    const { runGitCommand } = await loadRunGitCommand(1);
+    enqueueSpawnBehaviors(
+      { stdinError: Object.assign(new Error("pipe closed"), { code: "EPIPE" }), exitCode: 128 },
+      { stdoutData: "next\n" },
+    );
+    await expect(
+      runGitCommand(["cat-file", "--batch"], {
+        cwd: process.cwd(),
+        stdin: "HEAD:missing\n",
+      }),
+    ).rejects.toThrow(/exit code: 128/);
+    await expect(runGitCommand(["status"], { cwd: process.cwd() })).resolves.toMatchObject({
+      stdout: "next\n",
+    });
+    expect(fakeSpawnController.peakActiveCount).toBe(1);
+  });
+
+  it("rejects a streaming consumer error and releases the slot after child exit", async () => {
+    const { runGitCommand } = await loadRunGitCommand(1);
+    enqueueSpawnBehaviors(
+      { stdoutData: "broken framing", delayMs: 5000, killExitDelayMs: 10 },
+      { stdoutData: "next\n" },
+    );
+    await expect(
+      runGitCommand(["cat-file", "--batch"], {
+        cwd: process.cwd(),
+        stdin: "HEAD:file.txt\n",
+        onStdout() {
+          throw new Error("invalid batch header");
+        },
+      }),
+    ).rejects.toThrow("invalid batch header");
+    await expect(runGitCommand(["status"], { cwd: process.cwd() })).resolves.toMatchObject({
+      stdout: "next\n",
+    });
+    expect(fakeSpawnController.peakActiveCount).toBe(1);
+  });
+
+  it("bounds bytes delivered to a streaming consumer before terminating excess output", async () => {
+    const { runGitCommand } = await loadRunGitCommand(1);
+    enqueueSpawnBehaviors({ stdoutData: Buffer.from("123456789"), delayMs: 5000 });
+    const received: Buffer[] = [];
+    const result = await runGitCommand(["cat-file", "--batch"], {
+      cwd: process.cwd(),
+      stdin: "HEAD:file.txt\n",
+      maxOutputBytes: 4,
+      onStdout(chunk) {
+        received.push(chunk);
+      },
+    });
+    expect(Buffer.concat(received).toString()).toBe("1234");
+    expect(result.truncated).toBe(true);
+    expect(result.stdout).toBe("");
+    expect(fakeSpawnController.activeCount).toBe(0);
   });
 });

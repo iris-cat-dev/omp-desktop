@@ -96,13 +96,24 @@ describe("createGitMetadataGenerator", () => {
       agentTitle: "Commit generator",
     });
     expect(generateCalls[0].maxRetries).toBe(0);
-    expect(generateCalls[0].prompt).toContain("Write a concise git commit message");
     expect(generateCalls[0].prompt).toContain("M\tsrc/foo.ts\t(+3 -1)");
     expect(generateCalls[0].prompt).toContain("diff --git a/src/foo.ts");
     expect(generateCalls[0].prompt).toContain("feat: add repository browser");
-    expect(generateCalls[0].prompt).toContain(
-      "Match their language, conventional prefix/scope pattern, and capitalization.",
+  });
+
+  it("accepts a complete multiline commit message longer than 72 characters", async () => {
+    const { diffSource } = createDiffSource(DIFF_WITH_ONE_FILE);
+    const detailedMessage =
+      "feat: add context selection to QuickAsk\n\n" +
+      "- Let users choose whether to include conversation context.\n" +
+      "- Pass the selected context option when asking about quoted text.";
+    const { generation } = createGeneration((request) =>
+      request.schema.parse({ message: detailedMessage }),
     );
+
+    await expect(
+      createGenerator(diffSource, generation).generateCommitMessage("/repo"),
+    ).resolves.toBe(detailedMessage);
   });
 
   it("limits commit patch context to keep generation responsive", async () => {

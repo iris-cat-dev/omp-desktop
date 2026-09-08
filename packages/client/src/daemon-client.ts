@@ -1130,6 +1130,8 @@ export class DaemonClient {
         mode: "uncommitted" | "staged" | "unstaged" | "base";
         baseRef?: string;
         ignoreWhitespace?: boolean;
+        detail?: "summary" | "full";
+        paths?: string[];
       };
     }
   >();
@@ -3830,25 +3832,23 @@ export class DaemonClient {
     mode: "uncommitted" | "staged" | "unstaged" | "base";
     baseRef?: string;
     ignoreWhitespace?: boolean;
+    detail?: "summary" | "full";
+    paths?: string[];
   }): {
     mode: "uncommitted" | "staged" | "unstaged" | "base";
     baseRef?: string;
     ignoreWhitespace?: boolean;
+    detail?: "summary" | "full";
+    paths?: string[];
   } {
-    if (compare.mode !== "base") {
-      return compare.ignoreWhitespace === true
-        ? { mode: compare.mode, ignoreWhitespace: true }
-        : { mode: compare.mode };
-    }
-    const trimmedBaseRef = compare.baseRef?.trim();
-    if (!trimmedBaseRef) {
-      return compare.ignoreWhitespace === true
-        ? { mode: "base", ignoreWhitespace: true }
-        : { mode: "base" };
-    }
-    return compare.ignoreWhitespace === true
-      ? { mode: "base", baseRef: trimmedBaseRef, ignoreWhitespace: true }
-      : { mode: "base", baseRef: trimmedBaseRef };
+    const baseRef = compare.mode === "base" ? compare.baseRef?.trim() : undefined;
+    return {
+      mode: compare.mode,
+      ...(baseRef ? { baseRef } : {}),
+      ...(compare.ignoreWhitespace === true ? { ignoreWhitespace: true } : {}),
+      ...(compare.detail !== undefined ? { detail: compare.detail } : {}),
+      ...(compare.paths !== undefined ? { paths: [...compare.paths] } : {}),
+    };
   }
 
   async getCheckoutDiff(
@@ -3857,6 +3857,8 @@ export class DaemonClient {
       mode: "uncommitted" | "staged" | "unstaged" | "base";
       baseRef?: string;
       ignoreWhitespace?: boolean;
+      detail?: "summary" | "full";
+      paths?: string[];
     },
     requestId?: string,
   ): Promise<CheckoutDiffPayload> {
@@ -3871,6 +3873,7 @@ export class DaemonClient {
         files: payload.files,
         error: payload.error,
         diffTooLarge: payload.diffTooLarge,
+        staging: payload.staging,
         requestId: payload.requestId,
       };
     } finally {
@@ -3888,6 +3891,8 @@ export class DaemonClient {
       mode: "uncommitted" | "staged" | "unstaged" | "base";
       baseRef?: string;
       ignoreWhitespace?: boolean;
+      detail?: "summary" | "full";
+      paths?: string[];
     },
     options?: { subscriptionId?: string; requestId?: string },
   ): Promise<SubscribeCheckoutDiffPayload> {
@@ -5585,6 +5590,7 @@ export class DaemonClient {
     };
     selectedText: string;
     question: string;
+    sourceAgentId?: string;
   }): Promise<string> {
     const payload = await this.sendCorrelatedSessionRequest({
       message: { type: "quick_ask_request", ...input },

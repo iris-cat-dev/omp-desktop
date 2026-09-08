@@ -1,7 +1,8 @@
 import { resolve, dirname, basename } from "path";
 import { existsSync, realpathSync } from "fs";
-import { open as openFile, readFile, stat as statFile } from "fs/promises";
+import { lstat, open as openFile, readFile, readlink, stat as statFile } from "fs/promises";
 import { TTLCache } from "@isaacs/ttlcache";
+import { isLanguageSupported } from "@omp-desktop/highlight";
 import type { CheckoutCommit, CheckoutCommitFile } from "@omp-desktop/protocol/messages";
 import {
   parseGitHubRemoteIdentity,
@@ -30,6 +31,7 @@ import {
 } from "../services/forge-cli-command.js";
 import { parseGitRevParsePath, resolveGitRevParsePath } from "./git-rev-parse-path.js";
 import { runGitCommand } from "./run-git-command.js";
+import { readGitBlobContents, readTrackedPatches } from "./git-diff-batch.js";
 import { isPaseoOwnedWorktreeCwd, resolvePaseoWorktreesBaseRoot } from "./worktree.js";
 import {
   branchNameFromRef,
@@ -516,57 +518,37 @@ async function listCheckoutFileChanges(
   const { stdout: nameStatusOut } = await runGitCommand(
     buildGitDiffArgs({
       ignoreWhitespace,
-      extra: ["--name-status", ...getCheckoutDiffRefArgs(refs)],
+      extra: ["--name-status", "-z", "--find-renames", ...getCheckoutDiffRefArgs(refs)],
     }),
-    { cwd, envOverlay: READ_ONLY_GIT_ENV },
+    { cwd, envOverlay: READ_ONLY_GIT_ENV, maxOutputBytes: Number.POSITIVE_INFINITY },
   );
-  for (const line of nameStatusOut
-    .split("\n")
-    .map((l) => l.trim())
-    .filter(Boolean)) {
-    // `--name-status` uses TAB separators, which preserves filenames with spaces.
-    const tabParts = line.split("\t");
-    const rawStatus = (tabParts[0] ?? "").trim();
-    if (!rawStatus) continue;
-
-    if (rawStatus.startsWith("R") || rawStatus.startsWith("C")) {
-      const oldPath = tabParts[1];
-      const newPath = tabParts[2];
-      if (newPath) {
-        changes.push({
-          path: newPath,
-          ...(oldPath ? { oldPath } : {}),
-          status: rawStatus,
-          isNew: false,
-          isDeleted: false,
-        });
-      }
-      continue;
-    }
-
-    const path = tabParts[1];
-    if (!path) continue;
-    const code = rawStatus[0];
+  const fields = nameStatusOut.split("\0");
+  for (let index = 0; index < fields.length - 1; ) {
+    const rawStatus = fields[index++];
+    const firstPath = fields[index++];
+    if (!rawStatus || firstPath === undefined) continue;
+    const renamed = rawStatus.startsWith("R") || rawStatus.startsWith("C");
+    const path = renamed ? fields[index++] : firstPath;
+    if (path === undefined) continue;
     changes.push({
       path,
+      ...(renamed ? { oldPath: firstPath } : {}),
       status: rawStatus,
-      isNew: code === "A",
-      isDeleted: code === "D",
+      isNew: rawStatus.startsWith("A"),
+      isDeleted: rawStatus.startsWith("D"),
     });
   }
 
   if (refs.includeUntracked) {
     const { stdout: untrackedOut } = await runGitCommand(
-      ["ls-files", "--others", "--exclude-standard"],
+      ["ls-files", "-z", "--others", "--exclude-standard"],
       {
         cwd,
         envOverlay: READ_ONLY_GIT_ENV,
+        maxOutputBytes: Number.POSITIVE_INFINITY,
       },
     );
-    for (const file of untrackedOut
-      .split("\n")
-      .map((l) => l.trim())
-      .filter(Boolean)) {
+    for (const file of untrackedOut.split("\0").filter(Boolean)) {
       changes.push({
         path: file,
         status: "U",
@@ -643,8 +625,6 @@ function buildGitDiffArgs(args: { ignoreWhitespace?: boolean; extra: string[] })
   return ["diff", ...(args.ignoreWhitespace ? ["-w"] : []), ...args.extra];
 }
 
-const TRACKED_DIFF_NUMSTAT_MAX_BYTES = 2 * 1024 * 1024; // 2MB
-const TRACKED_DIFF_BATCH_SIZE = 8;
 const EMPTY_TREE_OBJECT_ID = "4b825dc642cb6eb9a060e54bf8d69288fbee4904";
 
 function isUnbornHeadDiffError(error: unknown): boolean {
@@ -663,78 +643,50 @@ async function getTrackedNumstatByPath(
   const result = await runGitCommand(
     buildGitDiffArgs({
       ignoreWhitespace,
-      extra: ["--numstat", ...getCheckoutDiffRefArgs(refs)],
+      extra: ["--numstat", "-z", "--find-renames", ...getCheckoutDiffRefArgs(refs)],
     }),
     {
       cwd,
       envOverlay: READ_ONLY_GIT_ENV,
-      maxOutputBytes: TRACKED_DIFF_NUMSTAT_MAX_BYTES,
+      maxOutputBytes: Number.POSITIVE_INFINITY,
       acceptExitCodes: [0],
     },
   );
 
   const stats = new Map<string, FileStat>();
-  const lines = result.stdout
-    .split("\n")
-    .map((line) => line.trim())
-    .filter(Boolean);
-
-  for (const line of lines) {
-    const parts = line.split("\t");
-    if (parts.length < 3) {
-      continue;
-    }
-
-    const additionsField = parts[0] ?? "";
-    const deletionsField = parts[1] ?? "";
-    const rawPath = parts.slice(2).join("\t");
-    const path = normalizeNumstatPath(rawPath);
-
+  const fields = result.stdout.split("\0");
+  for (let index = 0; index < fields.length - 1; index++) {
+    const record = fields[index];
+    const firstTab = record.indexOf("\t");
+    const secondTab = record.indexOf("\t", firstTab + 1);
+    if (firstTab < 0 || secondTab < 0) continue;
+    const additionsField = record.slice(0, firstTab);
+    const deletionsField = record.slice(firstTab + 1, secondTab);
+    let path = record.slice(secondTab + 1);
     if (!path) {
-      continue;
+      // -z rename records encode an empty path, then old and new as NUL fields.
+      index += 2;
+      path = fields[index];
     }
-
-    if (additionsField === "-" || deletionsField === "-") {
-      stats.set(path, { additions: 0, deletions: 0, isBinary: true });
-      continue;
-    }
-
-    const additions = Number.parseInt(additionsField, 10);
-    const deletions = Number.parseInt(deletionsField, 10);
-    if (Number.isNaN(additions) || Number.isNaN(deletions)) {
-      stats.set(path, null);
-      continue;
-    }
-
-    stats.set(path, { additions, deletions, isBinary: false });
+    if (path === undefined) continue;
+    const isBinary = additionsField === "-" || deletionsField === "-";
+    stats.set(path, {
+      additions: isBinary ? 0 : Number.parseInt(additionsField, 10),
+      deletions: isBinary ? 0 : Number.parseInt(deletionsField, 10),
+      isBinary,
+    });
   }
 
   return stats;
 }
 
-async function getTrackedDiffTextForPath(input: {
-  cwd: string;
-  refsForDiff: CheckoutDiffRefs;
-  path: string;
-  ignoreWhitespace: boolean;
-}): Promise<{ path: string; text: string; truncated: boolean }> {
-  const result = await runGitCommand(
-    buildGitDiffArgs({
-      ignoreWhitespace: input.ignoreWhitespace,
-      extra: [...getCheckoutDiffRefArgs(input.refsForDiff), "--", input.path],
-    }),
-    {
-      cwd: input.cwd,
-      envOverlay: READ_ONLY_GIT_ENV,
-      maxOutputBytes: PER_FILE_DIFF_MAX_BYTES,
-    },
-  );
-
-  return {
-    path: input.path,
-    text: result.stdout,
-    truncated: result.truncated,
-  };
+function literalChangePathspecs(changes: CheckoutFileChange[]): string[] {
+  const paths = new Set<string>();
+  for (const change of changes) {
+    paths.add(`:(top,literal)${change.path}`);
+    if (change.oldPath) paths.add(`:(top,literal)${change.oldPath}`);
+  }
+  return [...paths];
 }
 
 export class NotGitRepoError extends Error {
@@ -827,14 +779,21 @@ export type CheckoutStatusGit = CheckoutStatusGitNonPaseo | CheckoutStatusGitPas
 export type CheckoutStatusResult = CheckoutStatus | CheckoutStatusGit;
 
 export type CheckoutDiffResult =
-  | { diff: string; structured?: ParsedDiffFile[]; diffTooLarge?: false }
-  | { diff: ""; structured: []; diffTooLarge: true };
+  | {
+      diff: string;
+      structured?: ParsedDiffFile[];
+      diffTooLarge?: false;
+      staging?: { stagedFiles: ParsedDiffFile[]; unstagedFiles: ParsedDiffFile[] };
+    }
+  | { diff: ""; structured: []; diffTooLarge: true; staging?: never };
 
 export interface CheckoutDiffCompare {
   mode: "uncommitted" | "staged" | "unstaged" | "base";
   baseRef?: string;
   ignoreWhitespace?: boolean;
   includeStructured?: boolean;
+  detail?: "summary" | "full";
+  paths?: string[];
 }
 
 export interface MergeToBaseOptions {
@@ -2092,32 +2051,54 @@ async function isLikelyBinaryFile(absolutePath: string): Promise<boolean> {
 async function inspectUntrackedFile(
   cwd: string,
   relativePath: string,
+  countLargeFileLines = true,
 ): Promise<{ stat: FileStat; truncated: boolean }> {
   const absolutePath = resolve(cwd, relativePath);
-  const metadata = await statFile(absolutePath);
-
-  if (!metadata.isFile()) {
-    return { stat: null, truncated: false };
+  const entry = await lstat(absolutePath);
+  if (entry.isSymbolicLink()) {
+    const target = await readlink(absolutePath);
+    const additions = target.split("\n").length - (target.endsWith("\n") ? 1 : 0);
+    return { stat: { additions, deletions: 0, isBinary: false }, truncated: false };
   }
-
-  if (await isLikelyBinaryFile(absolutePath)) {
+  if (!entry.isFile()) return { stat: null, truncated: false };
+  const handle = await openFile(absolutePath, "r");
+  try {
+    const metadata = await handle.stat();
+    if (!metadata.isFile()) return { stat: null, truncated: false };
+    const buffer = Buffer.allocUnsafe(64 * 1024);
+    let offset = 0;
+    let additions = 0;
+    let lastByte = 10;
+    // Count lines with bounded memory, even for files too large to render. Bound
+    // the scan to the initial size so a concurrently growing file cannot trap us.
+    while (offset < metadata.size) {
+      const { bytesRead } = await handle.read(
+        buffer,
+        0,
+        Math.min(buffer.length, metadata.size - offset),
+        offset,
+      );
+      if (bytesRead === 0) break;
+      if (offset === 0 && buffer.subarray(0, Math.min(bytesRead, 8000)).includes(0)) {
+        return { stat: { additions: 0, deletions: 0, isBinary: true }, truncated: false };
+      }
+      if (!countLargeFileLines && metadata.size > PER_FILE_DIFF_MAX_BYTES) {
+        return { stat: { additions: 0, deletions: 0, isBinary: false }, truncated: true };
+      }
+      for (let index = 0; index < bytesRead; index++) {
+        if (buffer[index] === 10) additions++;
+      }
+      lastByte = buffer[bytesRead - 1];
+      offset += bytesRead;
+    }
+    if (offset > 0 && lastByte !== 10) additions++;
     return {
-      stat: { additions: 0, deletions: 0, isBinary: true },
-      truncated: false,
+      stat: { additions, deletions: 0, isBinary: false },
+      truncated: metadata.size > PER_FILE_DIFF_MAX_BYTES,
     };
+  } finally {
+    await handle.close();
   }
-
-  if (metadata.size > PER_FILE_DIFF_MAX_BYTES) {
-    return {
-      stat: { additions: 0, deletions: 0, isBinary: false },
-      truncated: true,
-    };
-  }
-
-  return {
-    stat: { additions: 0, deletions: 0, isBinary: false },
-    truncated: false,
-  };
 }
 
 function buildPlaceholderParsedDiffFile(
@@ -2142,7 +2123,7 @@ async function getUntrackedDiffText(
   ignoreWhitespace = false,
 ): Promise<{ text: string; truncated: boolean; stat: FileStat }> {
   try {
-    const inspected = await inspectUntrackedFile(cwd, change.path);
+    const inspected = await inspectUntrackedFile(cwd, change.path, false);
     if (inspected.stat?.isBinary || inspected.truncated) {
       return { text: "", truncated: inspected.truncated, stat: inspected.stat };
     }
@@ -2899,18 +2880,28 @@ interface AppendStructuredTrackedDiffsInput {
   ) => void;
 }
 
+function gitFileObject(ref: string, path: string): string {
+  return ref === ":" ? `:${path}` : `${ref}:${path}`;
+}
+
 async function buildHighlightedTrackedDiffFile(input: {
   cwd: string;
   change: CheckoutFileChange;
   parsedFile: ParsedDiffFile;
   refsForDiff: CheckoutDiffRefs;
+  contents: Map<string, string>;
 }): Promise<ParsedDiffFile> {
-  const { cwd, change, parsedFile, refsForDiff } = input;
+  const { cwd, change, parsedFile, refsForDiff, contents } = input;
   const refPath = change.oldPath ?? change.path;
-  const [oldFileContent, newFileContent] = await Promise.all([
-    change.isNew ? null : readGitFileContentAtRef(cwd, refsForDiff.baseRef, refPath),
-    refsForDiff.targetRef ? readGitFileContentAtRef(cwd, refsForDiff.targetRef, change.path) : null,
-  ]);
+  const oldFileContent = change.isNew
+    ? ""
+    : (contents.get(gitFileObject(refsForDiff.baseRef, refPath)) ?? null);
+  let newFileContent: string | null | undefined;
+  if (change.isDeleted) {
+    newFileContent = "";
+  } else if (refsForDiff.targetRef) {
+    newFileContent = contents.get(gitFileObject(refsForDiff.targetRef, change.path)) ?? null;
+  }
   const highlightedFile = await highlightDiffWithFileContent(parsedFile, cwd, {
     oldFileContent,
     newFileContent,
@@ -2938,6 +2929,34 @@ function isWhitespaceOnlyTrackedChange(input: {
   );
 }
 
+async function readTrackedHighlightContents(
+  input: Pick<
+    AppendStructuredTrackedDiffsInput,
+    "cwd" | "trackedChanges" | "trackedPlaceholderByPath" | "refsForDiff"
+  >,
+  parsedTrackedByPath: ReadonlyMap<string, ParsedDiffFile>,
+): Promise<Map<string, string>> {
+  const { cwd, trackedChanges, trackedPlaceholderByPath, refsForDiff } = input;
+  const objects: string[] = [];
+  for (const change of trackedChanges) {
+    const parsed = parsedTrackedByPath.get(change.path);
+    if (
+      !parsed?.hunks.length ||
+      !isLanguageSupported(change.path) ||
+      trackedPlaceholderByPath.has(change.path)
+    ) {
+      continue;
+    }
+    if (!change.isNew) {
+      objects.push(gitFileObject(refsForDiff.baseRef, change.oldPath ?? change.path));
+    }
+    if (!change.isDeleted && refsForDiff.targetRef) {
+      objects.push(gitFileObject(refsForDiff.targetRef, change.path));
+    }
+  }
+  return readGitBlobContents(cwd, objects, PER_FILE_DIFF_MAX_BYTES);
+}
+
 async function appendStructuredTrackedDiffs(
   input: AppendStructuredTrackedDiffsInput,
 ): Promise<boolean> {
@@ -2955,6 +2974,7 @@ async function appendStructuredTrackedDiffs(
 
   const parsedTrackedFiles = trackedDiffText.length > 0 ? parseDiff(trackedDiffText) : [];
   const parsedTrackedByPath = new Map(parsedTrackedFiles.map((file) => [file.path, file]));
+  const contents = await readTrackedHighlightContents(input, parsedTrackedByPath);
 
   for (const change of trackedChanges) {
     const placeholder = trackedPlaceholderByPath.get(change.path);
@@ -2978,6 +2998,7 @@ async function appendStructuredTrackedDiffs(
         change,
         parsedFile,
         refsForDiff,
+        contents,
       });
       if (!appendStructuredFile(structured, file)) {
         return false;
@@ -3101,67 +3122,67 @@ async function processTrackedChanges(
   input: ProcessTrackedChangesInput,
 ): Promise<ProcessTrackedChangesResult> {
   const { cwd, refsForDiff, trackedChanges, ignoreWhitespace, appendDiff } = input;
-  const trackedNumstatByPath =
-    trackedChanges.length > 0
-      ? await getTrackedNumstatByPath(cwd, refsForDiff, ignoreWhitespace)
-      : new Map<string, FileStat>();
-  const trackedDiffPaths: string[] = [];
+  const trackedNumstatByPath = trackedChanges.length
+    ? await getTrackedNumstatByPath(cwd, refsForDiff, ignoreWhitespace)
+    : new Map<string, FileStat>();
   const trackedPlaceholderByPath = new Map<
     string,
     { status: "binary" | "too_large"; stat: FileStat }
   >();
-
-  for (const change of trackedChanges) {
+  const textChanges = trackedChanges.filter((change) => {
     const stat = trackedNumstatByPath.get(change.path) ?? null;
-    if (stat?.isBinary) {
-      trackedPlaceholderByPath.set(change.path, { status: "binary", stat });
-      continue;
-    }
-    trackedDiffPaths.push(change.path);
-  }
-
-  let trackedDiffText = "";
-  let trackedDiffBytes = 0;
-  for (let start = 0; start < trackedDiffPaths.length; start += TRACKED_DIFF_BATCH_SIZE) {
-    const paths = trackedDiffPaths.slice(start, start + TRACKED_DIFF_BATCH_SIZE);
-    const trackedDiffs = await Promise.all(
-      paths.map((path) =>
-        getTrackedDiffTextForPath({
-          cwd,
-          refsForDiff,
-          path,
-          ignoreWhitespace,
-        }),
-      ),
+    if (!stat?.isBinary) return true;
+    trackedPlaceholderByPath.set(change.path, { status: "binary", stat });
+    return false;
+  });
+  const texts: string[] = [];
+  let totalBytes = 0;
+  // Keep argv below platform limits; ordinary repositories use one patch process.
+  for (let start = 0; start < textChanges.length; ) {
+    let end = start;
+    let pathBytes = 0;
+    do {
+      const change = textChanges[end++];
+      pathBytes += Buffer.byteLength(change.path) + Buffer.byteLength(change.oldPath ?? "") + 64;
+    } while (end < textChanges.length && pathBytes < 32 * 1024);
+    const batch = textChanges.slice(start, end);
+    const patches = await readTrackedPatches(
+      cwd,
+      buildGitDiffArgs({
+        ignoreWhitespace,
+        extra: [
+          "--no-ext-diff",
+          "--no-textconv",
+          "--no-color",
+          "--find-renames",
+          "--src-prefix=a/",
+          "--dst-prefix=b/",
+          ...getCheckoutDiffRefArgs(refsForDiff),
+          "--",
+          ...literalChangePathspecs(batch),
+        ],
+      }),
+      PER_FILE_DIFF_MAX_BYTES,
+      TOTAL_DIFF_MAX_BYTES - totalBytes,
     );
-
-    for (const fileDiff of trackedDiffs) {
-      if (fileDiff.truncated) {
-        trackedPlaceholderByPath.set(fileDiff.path, {
+    for (const change of batch) {
+      const patch = patches.get(change.path);
+      if (!patch) continue;
+      if (patch.truncated) {
+        trackedPlaceholderByPath.set(change.path, {
           status: "too_large",
-          stat: trackedNumstatByPath.get(fileDiff.path) ?? null,
+          stat: trackedNumstatByPath.get(change.path) ?? null,
         });
-        continue;
+      } else {
+        texts.push(patch.text);
+        totalBytes += Buffer.byteLength(patch.text);
       }
-      const diffBytes = Buffer.byteLength(fileDiff.text, "utf8");
-      if (trackedDiffBytes + diffBytes > TOTAL_DIFF_MAX_BYTES) {
-        trackedPlaceholderByPath.set(fileDiff.path, {
-          status: "too_large",
-          stat: trackedNumstatByPath.get(fileDiff.path) ?? null,
-        });
-        continue;
-      }
-      trackedDiffBytes += diffBytes;
-      trackedDiffText += fileDiff.text;
     }
+    start = end;
   }
+  const trackedDiffText = texts.join("");
   appendDiff(trackedDiffText);
-
-  return {
-    trackedNumstatByPath,
-    trackedPlaceholderByPath,
-    trackedDiffText,
-  };
+  return { trackedNumstatByPath, trackedPlaceholderByPath, trackedDiffText };
 }
 
 async function resolveCheckoutDiffRefs(
@@ -3200,38 +3221,151 @@ async function resolveCheckoutDiffRefs(
   };
 }
 
+async function buildCheckoutDiffSummary(
+  cwd: string,
+  refs: CheckoutDiffRefs,
+  changes: CheckoutFileChange[],
+  ignoreWhitespace: boolean,
+): Promise<ParsedDiffFile[]> {
+  const stats = changes.some((change) => !change.isUntracked)
+    ? await getTrackedNumstatByPath(cwd, refs, ignoreWhitespace)
+    : new Map<string, FileStat>();
+  const files: ParsedDiffFile[] = [];
+  for (const change of changes) {
+    let stat = stats.get(change.path) ?? null;
+    let truncated = false;
+    if (change.isUntracked) {
+      try {
+        ({ stat, truncated } = await inspectUntrackedFile(cwd, change.path));
+      } catch (error) {
+        // A deleted untracked path can race the directory listing.
+        if ((error as NodeJS.ErrnoException).code === "ENOENT") continue;
+        throw error;
+      }
+    } else if (isWhitespaceOnlyTrackedChange({ change, stat, ignoreWhitespace })) {
+      continue;
+    }
+    let status: ParsedDiffFile["status"] = "ok";
+    if (stat?.isBinary) {
+      status = "binary";
+    } else if (truncated) {
+      status = "too_large";
+    }
+    files.push({
+      path: change.path,
+      ...(change.oldPath ? { oldPath: change.oldPath } : {}),
+      isNew: change.isNew,
+      isDeleted: change.isDeleted,
+      additions: stat?.additions ?? 0,
+      deletions: stat?.deletions ?? 0,
+      hunks: [],
+      status,
+    });
+  }
+  return files;
+}
+
+async function loadCheckoutDiffChanges(
+  cwd: string,
+  refs: CheckoutDiffRefs,
+  compare: CheckoutDiffCompare,
+): Promise<{ refsForDiff: CheckoutDiffRefs; changes: CheckoutFileChange[] }> {
+  const ignoreWhitespace = compare.ignoreWhitespace === true;
+  let refsForDiff = refs;
+  let changes: CheckoutFileChange[];
+  try {
+    changes = await listCheckoutFileChanges(cwd, refsForDiff, ignoreWhitespace);
+  } catch (error) {
+    if (!isUnbornHeadDiffError(error)) {
+      throw error;
+    }
+    refsForDiff = {
+      ...refs,
+      baseRef: EMPTY_TREE_OBJECT_ID,
+      diffArgs: refs.diffArgs?.map((arg) => (arg === "HEAD" ? EMPTY_TREE_OBJECT_ID : arg)),
+    };
+    changes = await listCheckoutFileChanges(cwd, refsForDiff, ignoreWhitespace);
+  }
+  if (compare.paths) {
+    const requested = new Set(compare.paths);
+    changes = changes.filter(
+      (change) =>
+        requested.has(change.path) ||
+        (change.oldPath !== undefined && requested.has(change.oldPath)),
+    );
+  }
+  changes.sort((a, b) => {
+    if (a.path === b.path) return 0;
+    return a.path < b.path ? -1 : 1;
+  });
+  return { refsForDiff, changes };
+}
+
+async function buildCheckoutSummaryResult(input: {
+  cwd: string;
+  compare: CheckoutDiffCompare;
+  refsForDiff: CheckoutDiffRefs;
+  changes: CheckoutFileChange[];
+  context?: CheckoutContext;
+}): Promise<CheckoutDiffResult> {
+  const { cwd, compare, refsForDiff, changes, context } = input;
+  const summary = buildCheckoutDiffSummary(
+    cwd,
+    refsForDiff,
+    changes,
+    compare.ignoreWhitespace === true,
+  );
+  if (compare.mode !== "uncommitted") return { diff: "", structured: await summary };
+  // HEAD -> worktree is intentionally computed separately: staging and then
+  // reverting a file to HEAD leaves two staging entries but no net file change.
+  const [structured, staged, unstaged] = await Promise.all([
+    summary,
+    getCheckoutDiff(cwd, { ...compare, mode: "staged" }, context),
+    getCheckoutDiff(cwd, { ...compare, mode: "unstaged" }, context),
+  ]);
+  return {
+    diff: "",
+    structured,
+    staging: { stagedFiles: staged.structured ?? [], unstagedFiles: unstaged.structured ?? [] },
+  };
+}
+
 export async function getCheckoutDiff(
   cwd: string,
   compare: CheckoutDiffCompare,
   context?: CheckoutContext,
 ): Promise<CheckoutDiffResult> {
   await requireGitRepo(cwd);
+  if (compare.paths?.length === 0) {
+    return {
+      diff: "",
+      ...(compare.detail === "summary" || compare.includeStructured ? { structured: [] } : {}),
+      ...(compare.detail === "summary" && compare.mode === "uncommitted"
+        ? { staging: { stagedFiles: [], unstagedFiles: [] } }
+        : {}),
+    };
+  }
 
   const refsForDiff = await resolveCheckoutDiffRefs(cwd, compare, context);
   if (!refsForDiff) {
-    return { diff: "" };
+    return compare.detail === "summary" ? { diff: "", structured: [] } : { diff: "" };
   }
 
   const ignoreWhitespace = compare.ignoreWhitespace === true;
-  let effectiveRefsForDiff = refsForDiff;
-  let changes: CheckoutFileChange[];
-  try {
-    changes = await listCheckoutFileChanges(cwd, effectiveRefsForDiff, ignoreWhitespace);
-  } catch (error) {
-    if (!isUnbornHeadDiffError(error)) {
-      throw error;
-    }
-    effectiveRefsForDiff = {
-      ...refsForDiff,
-      baseRef: EMPTY_TREE_OBJECT_ID,
-      diffArgs: refsForDiff.diffArgs?.map((arg) => (arg === "HEAD" ? EMPTY_TREE_OBJECT_ID : arg)),
-    };
-    changes = await listCheckoutFileChanges(cwd, effectiveRefsForDiff, ignoreWhitespace);
+  const { refsForDiff: effectiveRefsForDiff, changes } = await loadCheckoutDiffChanges(
+    cwd,
+    refsForDiff,
+    compare,
+  );
+  if (compare.detail === "summary") {
+    return buildCheckoutSummaryResult({
+      cwd,
+      compare,
+      refsForDiff: effectiveRefsForDiff,
+      changes,
+      context,
+    });
   }
-  changes.sort((a, b) => {
-    if (a.path === b.path) return 0;
-    return a.path < b.path ? -1 : 1;
-  });
   if (compare.includeStructured && changes.length > CHECKOUT_DIFF_MAX_FILES) {
     return { diff: "", structured: [], diffTooLarge: true };
   }

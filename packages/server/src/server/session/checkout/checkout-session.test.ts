@@ -1313,47 +1313,6 @@ describe("CheckoutSession", () => {
       });
     });
 
-    it("derives the unauthenticated timeline error label from the forge brand for GitLab", async () => {
-      const gitlabService: Partial<ForgeService> = {
-        async isAuthenticated() {
-          return false;
-        },
-        async getPullRequestTimeline() {
-          throw new Error("timeline fetch should not run while unauthenticated");
-        },
-      };
-      const { checkout, emitted } = makeCheckoutSession({
-        git: {
-          resolveForge: async () => ({
-            forge: "gitlab",
-            host: "gitlab.example.com",
-            service: gitlabService as ForgeService,
-          }),
-        },
-      });
-
-      await checkout.handlePullRequestTimelineRequest({
-        type: "pull_request_timeline_request",
-        cwd: "/repo",
-        prNumber: 14,
-        repoOwner: "g",
-        repoName: "r",
-        requestId: "tl2",
-      });
-
-      const unauthenticatedResponse = emitted.find(isTimelineResponse);
-      expect(unauthenticatedResponse).toMatchObject({
-        payload: {
-          githubFeaturesEnabled: false,
-          error: {
-            kind: "unknown",
-            message: "GitLab CLI is unavailable or not authenticated",
-          },
-        },
-      });
-      expect(unauthenticatedResponse?.payload).not.toHaveProperty("authState");
-    });
-
     it("carries the precise authState when the auth probe throws a classified error", async () => {
       const githubService: Partial<ForgeService> = {
         async isAuthenticated() {

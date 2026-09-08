@@ -1427,6 +1427,7 @@ export const QuickAskRequestSchema = z.object({
   }),
   selectedText: z.string().trim().min(1),
   question: z.string().trim().min(1),
+  sourceAgentId: z.string().trim().min(1).optional(),
 });
 
 export const DaemonGetStatusRequestSchema = z.object({
@@ -2210,6 +2211,8 @@ const CheckoutDiffCompareSchema = z.object({
   mode: z.enum(["uncommitted", "staged", "unstaged", "base"]),
   baseRef: z.string().optional(),
   ignoreWhitespace: z.boolean().optional(),
+  detail: z.enum(["summary", "full"]).optional(),
+  paths: z.array(z.string()).optional(),
 });
 
 export const CheckoutStatusRequestSchema = z.object({
@@ -3729,6 +3732,8 @@ export const ServerInfoStatusPayloadSchema = z
         checkoutDiscardChanges: z.boolean().optional(),
         // COMPAT(checkoutDiscardUnstagedChanges): preserves staged content when discarding from Changes.
         checkoutDiscardUnstagedChanges: z.boolean().optional(),
+        // COMPAT(checkoutDiffSummary): lightweight file lists and path-scoped diff subscriptions.
+        checkoutDiffSummary: z.boolean().optional(),
         // COMPAT(agentProfiles): added in v0.3.2, remove gate after 2027-02-11.
         // An older daemon parses its persisted config strictly, so writing
         // agentProfiles to one is silently dropped. The client hides the feature
@@ -5251,6 +5256,12 @@ const CheckoutDiffSubscriptionPayloadSchema = z.object({
   subscriptionId: z.string(),
   cwd: z.string(),
   files: z.array(ParsedDiffFileSchema),
+  staging: z
+    .object({
+      stagedFiles: z.array(ParsedDiffFileSchema),
+      unstagedFiles: z.array(ParsedDiffFileSchema),
+    })
+    .optional(),
   error: CheckoutErrorSchema.nullable(),
   // COMPAT(diffTooLarge): added in v0.2.4, keep optional until the daemon floor is v0.2.4.
   diffTooLarge: z.boolean().optional(),

@@ -15,6 +15,7 @@ export async function runQuickAsk(input: {
   source: QuickAskSource;
   selectedText: string;
   question: string;
+  sourceAgentId?: string;
 }): Promise<string> {
   const featureValues = input.source.features?.length
     ? Object.fromEntries(input.source.features.map((feature) => [feature.id, feature.value]))
@@ -30,5 +31,6 @@ export async function runQuickAsk(input: {
     },
     selectedText: input.selectedText,
     question: input.question,
+    ...(input.sourceAgentId ? { sourceAgentId: input.sourceAgentId } : {}),
   });
 }

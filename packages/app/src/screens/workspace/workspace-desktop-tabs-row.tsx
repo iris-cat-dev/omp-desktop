@@ -54,7 +54,7 @@ import {
 import { Shortcut } from "@/components/ui/shortcut";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useShortcutKeys } from "@/hooks/use-shortcut-keys";
-import { WORKSPACE_SECONDARY_HEADER_HEIGHT, useIsCompactFormFactor } from "@/constants/layout";
+import { WORKSPACE_SECONDARY_HEADER_HEIGHT } from "@/constants/layout";
 import { buttonControlHeight } from "@/components/ui/control-geometry";
 import { useWorkspaceTabLayout } from "@/screens/workspace/use-workspace-tab-layout";
 import { retainWorkspaceTabMeasuredWidth } from "@/screens/workspace/workspace-tab-layout";
@@ -654,7 +654,6 @@ function TabChip({
   const middleClickRef = useMiddleClickClose(
     useCallback(() => void onCloseTab(tab.tabId), [onCloseTab, tab.tabId]),
   );
-  const isCompact = useIsCompactFormFactor();
   const [hovered, setHovered] = useState(false);
   // Every pane's active tab uses the same label and icon emphasis. Pane focus remains visible
   // through the stronger chip fill, without making the active tab in a sibling pane look disabled.
@@ -665,7 +664,6 @@ function TabChip({
     isActiveFocused,
     isFilled: isActive || isHovered,
   });
-  const showCloseControl = showCloseButton && (isHovered || isNative || isCompact || isClosingTab);
   const closeButtonDragBlockers = isWeb
     ? ({
         onPointerDown: (event: { stopPropagation?: () => void }) => {
@@ -788,13 +786,7 @@ function TabChip({
         </Tooltip>
 
         {showCloseButton ? (
-          <View
-            pointerEvents={showCloseControl ? "box-none" : "none"}
-            style={[
-              styles.tabTrailingOverlay,
-              showCloseControl ? styles.tabTrailingOverlayShown : styles.tabTrailingOverlayHidden,
-            ]}
-          >
+          <View pointerEvents="box-none" style={styles.tabTrailingOverlay}>
             <TrailingActionScrim backdrop={chipBackdrop} />
             <Pressable
               {...(closeButtonDragBlockers as object | undefined)}
@@ -1609,12 +1601,6 @@ const styles = StyleSheet.create((theme) => ({
     justifyContent: "center",
     zIndex: 2,
     overflow: "hidden",
-  },
-  tabTrailingOverlayShown: {
-    opacity: 1,
-  },
-  tabTrailingOverlayHidden: {
-    opacity: 0,
   },
   tabCloseButton: {
     position: "absolute",

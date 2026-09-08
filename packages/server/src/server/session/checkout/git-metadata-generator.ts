@@ -61,8 +61,9 @@ const COMMIT_MESSAGE_SCHEMA = z.object({
   message: z
     .string()
     .min(1)
-    .max(72)
-    .describe("Concise git commit message, imperative mood, no trailing period."),
+    .describe(
+      "Complete git commit message: a concise subject, optionally followed by a blank line and a detailed body.",
+    ),
 });
 
 const PULL_REQUEST_SCHEMA = z.object({
@@ -145,10 +146,17 @@ export function createGitMetadataGenerator(deps: {
           diffOptions: { mode: "staged", includeStructured: true },
           maxPatchChars: MAX_COMMIT_PATCH_CHARS,
           contract:
-            "Write a concise git commit message for the changes below. Match the repository's recent commit style when examples are provided.",
+            "Write a git commit message for the changes below. Base every claim on the provided diff; do not invent motivation, documentation changes, translations, or test results. If the diff is truncated, describe only changes supported by the visible content.",
           styleConfigKey: "commitMessage",
-          styleDefault: "Concise, imperative mood, no trailing period.",
-          jsonFieldsHint: "Return JSON only with a single field 'message'.",
+          styleDefault: [
+            "Use a concise, imperative subject (aim for at most 72 characters, no trailing period) that summarizes the main behavioral change rather than listing implementation keywords.",
+            "Match the language, prefix/scope pattern, and capitalization of recent commit subjects when available; otherwise use Conventional Commits.",
+            "Follow the subject with a blank line and a body of '- ' bullet points describing the substantive changes. Group related edits, name important components when useful, and explain concrete behavior rather than saying 'improve UI' or 'ensure reliability'.",
+            "Usually include 2–6 bullets, but use fewer for small changes and omit the body for a truly trivial change. Do not pad the message or repeat the subject.",
+            "Recent examples show subject style only, not a requirement to omit the body.",
+          ].join("\n"),
+          jsonFieldsHint:
+            "Return JSON only with a single field 'message' containing the complete subject and body, with newlines encoded as \\n.",
           recentCommitSubjects,
         },
         diff,

@@ -96,6 +96,7 @@ export const ShieldCheck = StubIcon;
 export const ShieldOff = StubIcon;
 export const ShieldQuestionMark = StubIcon;
 export const Smartphone = StubIcon;
+export const Sparkles = StubIcon;
 export const Split = StubIcon;
 export const Square = StubIcon;
 export const SquarePen = StubIcon;

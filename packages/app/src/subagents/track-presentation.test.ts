@@ -37,13 +37,6 @@ describe("buildSubagentPillPresentation", () => {
 
   const pill = (rows: SubagentRow[]) => buildSubagentPillPresentation(i18n.t, rows);
 
-  it("counts the children that are working, not the fan-out", () => {
-    expect(pill([row({ id: "a" }), row({ id: "b", status: "running" })])).toEqual({
-      segments: [{ bucket: "running", text: "1 working" }],
-      accessibilityLabel: "1 working",
-    });
-  });
-
   it("counts every child in the state it reports", () => {
     expect(
       pill([
@@ -52,8 +45,11 @@ describe("buildSubagentPillPresentation", () => {
         row({ id: "c" }),
       ]),
     ).toEqual({
-      segments: [{ bucket: "running", text: "2 working" }],
-      accessibilityLabel: "2 working",
+      segments: [
+        { bucket: "running", text: "2 working" },
+        { bucket: "done", text: "1 completed" },
+      ],
+      accessibilityLabel: "2 working, 1 completed",
     });
   });
 
@@ -73,17 +69,10 @@ describe("buildSubagentPillPresentation", () => {
     });
   });
 
-  it("names what it opens once every child is done", () => {
+  it("keeps the completed count marked when every child is done", () => {
     expect(pill([row({ id: "a" }), row({ id: "b" })])).toEqual({
-      segments: [{ bucket: null, text: "2 subagents" }],
-      accessibilityLabel: "2 subagents",
-    });
-  });
-
-  it("keeps the singular for a lone child", () => {
-    expect(pill([row({ id: "a" })])).toEqual({
-      segments: [{ bucket: null, text: "1 subagent" }],
-      accessibilityLabel: "1 subagent",
+      segments: [{ bucket: "done", text: "2 completed" }],
+      accessibilityLabel: "2 completed",
     });
   });
 

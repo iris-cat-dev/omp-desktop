@@ -1,8 +1,9 @@
-import { readFile } from "node:fs/promises";
+import { lstat, open } from "node:fs/promises";
 import { resolve } from "node:path";
 import { highlightCode, isLanguageSupported, type HighlightToken } from "@omp-desktop/highlight";
 
 const MAX_DIFF_HIGHLIGHT_LINE_CHARS = 10_000;
+const MAX_FILE_HIGHLIGHT_BYTES = 1024 * 1024;
 
 export interface DiffLine {
   type: "add" | "remove" | "context" | "header";
@@ -20,6 +21,7 @@ export interface DiffHunk {
 
 export interface ParsedDiffFile {
   path: string;
+  oldPath?: string;
   isNew: boolean;
   isDeleted: boolean;
   additions: number;
@@ -47,18 +49,59 @@ function usesDiffPathPrefixes(oldPath: string, newPath: string): boolean {
   return oldPath.startsWith("a/") && newPath.startsWith("b/");
 }
 
+const GIT_PATH_ESCAPES: Record<string, number> = {
+  a: 7,
+  b: 8,
+  t: 9,
+  n: 10,
+  v: 11,
+  f: 12,
+  r: 13,
+  "\\": 92,
+  '"': 34,
+};
+
+function decodeGitPath(path: string): string {
+  if (!path.startsWith('"')) return path;
+  const bytes: number[] = [];
+  for (let index = 1; index < path.length - 1; index++) {
+    if (path[index] !== "\\") {
+      const codePoint = path.codePointAt(index)!;
+      bytes.push(...Buffer.from(String.fromCodePoint(codePoint)));
+      if (codePoint > 0xffff) index++;
+      continue;
+    }
+    const escaped = path[++index];
+    if (/[0-7]/.test(escaped)) {
+      const octal = path.slice(index).match(/^[0-7]{1,3}/)![0];
+      bytes.push(Number.parseInt(octal, 8));
+      index += octal.length - 1;
+    } else {
+      bytes.push(GIT_PATH_ESCAPES[escaped] ?? escaped.charCodeAt(0));
+    }
+  }
+  return Buffer.from(bytes).toString("utf8");
+}
+
 function extractPathFromMetadata(lines: string[], prefix: "--- " | "+++ "): string | null {
   const line = lines.find((candidate) => candidate.startsWith(prefix));
   if (!line) {
     return null;
   }
 
-  const path = line.slice(prefix.length).replace(/\t.*$/, "").trimEnd();
+  const path = decodeGitPath(line.slice(prefix.length).replace(/\t.*$/, ""));
   return path === "/dev/null" ? null : path;
 }
 
 function extractPathFromDiffHeader(lines: string[]): string {
   const firstLine = lines[0] ?? "";
+  const quotedPaths =
+    firstLine.match(/^("(?:[^"\\]|\\.)*") (.+)$/) ?? firstLine.match(/^(.+) ("(?:[^"\\]|\\.)*")$/);
+  if (quotedPaths) {
+    const oldPath = decodeGitPath(quotedPaths[1]);
+    const newPath = decodeGitPath(quotedPaths[2]);
+    return usesDiffPathPrefixes(oldPath, newPath) ? newPath.slice(2) : newPath;
+  }
   const prefixedPathMatch = firstLine.match(/^a\/(.+) b\/(.+)$/);
   if (prefixedPathMatch) {
     return prefixedPathMatch[2];
@@ -319,6 +362,31 @@ export function highlightDiffFromHunks(file: ParsedDiffFile): ParsedDiffFile {
   );
 }
 
+async function readHighlightFile(filePath: string): Promise<string | null> {
+  try {
+    if (!(await lstat(filePath)).isFile()) return null;
+    const handle = await open(filePath, "r");
+    try {
+      const metadata = await handle.stat();
+      if (!metadata.isFile() || metadata.size > MAX_FILE_HIGHLIGHT_BYTES) return null;
+      const buffer = Buffer.allocUnsafe(metadata.size + 1);
+      let size = 0;
+      while (size < buffer.length) {
+        const { bytesRead } = await handle.read(buffer, size, buffer.length - size, size);
+        if (bytesRead === 0) break;
+        size += bytesRead;
+      }
+      // A growing file is not a consistent snapshot; use hunk context instead.
+      return size < buffer.length ? buffer.toString("utf8", 0, size) : null;
+    } finally {
+      await handle.close();
+    }
+  } catch {
+    // Deleted/unreadable files fall back to the corresponding hunk side.
+    return null;
+  }
+}
+
 /**
  * Apply syntax highlighting to diff hunks using actual file content.
  * This provides better context for the parser.
@@ -332,27 +400,23 @@ export async function highlightDiffWithFileContent(
     return file;
   }
 
-  const reconstructedTokens = buildReconstructedTokenLookups(file);
-  let newTokensByLine = reconstructedTokens.newTokensByLine;
-  let oldTokensByLine = reconstructedTokens.oldTokensByLine;
-
-  if (typeof options.oldFileContent === "string") {
-    oldTokensByLine =
-      buildFullFileTokenLookup(options.oldFileContent, file.path) ?? oldTokensByLine;
+  let oldTokensByLine =
+    typeof options.oldFileContent === "string"
+      ? buildFullFileTokenLookup(options.oldFileContent, file.path)
+      : null;
+  let newContent = options.newFileContent;
+  if (newContent === undefined && !file.isDeleted) {
+    newContent = await readHighlightFile(resolve(cwd, file.path));
   }
-
-  if (typeof options.newFileContent === "string") {
-    newTokensByLine =
-      buildFullFileTokenLookup(options.newFileContent, file.path) ?? newTokensByLine;
-    return applyTokensToHunks(file, newTokensByLine, oldTokensByLine);
+  let newTokensByLine =
+    typeof newContent === "string" ? buildFullFileTokenLookup(newContent, file.path) : null;
+  if (!oldTokensByLine) {
+    const lines = reconstructOldFile(file.hunks);
+    oldTokensByLine = buildTokenLookup(lines, highlightCode(buildFileContent(lines), file.path));
   }
-
-  const filePath = resolve(cwd, file.path);
-  try {
-    const fileContent = await readFile(filePath, "utf-8");
-    newTokensByLine = buildFullFileTokenLookup(fileContent, file.path) ?? newTokensByLine;
-  } catch {
-    // If file read fails (deleted file, etc.), fall back to reconstructed new-side tokens.
+  if (!newTokensByLine) {
+    const lines = reconstructNewFile(file.hunks);
+    newTokensByLine = buildTokenLookup(lines, highlightCode(buildFileContent(lines), file.path));
   }
 
   return applyTokensToHunks(file, newTokensByLine, oldTokensByLine);

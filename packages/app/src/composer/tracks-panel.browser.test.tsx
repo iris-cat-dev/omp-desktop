@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ComposerTrackPill, ComposerTrackRow, type ComposerTrackPillSegment } from "./tracks";
 
 const SUBAGENT_SEGMENTS: ComposerTrackPillSegment[] = [{ bucket: null, text: "3 subagents" }];
+const ROBOT_ICON = <Text>Robot</Text>;
 
 // App sources compile against the classic JSX runtime, which expects React on the global.
 beforeEach(() => vi.stubGlobal("React", React));
@@ -196,22 +197,29 @@ describe("composer track pill status mark", () => {
     }
   });
 
-  it("draws every state it is given, so a running child survives a failed sibling", () => {
+  it("keeps every status count beside a leading icon, including mixed failures and running work", () => {
     const container = mount(
       <ComposerTrackPill
         testID="pill"
         segments={[
           { bucket: "failed", text: "1 failed" },
           { bucket: "running", text: "1 working" },
+          { bucket: "done", text: "2 completed" },
         ]}
         panelTitle="Subagents"
+        icon={ROBOT_ICON}
       >
         <Text>rows</Text>
       </ComposerTrackPill>,
     );
 
     const segments = [...container.querySelectorAll('[data-testid^="pill-segment-"]')];
-    expect(segments.map((segment) => segment.textContent)).toEqual(["1 failed", "1 working"]);
+    expect(segments.map((segment) => segment.textContent)).toEqual([
+      "1 failed",
+      "1 working",
+      "2 completed",
+    ]);
+    expect(container.querySelector('[data-testid="pill"]')?.textContent).toContain("Robot");
     // The ring is the only mark that animates, so its presence proves the second state survived.
     const animated = segments[1]?.querySelectorAll("*") ?? [];
     expect([...animated].filter((element) => element.getAnimations().length > 0)).toHaveLength(1);

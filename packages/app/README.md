@@ -52,3 +52,15 @@ Join our community of developers creating universal apps.
 ## Dictation debugging
 
 Set `EXPO_PUBLIC_ENABLE_AUDIO_DEBUG=1` before running `npx expo start` to render the in-app audio debug card. Pair it with the server-side `STT_DEBUG_AUDIO_DIR` flag so every dictation includes a copyable path to the saved raw audio file.
+
+## Ask about selection
+
+Select conversation text and choose **Ask** from the context menu. **Include context**
+(`关联上下文`) is checked each time the popover opens. When enabled, the server attaches
+the current conversation's user messages and assistant replies, keeping the most recent
+60,000 characters of message text. Tool output is excluded. Uncheck it to send only the
+selection and question without reading conversation history.
+
+Quick ask runs as a separate, temporary request; it does not resume or modify the source
+conversation. Context lookup failures are shown in the popover rather than silently
+answering without the requested context.

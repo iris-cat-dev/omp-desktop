@@ -97,6 +97,7 @@ export function DiffSurface(props: DiffSurfaceProps) {
     }
     const dependencies = [
       props.files,
+      props.fileStatus,
       props.displayPreferences.layout,
       props.displayPreferences.wrapLines,
       viewport.width,
@@ -112,6 +113,7 @@ export function DiffSurface(props: DiffSurfaceProps) {
     const reuseFrom = canReuse ? previous?.models : undefined;
     const next = buildDiffDocumentModel({
       files: props.files,
+      fileStatus: props.fileStatus,
       collapsedFilePaths: props.collapsedFilePaths,
       layout: props.displayPreferences.layout,
       wrapLines: props.displayPreferences.wrapLines,
@@ -137,6 +139,7 @@ export function DiffSurface(props: DiffSurfaceProps) {
     props.displayPreferences.layout,
     props.displayPreferences.wrapLines,
     props.files,
+    props.fileStatus,
     props.palette,
     reviewActions,
     t,

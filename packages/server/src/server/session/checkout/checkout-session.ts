@@ -55,7 +55,7 @@ import {
   stageChanges,
   unstageChanges,
 } from "../../../utils/checkout-git.js";
-import { runGitCommand } from "../../../utils/run-git-command.js";
+import { runGitCommand, runWithGitCommandPriority } from "../../../utils/run-git-command.js";
 import { expandTilde } from "../../../utils/path.js";
 import type { GitMetadataGenerator } from "./git-metadata-generator.js";
 
@@ -647,11 +647,9 @@ export class CheckoutSession {
   ): Promise<void> {
     const { cwd, operation, paths, requestId } = msg;
     try {
-      if (operation === "stage") {
-        await stageChanges(cwd, paths);
-      } else {
-        await unstageChanges(cwd, paths);
-      }
+      await runWithGitCommandPriority("high", () =>
+        operation === "stage" ? stageChanges(cwd, paths) : unstageChanges(cwd, paths),
+      );
       this.scheduleDiffRefresh(cwd);
       this.host.emit({
         type: "checkout.stage_changes.response",

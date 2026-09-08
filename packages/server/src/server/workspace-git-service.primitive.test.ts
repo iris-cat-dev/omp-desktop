@@ -1927,6 +1927,15 @@ describe("WorkspaceGitServiceImpl D2 read methods", () => {
     });
 
     try {
+      const summary = await service.getCheckoutDiff(repoDir, {
+        mode: "uncommitted",
+        detail: "summary",
+        includeStructured: true,
+      });
+      expect(summary.staging?.stagedFiles.map((file) => file.path)).toEqual(["staged.txt"]);
+      expect(summary.staging?.unstagedFiles.map((file) => file.path)).toEqual(["tracked.txt"]);
+      expect(summary.structured?.every((file) => file.hunks.length === 0)).toBe(true);
+
       const diff = await service.getCheckoutDiff(repoDir, {
         mode: "uncommitted",
         includeStructured: true,
@@ -1938,6 +1947,25 @@ describe("WorkspaceGitServiceImpl D2 read methods", () => {
         "staged.txt",
         "tracked.txt",
       ]);
+      expect(
+        diff.structured
+          ?.find((file) => file.path === "tracked.txt")
+          ?.hunks.flatMap((hunk) => hunk.lines),
+      ).toEqual(
+        expect.arrayContaining([expect.objectContaining({ type: "add", content: "after" })]),
+      );
+      const scoped = await service.getCheckoutDiff(repoDir, {
+        mode: "uncommitted",
+        includeStructured: true,
+        paths: ["tracked.txt"],
+      });
+      expect(scoped.structured?.map((file) => file.path)).toEqual(["tracked.txt"]);
+      const empty = await service.getCheckoutDiff(repoDir, {
+        mode: "uncommitted",
+        includeStructured: true,
+        paths: [],
+      });
+      expect(empty.structured).toEqual([]);
     } finally {
       service.dispose();
       rmSync(tempDir, { recursive: true, force: true });

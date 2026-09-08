@@ -11,6 +11,7 @@ import type { EditingTextInputHandle } from "@/components/ui/text-input";
 import { useToast } from "@/contexts/toast-context";
 import { useCheckoutGitActionsStore } from "@/git/actions-store";
 import { useSessionStore } from "@/stores/session-store";
+import { isWeb } from "@/constants/platform";
 
 interface CommitComposerProps {
   serverId: string;
@@ -25,6 +26,9 @@ export function CommitComposer({ serverId, cwd, branchName, hasChanges }: Commit
   const inputRef = useRef<EditingTextInputHandle>(null);
   const [message, setMessage] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isInputFocused, setIsInputFocused] = useState(false);
+  const handleInputFocus = useCallback(() => setIsInputFocused(true), []);
+  const handleInputBlur = useCallback(() => setIsInputFocused(false), []);
   const client = useSessionStore((state) => state.sessions[serverId]?.client);
   const generationSupported = useSessionStore(
     (state) =>
@@ -89,15 +93,18 @@ export function CommitComposer({ serverId, cwd, branchName, hasChanges }: Commit
           ref={inputRef}
           initialValue=""
           onChangeText={setMessage}
-          onSubmitEditing={handleCommit}
+          onFocus={handleInputFocus}
+          onBlur={handleInputBlur}
           placeholder={t("workspace.git.commitComposer.placeholder", {
             branch: branchName ?? t("workspace.git.diff.branchUnknown"),
           })}
           accessibilityLabel={t("workspace.git.commitComposer.placeholder", {
             branch: branchName ?? t("workspace.git.diff.branchUnknown"),
           })}
-          returnKeyType="done"
-          style={styles.messageInput}
+          multiline
+          submitBehavior="newline"
+          textAlignVertical="top"
+          style={[styles.messageInput, isInputFocused && styles.messageInputFocused]}
           testID="changes-commit-message"
         />
         <Tooltip delayDuration={300}>
@@ -151,14 +158,20 @@ const styles = StyleSheet.create((theme) => ({
   messageInput: {
     flex: 1,
     minWidth: 0,
-    height: 32,
+    height: 34,
+    paddingVertical: theme.spacing[2],
     paddingHorizontal: theme.spacing[2],
     borderWidth: 1,
-    borderColor: theme.colors.borderAccent,
+    borderColor: theme.colors.border,
+    outlineWidth: 0,
+    ...(isWeb ? { scrollbarWidth: "none" as const } : {}),
     borderRadius: theme.borderRadius.md,
     backgroundColor: theme.colors.surface1,
     color: theme.colors.foreground,
     fontSize: theme.fontSize.sm,
+  },
+  messageInputFocused: {
+    borderColor: theme.colors.borderAccent,
   },
   generateButton: {
     width: 34,

@@ -90,7 +90,7 @@ export function QuotedSelectionContextMenu({
 }: {
   children: ReactNode;
   onQuote: (text: string) => void;
-  onAsk: (selectedText: string, question: string) => Promise<string>;
+  onAsk: (selectedText: string, question: string, includeContext: boolean) => Promise<string>;
 }) {
   const { t } = useTranslation();
   const [selectedText, setSelectedText] = useState<string | null>(null);
@@ -125,9 +125,9 @@ export function QuotedSelectionContextMenu({
     setAskAnchorRect(null);
   }, []);
   const submitAsk = useCallback(
-    (question: string) => {
+    (question: string, includeContext: boolean) => {
       if (!askText) return Promise.reject(new Error(t("quickAsk.noSelection")));
-      return onAsk(askText, question);
+      return onAsk(askText, question, includeContext);
     },
     [askText, onAsk, t],
   );

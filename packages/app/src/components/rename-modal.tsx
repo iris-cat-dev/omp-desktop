@@ -40,6 +40,9 @@ export function AdaptiveRenameModal({
   const [draft, setDraft] = useState(initialValue);
   const [error, setError] = useState<string | null>(null);
   const [isPending, setIsPending] = useState(false);
+  const [isInputFocused, setIsInputFocused] = useState(false);
+  const handleInputFocus = useCallback(() => setIsInputFocused(true), []);
+  const handleInputBlur = useCallback(() => setIsInputFocused(false), []);
   const inputRef = useRef<EditingTextInputHandle>(null);
 
   useEffect(() => {
@@ -128,13 +131,15 @@ export function AdaptiveRenameModal({
           ref={inputRef}
           initialValue={initialValue}
           onChangeText={handleChange}
+          onFocus={handleInputFocus}
+          onBlur={handleInputBlur}
           placeholder={placeholder}
           autoCapitalize="none"
           autoCorrect={false}
           editable={!isPending}
           maxLength={maxLength}
           onSubmitEditing={handleSubmitVoid}
-          style={styles.input}
+          style={[styles.input, isInputFocused && styles.inputFocused]}
           testID={inputTestID}
         />
         {error ? (
@@ -182,7 +187,11 @@ const styles = StyleSheet.create((theme) => ({
     borderRadius: theme.borderRadius.md,
     borderWidth: 1,
     borderColor: theme.colors.border,
+    outlineWidth: 0,
     fontSize: theme.fontSize.base,
+  },
+  inputFocused: {
+    borderColor: theme.colors.borderAccent,
   },
   errorText: {
     color: theme.colors.palette.red[300],

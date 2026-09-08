@@ -69,6 +69,10 @@ export interface GitCommandOptions {
   timeout?: number;
   maxOutputBytes?: number;
   acceptExitCodes?: number[];
+  /** Finite input; the scheduler slot remains held until the child exits. */
+  stdin?: string | Buffer;
+  /** Consume stdout without retaining it. maxOutputBytes still limits bytes delivered. */
+  onStdout?: (chunk: Buffer) => void;
 }
 
 export interface GitCommandResult {
@@ -405,7 +409,7 @@ function runScheduledGitCommand(
           cwd: options.cwd,
           envOverlay,
           shell: false,
-          stdio: ["ignore", "pipe", "pipe"],
+          stdio: [options.stdin === undefined ? "ignore" : "pipe", "pipe", "pipe"],
         });
         spawnGitCommandTrace(commandTrace, child.pid);
       } catch (error) {
@@ -443,14 +447,31 @@ function runScheduledGitCommand(
         }
 
         if (buffer.length > remainingBytes) {
-          stdoutChunks.push(buffer.subarray(0, remainingBytes));
+          if (options.onStdout) {
+            try {
+              options.onStdout(buffer.subarray(0, remainingBytes));
+            } catch (error) {
+              processError = error instanceof Error ? error : new Error(String(error));
+            }
+          } else {
+            stdoutChunks.push(buffer.subarray(0, remainingBytes));
+          }
           stdoutBytes += remainingBytes;
           truncated = true;
           child.kill("SIGKILL");
           return;
         }
 
-        stdoutChunks.push(buffer);
+        if (options.onStdout) {
+          try {
+            options.onStdout(buffer);
+          } catch (error) {
+            processError = error instanceof Error ? error : new Error(String(error));
+            child.kill("SIGKILL");
+          }
+        } else {
+          stdoutChunks.push(buffer);
+        }
         stdoutBytes += buffer.length;
       });
 
@@ -485,6 +506,16 @@ function runScheduledGitCommand(
       });
 
       child.on("exit", markProcessExited);
+      if (options.stdin !== undefined && child.stdin) {
+        child.stdin.on("error", (error: NodeJS.ErrnoException) => {
+          // Early child exit can close the pipe before the finite input is written.
+          // Its exit status remains authoritative; all other write errors are fatal.
+          if (error.code === "EPIPE") return;
+          processError = error;
+          child.kill("SIGKILL");
+        });
+        child.stdin.end(options.stdin);
+      }
 
       child.on("close", (exitCode, signal) => {
         markProcessExited(exitCode, signal);

@@ -3,6 +3,7 @@ import type { SubscribeCheckoutDiffRequest, SessionOutboundMessage } from "./mes
 import type { WorkspaceGitRuntimeSnapshot, WorkspaceGitService } from "./workspace-git-service.js";
 import { expandTilde } from "../utils/path.js";
 import { toCheckoutError } from "./checkout-git-utils.js";
+import { runWithGitCommandPriority } from "../utils/run-git-command.js";
 
 const CHECKOUT_DIFF_WATCH_DEBOUNCE_MS = 150;
 
@@ -45,6 +46,7 @@ interface CheckoutDiffWatchTarget {
   refreshPromise: Promise<void> | null;
   refreshQueued: boolean;
   refreshQueuedForce: boolean;
+  revision: number;
   latestPayload: CheckoutDiffSnapshotPayload | null;
   latestFingerprint: string | null;
   openPromise: Promise<void> | null;
@@ -81,7 +83,9 @@ export class CheckoutDiffManager {
     const compare = this.normalizeCompare(params.compare);
     const target = this.ensureTarget(cwd, compare);
     target.listeners.add(listener);
-    target.openPromise ??= this.openTarget(target);
+    target.openPromise ??= this.openTarget(target).then(() =>
+      this.refreshTarget(target, false, false),
+    );
 
     let isSubscribed = true;
     const unsubscribe = () => {
@@ -119,7 +123,13 @@ export class CheckoutDiffManager {
       if (target.cwd !== resolvedCwd && target.diffCwd !== resolvedCwd) {
         continue;
       }
-      this.scheduleTargetRefresh(target);
+      target.revision += 1;
+      if (target.debounceTimer) {
+        clearTimeout(target.debounceTimer);
+        target.debounceTimer = null;
+      }
+      target.pendingDebounceForce = false;
+      void this.refreshTarget(target, true);
     }
   }
 
@@ -146,14 +156,15 @@ export class CheckoutDiffManager {
   }
 
   private normalizeCompare(compare: CheckoutDiffCompareInput): CheckoutDiffCompareInput {
-    const ignoreWhitespace = compare.ignoreWhitespace === true;
-    if (compare.mode !== "base") {
-      return { mode: compare.mode, ignoreWhitespace };
-    }
-    const trimmedBaseRef = compare.baseRef?.trim();
-    return trimmedBaseRef
-      ? { mode: "base", baseRef: trimmedBaseRef, ignoreWhitespace }
-      : { mode: "base", ignoreWhitespace };
+    return {
+      mode: compare.mode,
+      ignoreWhitespace: compare.ignoreWhitespace === true,
+      ...(compare.mode === "base" && compare.baseRef?.trim()
+        ? { baseRef: compare.baseRef.trim() }
+        : {}),
+      ...(compare.detail === "summary" ? { detail: "summary" as const } : {}),
+      ...(compare.paths !== undefined ? { paths: [...new Set(compare.paths)].sort() } : {}),
+    };
   }
 
   private buildTargetKey(cwd: string, compare: CheckoutDiffCompareInput): string {
@@ -162,6 +173,8 @@ export class CheckoutDiffManager {
       compare.mode,
       compare.mode === "base" ? (compare.baseRef ?? "") : "",
       compare.ignoreWhitespace === true,
+      compare.detail ?? "full",
+      compare.paths ?? null,
     ]);
   }
 
@@ -232,6 +245,7 @@ export class CheckoutDiffManager {
   }
 
   private scheduleTargetRefresh(target: CheckoutDiffWatchTarget, force = true): void {
+    target.revision += 1;
     target.pendingDebounceForce ||= force;
     if (target.debounceTimer) {
       clearTimeout(target.debounceTimer);
@@ -251,18 +265,20 @@ export class CheckoutDiffManager {
   ): Promise<CheckoutDiffSnapshotPayload> {
     const diffCwd = options?.diffCwd ?? cwd;
     try {
-      const diffResult = await this.workspaceGitService.getCheckoutDiff(
-        diffCwd,
-        {
-          mode: compare.mode,
-          baseRef: compare.baseRef,
-          ignoreWhitespace: compare.ignoreWhitespace,
-          includeStructured: true,
-        },
-        options?.force
-          ? { force: true, reason: options.reason ?? "checkout-diff-refresh" }
-          : undefined,
-      );
+      const load = () =>
+        this.workspaceGitService.getCheckoutDiff(
+          diffCwd,
+          {
+            ...compare,
+            includeStructured: true,
+          },
+          options?.force
+            ? { force: true, reason: options.reason ?? "checkout-diff-refresh" }
+            : undefined,
+        );
+      const diffResult = await (compare.detail === "summary"
+        ? runWithGitCommandPriority("high", load)
+        : load());
       if (diffResult.diffTooLarge) {
         return {
           cwd,
@@ -279,6 +295,7 @@ export class CheckoutDiffManager {
       return {
         cwd,
         files,
+        ...(diffResult.staging ? { staging: diffResult.staging } : {}),
         error: null,
       };
     } catch (error) {
@@ -290,11 +307,15 @@ export class CheckoutDiffManager {
     }
   }
 
-  private async refreshTarget(target: CheckoutDiffWatchTarget, force: boolean): Promise<void> {
+  private async refreshTarget(
+    target: CheckoutDiffWatchTarget,
+    force: boolean,
+    notify = true,
+  ): Promise<void> {
     if (target.refreshPromise) {
       target.refreshQueued = true;
       target.refreshQueuedForce ||= force;
-      return;
+      return target.refreshPromise;
     }
 
     target.refreshPromise = (async () => {
@@ -302,17 +323,35 @@ export class CheckoutDiffManager {
       do {
         target.refreshQueued = false;
         target.refreshQueuedForce = false;
+        const revision = target.revision;
         const snapshot = await this.computeCheckoutDiffSnapshot(target.cwd, target.compare, {
           diffCwd: target.diffCwd,
           force: currentForce,
           ...(currentForce ? { reason: "working-tree-watch" } : {}),
         });
+        if (target.listeners.size === 0) {
+          break;
+        }
+        // Never publish a snapshot read across a newer edit/mutation. This also
+        // covers initial subscription reads, before their response is returned.
+        if (revision !== target.revision) {
+          if (target.debounceTimer) {
+            clearTimeout(target.debounceTimer);
+            target.debounceTimer = null;
+          }
+          target.pendingDebounceForce = false;
+          target.refreshQueued = true;
+          currentForce = true;
+          continue;
+        }
         target.latestPayload = snapshot;
         const fingerprint = JSON.stringify(snapshot);
         if (fingerprint !== target.latestFingerprint) {
           target.latestFingerprint = fingerprint;
-          for (const listener of target.listeners) {
-            listener(snapshot);
+          if (notify) {
+            for (const listener of target.listeners) {
+              listener(snapshot);
+            }
           }
         }
         currentForce = target.refreshQueuedForce;
@@ -350,6 +389,7 @@ export class CheckoutDiffManager {
       refreshQueued: false,
       refreshQueuedForce: false,
       latestPayload: null,
+      revision: 0,
       latestFingerprint: null,
       openPromise: null,
     };

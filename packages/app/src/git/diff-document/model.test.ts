@@ -66,6 +66,40 @@ function input(overrides: Partial<BuildDiffDocumentModelInput> = {}): BuildDiffD
 }
 
 describe("diff document model", () => {
+  it("keeps summary headers while collapsed and replaces pending bodies with real hunks", () => {
+    const completeFile = file();
+    const summary = { ...completeFile, hunks: [] };
+    const files = [summary];
+    const fileStatus = { [summary.path]: "Loading" };
+    const collapsed = buildDiffDocumentModel(
+      input({
+        files,
+        fileStatus,
+        collapsedFilePaths: new Set([summary.path]),
+      }),
+    );
+    expect(collapsed.files.map((entry) => entry.path)).toEqual([summary.path]);
+    expect(collapsed.rows).toEqual([]);
+    const pending = buildDiffDocumentModel(input({ files, fileStatus, reuseFrom: [collapsed] }));
+    expect(pending.rows).toEqual([expect.objectContaining({ kind: "status", label: "Loading" })]);
+    const failed = buildDiffDocumentModel(
+      input({
+        files,
+        fileStatus: { [summary.path]: "Permission denied" },
+        reuseFrom: [pending],
+      }),
+    );
+    expect(failed.rows).toEqual([
+      expect.objectContaining({ kind: "status", label: "Permission denied" }),
+    ]);
+    const loaded = buildDiffDocumentModel(input({ files: [completeFile], reuseFrom: [failed] }));
+    expect(loaded.rows.every((row) => row.kind === "line")).toBe(true);
+    const cells = loaded.rows.flatMap((row) => (row.kind === "line" ? row.cells : []));
+    expect(cells.flatMap((cell) => (cell ? [cell.content] : []))).toContain(
+      "const newValue = 'é';",
+    );
+  });
+
   it("does not imperatively scroll for a no-op relayout", () => {
     expect(shouldApplyRelayoutScroll(320, 320)).toBe(false);
     expect(shouldApplyRelayoutScroll(320, 320.4)).toBe(false);

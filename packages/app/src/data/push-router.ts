@@ -44,6 +44,8 @@ interface CheckoutDiffCompare {
   mode: CheckoutDiffMode;
   baseRef?: string;
   ignoreWhitespace?: boolean;
+  detail?: "summary" | "full";
+  paths?: string[];
 }
 
 interface CheckoutDiffRoute {
@@ -485,6 +487,7 @@ function applyCheckoutDiffUpdate(input: {
       cwd: input.message.payload.cwd,
       files: orderCheckoutDiffFiles(input.message.payload.files),
       error: input.message.payload.error,
+      staging: input.message.payload.staging,
       ...(input.message.payload.diffTooLarge !== undefined
         ? { diffTooLarge: input.message.payload.diffTooLarge }
         : {}),
@@ -508,6 +511,7 @@ function applyCheckoutDiffSubscribeResponse(input: {
       cwd: input.message.payload.cwd,
       files: orderCheckoutDiffFiles(input.message.payload.files),
       error: input.message.payload.error,
+      staging: input.message.payload.staging,
       ...(input.message.payload.diffTooLarge !== undefined
         ? { diffTooLarge: input.message.payload.diffTooLarge }
         : {}),
@@ -736,6 +740,8 @@ function readCheckoutDiffCompare(value: unknown): CheckoutDiffCompare | null {
   const mode = value.mode;
   const baseRef = value.baseRef;
   const ignoreWhitespace = value.ignoreWhitespace;
+  const detail = value.detail;
+  const paths = value.paths;
   if (mode !== "uncommitted" && mode !== "staged" && mode !== "unstaged" && mode !== "base") {
     return null;
   }
@@ -745,10 +751,18 @@ function readCheckoutDiffCompare(value: unknown): CheckoutDiffCompare | null {
   if (ignoreWhitespace !== undefined && typeof ignoreWhitespace !== "boolean") {
     return null;
   }
+  if (detail !== undefined && detail !== "summary" && detail !== "full") return null;
+  if (
+    paths !== undefined &&
+    (!Array.isArray(paths) || !paths.every((path) => typeof path === "string"))
+  )
+    return null;
   return {
     mode,
     ...(baseRef ? { baseRef } : {}),
     ...(ignoreWhitespace !== undefined ? { ignoreWhitespace } : {}),
+    ...(detail !== undefined ? { detail } : {}),
+    ...(paths !== undefined ? { paths: paths as string[] } : {}),
   };
 }
 
@@ -762,7 +776,9 @@ function areCheckoutDiffRoutesEqual(
     left.cwd === right.cwd &&
     left.compare.mode === right.compare.mode &&
     left.compare.baseRef === right.compare.baseRef &&
-    left.compare.ignoreWhitespace === right.compare.ignoreWhitespace
+    left.compare.ignoreWhitespace === right.compare.ignoreWhitespace &&
+    left.compare.detail === right.compare.detail &&
+    JSON.stringify(left.compare.paths) === JSON.stringify(right.compare.paths)
   );
 }
 
@@ -773,7 +789,12 @@ function isCheckoutDiffQueryKeyForRoute(queryKey: QueryKey, route: CheckoutDiffR
     queryKey[2] === route.cwd &&
     queryKey[3] === route.compare.mode &&
     queryKey[4] === (route.compare.baseRef ?? "") &&
-    queryKey[5] === (route.compare.ignoreWhitespace === true)
+    queryKey[5] === (route.compare.ignoreWhitespace === true) &&
+    queryKey[6] === (route.compare.detail ?? "full") &&
+    JSON.stringify(queryKey[7]) ===
+      JSON.stringify(
+        route.compare.paths === undefined ? null : [...new Set(route.compare.paths)].sort(),
+      )
   );
 }
 
