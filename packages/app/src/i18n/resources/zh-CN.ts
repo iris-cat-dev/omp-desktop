@@ -421,11 +421,8 @@ export const zhCN: TranslationResources = {
       copyCode: "复制代码",
       copyTurn: "复制回合",
       copyMessage: "复制消息",
-      forkMenu: "分叉消息",
-      forkInNewTab: "分叉到新标签页",
       forkInNewWorkspace: "分叉到新工作区",
       forkUnavailable: "请更新主机以使用此功能。",
-      forkMissingWorkspace: "此 Agent 不在工作区中。",
       forkFailed: "分叉聊天失败",
       openFile: "打开文件",
       copied: "已复制",
@@ -1254,8 +1251,6 @@ export const zhCN: TranslationResources = {
       actions: {
         menu: "项目操作",
         openSettings: "打开项目设置",
-        openNewWindow: "在新窗口中打开",
-        openNewWindowFailed: "无法打开新窗口",
         openFolder: "打开目录",
         openFolderFailed: "无法打开文件夹",
         remove: "移除项目",
@@ -2061,6 +2056,12 @@ export const zhCN: TranslationResources = {
       fallbackHint: "如果不可用，OMP Desktop 会改用其他可用模型",
       docs: "文档",
       saveError: "无法更新元数据生成设置",
+    },
+    startup: {
+      title: "启动",
+      launchAtLogin: "开机自启",
+      launchAtLoginHint: "登录系统后自动启动 OMP Desktop",
+      unsupportedHint: "仅支持 macOS 和 Windows",
     },
     general: {
       title: "通用",

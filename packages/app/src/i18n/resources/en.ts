@@ -421,11 +421,8 @@ export const en = {
       copyCode: "Copy code",
       copyTurn: "Copy turn",
       copyMessage: "Copy message",
-      forkMenu: "Fork chat from here",
-      forkInNewTab: "Fork in a new tab",
       forkInNewWorkspace: "Fork in a new workspace",
       forkUnavailable: "Update the host to use this.",
-      forkMissingWorkspace: "This agent is not in a workspace.",
       forkFailed: "Failed to fork chat",
       openFile: "Open file",
       copied: "Copied",
@@ -1273,8 +1270,6 @@ export const en = {
       actions: {
         menu: "Project actions",
         openSettings: "Open project settings",
-        openNewWindow: "Open in new window",
-        openNewWindowFailed: "Couldn't open a new window",
         openFolder: "Open in file manager",
         openFolderFailed: "Couldn't open folder",
         remove: "Remove project",
@@ -2150,6 +2145,12 @@ export const en = {
       fallbackHint: "If it is unavailable, OMP Desktop falls back to another available model",
       docs: "Docs",
       saveError: "Unable to update metadata generation",
+    },
+    startup: {
+      title: "Startup",
+      launchAtLogin: "Launch at login",
+      launchAtLoginHint: "Start OMP Desktop automatically when you sign in",
+      unsupportedHint: "Available on macOS and Windows",
     },
     general: {
       title: "General",

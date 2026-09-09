@@ -397,11 +397,8 @@ export const ko: TranslationResources = {
       copyCode: "코드 복사",
       copyTurn: "턴 복사",
       copyMessage: "메시지 복사",
-      forkMenu: "여기에서 채팅 분기",
-      forkInNewTab: "새 탭으로 분기",
       forkInNewWorkspace: "새 워크스페이스로 분기",
       forkUnavailable: "이를 사용하려면 호스트를 업데이트하세요.",
-      forkMissingWorkspace: "이 에이전트는 워크스페이스에 속해 있지 않습니다.",
       forkFailed: "채팅을 분기하지 못했습니다.",
       openFile: "파일 열기",
       copied: "복사됨",
@@ -1244,8 +1241,6 @@ export const ko: TranslationResources = {
       actions: {
         menu: "프로젝트 작업",
         openSettings: "프로젝트 설정 열기",
-        openNewWindow: "새 창에서 열기",
-        openNewWindowFailed: "새 창을 열 수 없습니다",
         openFolder: "파일 관리자에서 열기",
         openFolderFailed: "폴더를 열 수 없습니다.",
         remove: "프로젝트 제거",
@@ -2067,6 +2062,12 @@ export const ko: TranslationResources = {
       fallbackHint: "사용할 수 없으면 OMP Desktop가 다른 사용 가능한 모델을 사용합니다",
       docs: "문서",
       saveError: "메타데이터 생성을 업데이트할 수 없습니다",
+    },
+    startup: {
+      title: "시작",
+      launchAtLogin: "로그인 시 실행",
+      launchAtLoginHint: "로그인할 때 OMP Desktop을 자동으로 실행합니다",
+      unsupportedHint: "macOS 및 Windows에서 사용할 수 있습니다",
     },
     general: {
       title: "일반",

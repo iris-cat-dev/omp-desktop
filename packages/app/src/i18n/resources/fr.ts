@@ -400,11 +400,8 @@ export const fr: TranslationResources = {
       copyCode: "Copier le code",
       copyTurn: "Copier le tour",
       copyMessage: "Copier le message",
-      forkMenu: "Dupliquer le message",
-      forkInNewTab: "Dupliquer dans un nouvel onglet",
       forkInNewWorkspace: "Dupliquer dans un nouvel espace de travail",
       forkUnavailable: "Mettez l'hôte à jour pour utiliser ceci.",
-      forkMissingWorkspace: "Cet agent n'est pas dans un espace de travail.",
       forkFailed: "Impossible de dupliquer le chat",
       openFile: "Ouvrir le fichier",
       copied: "Copié",
@@ -1271,8 +1268,6 @@ export const fr: TranslationResources = {
       actions: {
         menu: "Actions du projet",
         openSettings: "Ouvrir les paramètres du projet",
-        openNewWindow: "Open in new window",
-        openNewWindowFailed: "Couldn't open a new window",
         openFolder: "Open in file manager",
         openFolderFailed: "Couldn't open folder",
         remove: "Supprimer le projet",
@@ -2107,6 +2102,12 @@ export const fr: TranslationResources = {
       fallbackHint: "S’il est indisponible, OMP Desktop utilise un autre modèle disponible",
       docs: "Documentation",
       saveError: "Impossible de mettre à jour la génération de métadonnées",
+    },
+    startup: {
+      title: "Démarrage",
+      launchAtLogin: "Ouvrir à la connexion",
+      launchAtLoginHint: "Lance automatiquement OMP Desktop à la connexion",
+      unsupportedHint: "Disponible sur macOS et Windows",
     },
     general: {
       title: "Général",

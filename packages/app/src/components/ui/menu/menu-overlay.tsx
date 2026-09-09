@@ -228,6 +228,7 @@ export interface AnchoredSurfaceProps {
   fullWidth?: boolean;
   horizontalPadding?: number;
   scrollable?: boolean;
+  positionOffset?: { x: number; y: number };
   /** Bump when the rendered content changes identity, so the height snapshot is released. */
   revision?: string | number;
   /** A submenu sits inside its parent's overlay and must not paint a second backdrop. */
@@ -263,6 +264,7 @@ export function AnchoredSurface({
   fullWidth = false,
   horizontalPadding = 16,
   scrollable = false,
+  positionOffset,
   revision,
   backdrop = true,
   onPointerEnter,
@@ -316,8 +318,8 @@ export function AnchoredSurface({
       resolvedWidthStyle,
       {
         position: "absolute" as const,
-        top: position?.y ?? -9999,
-        left: fullWidth ? horizontalPadding : (position?.x ?? -9999),
+        top: (position?.y ?? -9999) + (positionOffset?.y ?? 0),
+        left: (fullWidth ? horizontalPadding : (position?.x ?? -9999)) + (positionOffset?.x ?? 0),
         transformOrigin: getTransformOrigin(actualPlacement, align),
       },
     ];
@@ -329,6 +331,8 @@ export function AnchoredSurface({
     maxWidth,
     position?.x,
     position?.y,
+    positionOffset?.x,
+    positionOffset?.y,
     actualPlacement,
     align,
   ]);

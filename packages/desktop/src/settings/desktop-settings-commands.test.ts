@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { DEFAULT_DESKTOP_SETTINGS, type DesktopSettingsStore } from "./desktop-settings";
 import { createDesktopSettingsCommandHandlers } from "./desktop-settings-commands";
+import type { LaunchAtLoginController } from "./launch-at-login";
 
 function createStoreMock(): DesktopSettingsStore {
   return {
@@ -21,10 +22,20 @@ function createStoreMock(): DesktopSettingsStore {
   };
 }
 
+function createLaunchAtLoginControllerMock(): LaunchAtLoginController {
+  return {
+    get: vi.fn(() => ({ enabled: false, supported: true })),
+    set: vi.fn((enabled) => ({ enabled, supported: true })),
+  };
+}
+
 describe("desktop-settings-commands", () => {
   it("exposes get and patch handlers through the desktop command bus shape", async () => {
     const store = createStoreMock();
-    const handlers = createDesktopSettingsCommandHandlers({ settingsStore: store });
+    const handlers = createDesktopSettingsCommandHandlers({
+      settingsStore: store,
+      launchAtLoginController: createLaunchAtLoginControllerMock(),
+    });
 
     await expect(handlers.get_desktop_settings()).resolves.toEqual(DEFAULT_DESKTOP_SETTINGS);
     await expect(
@@ -44,7 +55,10 @@ describe("desktop-settings-commands", () => {
 
   it("accepts legacy renderer settings migration payloads", async () => {
     const store = createStoreMock();
-    const handlers = createDesktopSettingsCommandHandlers({ settingsStore: store });
+    const handlers = createDesktopSettingsCommandHandlers({
+      settingsStore: store,
+      launchAtLoginController: createLaunchAtLoginControllerMock(),
+    });
 
     const result = await handlers.migrate_legacy_desktop_settings({
       releaseChannel: "beta",
@@ -63,5 +77,21 @@ describe("desktop-settings-commands", () => {
       releaseChannel: "beta",
       manageBuiltInDaemon: false,
     });
+  });
+
+  it("reads and updates launch-at-login through the command bus", () => {
+    const launchAtLoginController = createLaunchAtLoginControllerMock();
+    const handlers = createDesktopSettingsCommandHandlers({
+      settingsStore: createStoreMock(),
+      launchAtLoginController,
+    });
+
+    expect(handlers.get_launch_at_login()).toEqual({ enabled: false, supported: true });
+    expect(handlers.set_launch_at_login({ enabled: true })).toEqual({
+      enabled: true,
+      supported: true,
+    });
+    expect(launchAtLoginController.set).toHaveBeenCalledWith(true);
+    expect(() => handlers.set_launch_at_login({ enabled: "true" })).toThrow(TypeError);
   });
 });

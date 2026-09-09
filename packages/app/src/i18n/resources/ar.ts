@@ -396,11 +396,8 @@ export const ar: TranslationResources = {
       copyCode: "نسخ الرمز",
       copyTurn: "نسخ بدوره",
       copyMessage: "انسخ الرسالة",
-      forkMenu: "تفريع الرسالة",
-      forkInNewTab: "تفريع في تبويب جديد",
       forkInNewWorkspace: "تفريع في مساحة عمل جديدة",
       forkUnavailable: "حدّث المضيف لاستخدام هذا.",
-      forkMissingWorkspace: "هذا الوكيل ليس في مساحة عمل.",
       forkFailed: "فشل تفريع المحادثة",
       openFile: "افتح الملف",
       copied: "منقول",
@@ -1236,8 +1233,6 @@ export const ar: TranslationResources = {
       actions: {
         menu: "إجراءات المشروع",
         openSettings: "افتح إعدادات المشروع",
-        openNewWindow: "Open in new window",
-        openNewWindowFailed: "Couldn't open a new window",
         openFolder: "Open in file manager",
         openFolderFailed: "Couldn't open folder",
         remove: "إزالة المشروع",
@@ -2055,6 +2050,12 @@ export const ar: TranslationResources = {
       fallbackHint: "إذا لم يكن متاحًا، يستخدم OMP Desktop نموذجًا آخر متاحًا",
       docs: "الوثائق",
       saveError: "تعذر تحديث إنشاء البيانات الوصفية",
+    },
+    startup: {
+      title: "بدء التشغيل",
+      launchAtLogin: "التشغيل عند تسجيل الدخول",
+      launchAtLoginHint: "تشغيل OMP Desktop تلقائيًا عند تسجيل الدخول",
+      unsupportedHint: "متاح على macOS وWindows",
     },
     general: {
       title: "عام",

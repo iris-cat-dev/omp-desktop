@@ -399,11 +399,8 @@ export const es: TranslationResources = {
       copyCode: "Copiar código",
       copyTurn: "Copiar turno",
       copyMessage: "Copiar mensaje",
-      forkMenu: "Bifurcar mensaje",
-      forkInNewTab: "Bifurcar en una pestaña nueva",
       forkInNewWorkspace: "Bifurcar en un espacio de trabajo nuevo",
       forkUnavailable: "Actualiza el host para usar esto.",
-      forkMissingWorkspace: "Este agente no está en un espacio de trabajo.",
       forkFailed: "No se pudo bifurcar el chat",
       openFile: "Abrir archivo",
       copied: "Copiado",
@@ -1272,8 +1269,6 @@ export const es: TranslationResources = {
       actions: {
         menu: "Acciones del proyecto",
         openSettings: "Abrir la configuración del proyecto",
-        openNewWindow: "Open in new window",
-        openNewWindowFailed: "Couldn't open a new window",
         openFolder: "Open in file manager",
         openFolderFailed: "Couldn't open folder",
         remove: "Eliminar proyecto",
@@ -2103,6 +2098,12 @@ export const es: TranslationResources = {
       fallbackHint: "Si no está disponible, OMP Desktop usa otro modelo disponible",
       docs: "Documentación",
       saveError: "No se pudo actualizar la generación de metadatos",
+    },
+    startup: {
+      title: "Inicio",
+      launchAtLogin: "Abrir al iniciar sesión",
+      launchAtLoginHint: "Inicia OMP Desktop automáticamente al iniciar sesión",
+      unsupportedHint: "Disponible en macOS y Windows",
     },
     general: {
       title: "General",

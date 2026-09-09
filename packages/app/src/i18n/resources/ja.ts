@@ -399,11 +399,8 @@ export const ja: TranslationResources = {
       copyCode: "コードをコピー",
       copyTurn: "ターンをコピー",
       copyMessage: "メッセージをコピー",
-      forkMenu: "メッセージをフォーク",
-      forkInNewTab: "新しいタブにフォーク",
       forkInNewWorkspace: "新しいワークスペースにフォーク",
       forkUnavailable: "これを使用するにはホストを更新してください。",
-      forkMissingWorkspace: "このエージェントはワークスペース内にありません。",
       forkFailed: "チャットのフォークに失敗しました",
       openFile: "ファイルを開く",
       copied: "コピーしました",
@@ -1249,8 +1246,6 @@ export const ja: TranslationResources = {
       actions: {
         menu: "プロジェクトアクション",
         openSettings: "プロジェクト設定を開く",
-        openNewWindow: "新しいウィンドウで開く",
-        openNewWindowFailed: "新しいウィンドウを開けませんでした",
         openFolder: "Open in file manager",
         openFolderFailed: "Couldn't open folder",
         remove: "プロジェクトを削除",
@@ -2074,6 +2069,12 @@ export const ja: TranslationResources = {
       fallbackHint: "利用できない場合、OMP Desktop は別の利用可能なモデルを使用します",
       docs: "ドキュメント",
       saveError: "メタデータ生成を更新できません",
+    },
+    startup: {
+      title: "起動",
+      launchAtLogin: "ログイン時に起動",
+      launchAtLoginHint: "ログイン時に OMP Desktop を自動的に起動します",
+      unsupportedHint: "macOS と Windows で利用できます",
     },
     general: {
       title: "一般",

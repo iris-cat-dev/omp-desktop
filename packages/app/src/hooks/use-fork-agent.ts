@@ -5,13 +5,11 @@ import type {
   DaemonClient,
 } from "@omp-desktop/client/internal/daemon-client";
 import type { WorkspaceComposerAttachment } from "@/attachments/types";
-import type { AssistantForkTarget } from "@/components/assistant-fork-menu";
 import type { ToastApi } from "@/components/toast-host";
 import type { AgentScreenAgent } from "@/hooks/use-agent-screen-state-machine";
 import { useStableEvent } from "@/hooks/use-stable-event";
 import { useHostFeature } from "@/runtime/host-features";
 import { generateDraftId } from "@/stores/draft-keys";
-import { navigateToWorkspace } from "@/stores/navigation-active-workspace-store";
 import { useSessionStore } from "@/stores/session-store";
 import {
   buildDraftWorkspaceAttachmentScopeKey,
@@ -20,7 +18,7 @@ import {
 import { useWorkspaceDraftSubmissionStore } from "@/stores/workspace-draft-submission-store";
 import { toErrorMessage } from "@/utils/error-messages";
 import { buildNewWorkspaceRoute } from "@/utils/host-routes";
-import type { WorkspaceDraftTabSetup, WorkspaceTabTarget } from "@/workspace-tabs/model";
+import type { WorkspaceDraftTabSetup } from "@/workspace-tabs/model";
 
 /**
  * The subset of an agent record that a fork needs in order to seed the new
@@ -54,8 +52,6 @@ export type ForkAgentBoundary = Pick<
 export interface ForkAgentRequest {
   agentId: string;
   agent: ForkAgentSource;
-  workspaceId?: string;
-  target: AssistantForkTarget;
   boundary?: ForkAgentBoundary;
 }
 
@@ -110,12 +106,6 @@ function buildForkDraftSetup(agent: ForkAgentSource): WorkspaceDraftTabSetup | u
   };
 }
 
-function buildForkDraftTabTarget(
-  setup: WorkspaceDraftTabSetup | undefined,
-  draftId: string,
-): WorkspaceTabTarget {
-  return setup ? { kind: "draft", draftId, setup } : { kind: "draft", draftId };
-}
 
 /**
  * Shared fork driver behind both turn-footer fork affordances: the completed
@@ -132,7 +122,7 @@ export function useForkAgent(
   const client = useSessionStore((state) => state.sessions[serverId]?.client ?? null);
   const supportsAgentForkContext = useHostFeature(serverId, "agentForkContext") && !readOnly;
 
-  return useStableEvent(async ({ agentId, agent, workspaceId, target, boundary }) => {
+  return useStableEvent(async ({ agentId, agent, boundary }) => {
     try {
       if (!supportsAgentForkContext) {
         toast?.error(t("message.actions.forkUnavailable"));
@@ -159,18 +149,6 @@ export function useForkAgent(
         return draftId;
       };
 
-      if (target === "tab") {
-        if (!workspaceId) {
-          throw new Error(t("message.actions.forkMissingWorkspace"));
-        }
-        const draftId = await prepareForkDraft();
-        navigateToWorkspace({
-          serverId,
-          workspaceId,
-          target: buildForkDraftTabTarget(draftSetup, draftId),
-        });
-        return;
-      }
 
       const draftId = await prepareForkDraft();
       const sourceDirectory =

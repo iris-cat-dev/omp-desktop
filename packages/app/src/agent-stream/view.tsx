@@ -537,12 +537,10 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
     });
 
     const handleForkAssistantTurn: AssistantTurnForkHandler = useStableEvent(
-      async ({ target, boundary }) => {
+      async ({ boundary }) => {
         await forkAgent({
           agentId,
           agent: context,
-          workspaceId: context.workspaceId,
-          target,
           boundary,
         });
       },
@@ -552,12 +550,10 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
     // projects the whole timeline when neither boundary field is given, so the
     // fork carries everything up to now, including the response still streaming
     // in front of the user.
-    const handleForkInFlightTurn: InFlightTurnForkHandler = useStableEvent(async (target) => {
+    const handleForkInFlightTurn: InFlightTurnForkHandler = useStableEvent(async () => {
       await forkAgent({
         agentId,
         agent: context,
-        workspaceId: context.workspaceId,
-        target,
       });
     });
 

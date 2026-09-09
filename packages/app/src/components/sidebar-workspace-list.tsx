@@ -143,12 +143,7 @@ import {
   getCurrentProjectRemoveReadiness,
   removeProjectFromHosts,
 } from "@/projects/project-remove";
-import {
-  isWeb as platformIsWeb,
-  isNative as platformIsNative,
-  getIsElectron,
-} from "@/constants/platform";
-import { getDesktopHost } from "@/desktop/host";
+import { isWeb as platformIsWeb, isNative as platformIsNative } from "@/constants/platform";
 import { OpenInFileManagerMenuItem } from "@/workspace/open-in-file-manager/menu-item";
 import { useLocalDaemonServerId } from "@/hooks/use-is-local-daemon";
 import type { HostBadgeModel } from "@/hosts/appearance";
@@ -484,9 +479,6 @@ function ProjectRowTrailingActions({
 
 const trash2LeadingIcon = <ThemedTrash2 size={14} uniProps={foregroundMutedColorMapping} />;
 const settingsLeadingIcon = <ThemedSettings size={14} uniProps={foregroundMutedColorMapping} />;
-const openInNewWindowLeadingIcon = (
-  <ThemedExternalLink size={14} uniProps={foregroundMutedColorMapping} />
-);
 
 function renderKebabTriggerIcon({ hovered }: { hovered?: boolean }) {
   return (
@@ -567,22 +559,10 @@ function ProjectMenuItems({
   removeProjectStatus: "idle" | "pending" | "success";
 }) {
   const { t } = useTranslation();
-  const toast = useToast();
   const handleOpenProjectSettings = useCallback(() => {
     if (!settingsTarget) return;
     router.navigate(buildProjectSettingsRoute(settingsTarget.serverId, settingsTarget.projectId));
   }, [settingsTarget]);
-  const canOpenInNewWindow = getIsElectron() && projectPath.trim().length > 0;
-  const handleOpenInNewWindow = useCallback(() => {
-    const trimmedPath = projectPath.trim();
-    if (trimmedPath.length === 0) return;
-    void getDesktopHost()
-      ?.window?.openNew?.({ pendingOpenProjectPath: trimmedPath })
-      ?.catch((error) => {
-        console.warn("[sidebar] openNew failed", error);
-        toast.error(t("sidebar.project.actions.openNewWindowFailed"));
-      });
-  }, [projectPath, t, toast]);
 
   return (
     <>
@@ -594,16 +574,6 @@ function ProjectMenuItems({
           onSelect={handleOpenProjectSettings}
         >
           {t("sidebar.project.actions.openSettings")}
-        </ProjectMenuItem>
-      ) : null}
-      {canOpenInNewWindow ? (
-        <ProjectMenuItem
-          surface={surface}
-          testID={`sidebar-project-menu-open-new-window-${projectViewKey}`}
-          leading={openInNewWindowLeadingIcon}
-          onSelect={handleOpenInNewWindow}
-        >
-          {t("sidebar.project.actions.openNewWindow")}
         </ProjectMenuItem>
       ) : null}
       <OpenInFileManagerMenuItem

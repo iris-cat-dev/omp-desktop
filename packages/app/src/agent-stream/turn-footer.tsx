@@ -14,14 +14,9 @@ import {
   type StreamStrategy,
 } from "./strategy";
 import { resolveAssistantTurnForkBoundary, type AssistantTurnForkBoundary } from "./turn-boundary";
-import {
-  AssistantTurnFooter,
-  LiveElapsed,
-  STREAM_METADATA_FONT_SIZE,
-  type AssistantForkTarget,
-} from "@/components/message";
+import { AssistantTurnFooter, LiveElapsed, STREAM_METADATA_FONT_SIZE } from "@/components/message";
 import type { TurnFooterHost } from "./layout";
-import { AssistantForkMenu } from "@/components/assistant-fork-menu";
+import { AssistantForkButton } from "@/components/assistant-fork-button";
 import { SyncedLoader } from "@/components/synced-loader";
 import { useRetainedPanelActive } from "@/components/retained-panel";
 
@@ -31,7 +26,6 @@ export const TURN_FOOTER_BOTTOM_SPACING = SPACING[8];
 
 export type TurnContentStrategy = StreamStrategy;
 export type AssistantTurnForkHandler = (input: {
-  target: AssistantForkTarget;
   boundary: AssistantTurnForkBoundary;
 }) => Promise<void> | void;
 /**
@@ -44,7 +38,7 @@ export type AssistantTurnForkHandler = (input: {
  * Kept separate from `AssistantTurnForkHandler` (whose `boundary` stays
  * required) so the compiler keeps enforcing that completed turns always pin one.
  */
-export type InFlightTurnForkHandler = (target: AssistantForkTarget) => Promise<void> | void;
+export type InFlightTurnForkHandler = () => Promise<void> | void;
 
 export const TurnFooter = memo(function TurnFooter({
   isRunning,
@@ -171,7 +165,7 @@ const WorkingIndicator = memo(function WorkingIndicator({
         </View>
       ) : null}
       {/* Match the completed-turn footer: actions precede timing metadata. */}
-      {onForkInFlightTurn ? <AssistantForkMenu onFork={onForkInFlightTurn} /> : null}
+      {onForkInFlightTurn ? <AssistantForkButton onFork={onForkInFlightTurn} /> : null}
       {inFlightTurnStartedAt ? (
         <LiveElapsed
           startedAt={inFlightTurnStartedAt}
@@ -235,15 +229,12 @@ function CompletedTurnFooter({
     startIndex,
     supportsTimelineCursor,
   });
-  const handleFork = useCallback(
-    (target: AssistantForkTarget) => {
-      if (!boundary) {
-        return;
-      }
-      return onForkAssistantTurn?.({ target, boundary });
-    },
-    [boundary, onForkAssistantTurn],
-  );
+  const handleFork = useCallback(() => {
+    if (!boundary) {
+      return;
+    }
+    return onForkAssistantTurn?.({ boundary });
+  }, [boundary, onForkAssistantTurn]);
   return (
     <View style={stylesheet.turnFooterSlot}>
       <AssistantTurnFooter

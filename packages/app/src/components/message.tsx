@@ -108,7 +108,7 @@ import { isWeb, isNative } from "@/constants/platform";
 import type { AgentCapabilityFlags } from "@omp-desktop/protocol/agent-types";
 import { RewindMenu, type RewindMode } from "@/components/rewind/rewind-menu";
 import { useRewindAgentMutation } from "@/components/rewind/use-rewind-agent-mutation";
-import { AssistantForkMenu, type AssistantForkTarget } from "@/components/assistant-fork-menu";
+import { AssistantForkButton } from "@/components/assistant-fork-button";
 import { useRetainedPanelActive } from "@/components/retained-panel";
 import {
   markdownCopyDataSet,
@@ -117,7 +117,6 @@ import {
   type MarkdownCopyInlineTag,
 } from "@/assistant-selection-copy/markup";
 export type { InlinePathTarget } from "@/assistant-file-links";
-export type { AssistantForkTarget };
 
 interface UserMessageProps {
   serverId?: string;
@@ -578,7 +577,7 @@ interface AssistantTurnFooterProps {
   tokenTotalLabel?: string | null;
   /** Average output tokens/second across the turn, e.g. "38.2". Hidden when absent. */
   avgSpeedLabel?: string | null;
-  onFork?: (target: AssistantForkTarget) => Promise<void> | void;
+  onFork?: () => Promise<void> | void;
 }
 
 const assistantTurnFooterStylesheet = StyleSheet.create((theme) => ({
@@ -671,12 +670,7 @@ export const AssistantTurnFooter = memo(function AssistantTurnFooter({
       revealTimerRef.current = null;
     }, TIMESTAMP_REVEAL_MS);
   }, [canSwap]);
-  const handleFork = useCallback(
-    (target: AssistantForkTarget) => {
-      return onFork?.(target);
-    },
-    [onFork],
-  );
+  const handleFork = useCallback(() => onFork?.(), [onFork]);
   const canFork = Boolean(onFork);
 
   return (
@@ -685,7 +679,7 @@ export const AssistantTurnFooter = memo(function AssistantTurnFooter({
         getContent={getContent}
         containerStyle={assistantTurnFooterStylesheet.copyButton}
       />
-      {canFork ? <AssistantForkMenu onFork={handleFork} /> : null}
+      {canFork ? <AssistantForkButton onFork={handleFork} /> : null}
       {durationLabel ? (
         <Pressable
           onPress={handlePress}

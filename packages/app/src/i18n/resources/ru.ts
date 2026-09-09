@@ -408,11 +408,8 @@ export const ru: TranslationResources = {
       copyCode: "Скопировать код",
       copyTurn: "Скопировать ответ",
       copyMessage: "Копировать сообщение",
-      forkMenu: "Форкнуть чат отсюда",
-      forkInNewTab: "Создать форк в новой вкладке",
       forkInNewWorkspace: "Создать форк в новом рабочем пространстве",
       forkUnavailable: "Обновите хост, чтобы использовать эту функцию.",
-      forkMissingWorkspace: "Этот агент не связан с рабочим пространством.",
       forkFailed: "Не удалось создать форк чата",
       openFile: "Открыть файл",
       copied: "Скопировано",
@@ -1263,8 +1260,6 @@ export const ru: TranslationResources = {
       actions: {
         menu: "Действия проекта",
         openSettings: "Открыть настройки проекта",
-        openNewWindow: "Открыть в новом окне",
-        openNewWindowFailed: "Не удалось открыть новое окно",
         openFolder: "Открыть в файловом менеджере",
         openFolderFailed: "Не удалось открыть папку",
         remove: "Удалить проект",
@@ -2099,6 +2094,12 @@ export const ru: TranslationResources = {
       fallbackHint: "Если она недоступна, OMP Desktop использует другую доступную модель",
       docs: "Документация",
       saveError: "Не удалось обновить настройки генерации метаданных",
+    },
+    startup: {
+      title: "Запуск",
+      launchAtLogin: "Запускать при входе",
+      launchAtLoginHint: "Автоматически запускать OMP Desktop при входе в систему",
+      unsupportedHint: "Доступно в macOS и Windows",
     },
     general: {
       title: "Основные",

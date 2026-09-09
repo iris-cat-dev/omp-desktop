@@ -74,6 +74,7 @@ import { Switch } from "@/components/ui/switch";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { DesktopPermissionsSection } from "@/desktop/components/desktop-permissions-section";
 import { DesktopNotificationsSection } from "@/desktop/components/desktop-notifications-section";
+import { DesktopStartupSection } from "@/desktop/components/desktop-startup-section";
 import { BrowserDataSection } from "@/desktop/browser/settings/browser-data-section";
 import { IntegrationsSection } from "@/desktop/components/integrations-section";
 import { isElectronRuntime } from "@/desktop/host";
@@ -1168,7 +1169,12 @@ export default function SettingsScreen({ view }: SettingsScreenProps) {
                 handleLanguageChange={handleLanguageChange}
                 handleTerminalScrollbackLinesChange={handleTerminalScrollbackLinesChange}
               />
-              {isDesktopApp ? <BrowserDataSection /> : null}
+              {isDesktopApp ? (
+                <>
+                  <DesktopStartupSection />
+                  <BrowserDataSection />
+                </>
+              ) : null}
             </>
           );
         case "appearance":

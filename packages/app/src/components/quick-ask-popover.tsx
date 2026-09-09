@@ -1,6 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Pressable, ScrollView, Text, View } from "react-native";
+import {
+  Pressable,
+  ScrollView,
+  Text,
+  View,
+  type NativeSyntheticEvent,
+  type PointerEvent as RNPointerEvent,
+  type TextInputKeyPressEventData,
+} from "react-native";
 import { useTranslation } from "react-i18next";
 import { Check, X } from "lucide-react-native";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
@@ -12,6 +20,7 @@ import type { Rect } from "@/components/ui/menu";
 import type { EditingTextInputHandle } from "@/components/ui/text-input";
 import { isWeb } from "@/constants/platform";
 import { getOverlayRoot, OverlayLayerProvider, useOverlayLayer } from "@/lib/overlay-root";
+import { isImeComposingKeyboardEvent } from "@/utils/keyboard-ime";
 import type { Theme } from "@/styles/theme";
 
 const ThemedLoadingSpinner = withUnistyles(LoadingSpinner);
@@ -20,6 +29,23 @@ const ThemedCheckIcon = withUnistyles(Check);
 const mutedSpinnerColor = (theme: Theme) => ({ color: theme.colors.foregroundMuted });
 const mutedIconColor = (theme: Theme) => ({ color: theme.colors.foregroundMuted });
 const checkedIconColor = (theme: Theme) => ({ color: theme.colors.accentForeground });
+
+interface DragOffset {
+  x: number;
+  y: number;
+}
+
+type QuickAskKeyPressEvent = NativeSyntheticEvent<
+  TextInputKeyPressEventData & {
+    shiftKey?: boolean;
+    isComposing?: boolean;
+    keyCode?: number;
+  }
+>;
+
+const INITIAL_DRAG_OFFSET: DragOffset = { x: 0, y: 0 };
+const VIEWPORT_EDGE_GAP = 8;
+const DRAG_HANDLE_WEB_STYLE = { cursor: "move", touchAction: "none" } as object;
 
 function ContextCheckbox({
   checked,
@@ -72,10 +98,12 @@ export function QuickAskPopover({
   const [answer, setAnswer] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isPending, setIsPending] = useState(false);
+  const [dragOffset, setDragOffset] = useState<DragOffset>(INITIAL_DRAG_OFFSET);
   const floatingLayer = useOverlayLayer("floating");
   const anchorRef = useRef<View>(null);
   const inputRef = useRef<EditingTextInputHandle>(null);
   const requestVersionRef = useRef(0);
+  const dragCleanupRef = useRef<(() => void) | null>(null);
   const toggleContext = useCallback(() => setIncludeContext((current) => !current), []);
 
   useEffect(() => {
@@ -86,9 +114,17 @@ export function QuickAskPopover({
     setAnswer(null);
     setError(null);
     setIsPending(false);
+    setDragOffset(INITIAL_DRAG_OFFSET);
     const timeout = setTimeout(() => inputRef.current?.focus(), 50);
     return () => clearTimeout(timeout);
   }, [visible, selectedText]);
+
+  useEffect(
+    () => () => {
+      dragCleanupRef.current?.();
+    },
+    [],
+  );
 
   const handleClose = useCallback(() => {
     requestVersionRef.current += 1;
@@ -121,6 +157,89 @@ export function QuickAskPopover({
   const handleAskVoid = useCallback(() => {
     void handleAsk();
   }, [handleAsk]);
+  const handleQuestionKeyPress = useCallback(
+    (event: QuickAskKeyPressEvent) => {
+      if (
+        event.nativeEvent.key !== "Enter" ||
+        event.nativeEvent.shiftKey ||
+        isImeComposingKeyboardEvent(event.nativeEvent) ||
+        !question.trim() ||
+        isPending
+      ) {
+        return;
+      }
+      event.preventDefault();
+      handleAskVoid();
+    },
+    [handleAskVoid, isPending, question],
+  );
+  const handleDragStart = useCallback(
+    (event: RNPointerEvent) => {
+      if (event.nativeEvent.button !== 0 || dragCleanupRef.current) return;
+
+      const handleElement = event.currentTarget as unknown as HTMLElement;
+      const surfaceElement = handleElement.closest<HTMLElement>('[data-menu-surface="true"]');
+      if (!surfaceElement) return;
+
+      const pointerId = event.nativeEvent.pointerId;
+      const pointerStart = {
+        x: event.nativeEvent.clientX,
+        y: event.nativeEvent.clientY,
+      };
+      const surfaceRect = surfaceElement.getBoundingClientRect();
+      const initialOffset = dragOffset;
+      const cursorBeforeDrag = document.body.style.cursor;
+      const userSelectBeforeDrag = document.body.style.userSelect;
+      document.body.style.cursor = "move";
+      document.body.style.userSelect = "none";
+      handleElement.setPointerCapture?.(pointerId);
+      event.preventDefault();
+
+      function cleanup() {
+        window.removeEventListener("pointermove", handlePointerMove);
+        window.removeEventListener("pointerup", handlePointerEnd);
+        window.removeEventListener("pointercancel", handlePointerEnd);
+        document.body.style.cursor = cursorBeforeDrag;
+        document.body.style.userSelect = userSelectBeforeDrag;
+        if (handleElement.hasPointerCapture?.(pointerId)) {
+          handleElement.releasePointerCapture(pointerId);
+        }
+        dragCleanupRef.current = null;
+      }
+
+      function handlePointerMove(moveEvent: PointerEvent) {
+        if (moveEvent.pointerId !== pointerId) return;
+        moveEvent.preventDefault();
+        const deltaX = moveEvent.clientX - pointerStart.x;
+        const deltaY = moveEvent.clientY - pointerStart.y;
+        setDragOffset({
+          x:
+            initialOffset.x +
+            Math.max(
+              VIEWPORT_EDGE_GAP - surfaceRect.left,
+              Math.min(deltaX, window.innerWidth - VIEWPORT_EDGE_GAP - surfaceRect.right),
+            ),
+          y:
+            initialOffset.y +
+            Math.max(
+              VIEWPORT_EDGE_GAP - surfaceRect.top,
+              Math.min(deltaY, window.innerHeight - VIEWPORT_EDGE_GAP - surfaceRect.bottom),
+            ),
+        });
+      }
+
+      function handlePointerEnd(endEvent: PointerEvent) {
+        if (endEvent.pointerId !== pointerId) return;
+        cleanup();
+      }
+
+      dragCleanupRef.current = cleanup;
+      window.addEventListener("pointermove", handlePointerMove, { passive: false });
+      window.addEventListener("pointerup", handlePointerEnd);
+      window.addEventListener("pointercancel", handlePointerEnd);
+    },
+    [dragOffset],
+  );
 
   if (!visible || !anchorRect || !isWeb || typeof document === "undefined") return null;
 
@@ -140,11 +259,19 @@ export function QuickAskPopover({
           maxHeight={520}
           horizontalPadding={12}
           backdrop={false}
+          positionOffset={dragOffset}
           testID="quick-ask-popover"
         >
           <View style={styles.body}>
             <View style={styles.header}>
-              <Text style={styles.title}>{t("quickAsk.title")}</Text>
+              <View
+                accessibilityRole="none"
+                onPointerDown={handleDragStart}
+                style={[styles.dragHandle, DRAG_HANDLE_WEB_STYLE]}
+                testID="quick-ask-drag-handle"
+              >
+                <Text style={styles.title}>{t("quickAsk.title")}</Text>
+              </View>
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel={t("common.actions.close")}
@@ -168,6 +295,7 @@ export function QuickAskPopover({
               ref={inputRef}
               initialValue=""
               onChangeText={handleQuestionChange}
+              onKeyPress={handleQuestionKeyPress}
               placeholder={t("quickAsk.placeholder")}
               editable={!isPending}
               multiline
@@ -238,6 +366,12 @@ const styles = StyleSheet.create((theme) => ({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
+  },
+  dragHandle: {
+    flex: 1,
+    minWidth: 0,
+    alignSelf: "stretch",
+    justifyContent: "center",
   },
   title: {
     color: theme.colors.foreground,
