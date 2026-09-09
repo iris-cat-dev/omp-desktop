@@ -95,6 +95,17 @@ async function copyRipgrep(resourcesDir, platform, arch) {
   console.log(`Bundled ripgrep for ${platform}-${arch}: ${destination}`);
 }
 
+function prepareBundledOmp(resourcesDir, platform, arch) {
+  if (platform !== "darwin" && platform !== "win32") return;
+
+  const executablePath = path.join(resourcesDir, "bin", platform === "win32" ? "omp.exe" : "omp");
+  if (!fs.existsSync(executablePath)) {
+    throw new Error(`Bundled OMP executable is missing for ${platform}-${arch}: ${executablePath}`);
+  }
+  if (platform !== "win32") fs.chmodSync(executablePath, 0o755);
+  console.log(`Prepared bundled OMP for ${platform}-${arch}: ${executablePath}`);
+}
+
 function assertBackgroundJobsExtension(resourcesDir) {
   const extensionPath = path.join(
     resourcesDir,
@@ -140,6 +151,7 @@ exports.default = async function afterPack(context) {
       ? path.join(context.appOutDir, `${PRODUCT_NAME}.app`, "Contents", "Resources")
       : path.join(context.appOutDir, "resources");
   await copyRipgrep(resourcesDir, platform, arch);
+  prepareBundledOmp(resourcesDir, platform, arch);
   assertBackgroundJobsExtension(resourcesDir);
   pruneNativeModules(context.appOutDir, platform, arch);
 

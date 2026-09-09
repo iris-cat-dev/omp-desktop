@@ -527,6 +527,7 @@ const styles = StyleSheet.create((theme) => ({
     alignItems: "center",
     padding: theme.spacing[6],
     paddingTop: { xs: theme.spacing[8] + theme.spacing[2], md: theme.spacing[6] },
+    overflow: "hidden",
     paddingBottom: {
       xs: HEADER_INNER_HEIGHT_MOBILE + HEADER_TOP_PADDING_MOBILE + theme.spacing[6],
       md: HEADER_INNER_HEIGHT + theme.spacing[6],

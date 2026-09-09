@@ -1,4 +1,5 @@
 import { EventEmitter } from "node:events";
+import { delimiter } from "node:path";
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -20,7 +21,7 @@ const mocks = vi.hoisted(() => ({
   createNodeEntrypointInvocation: vi.fn(() => ({
     command: "node",
     args: [],
-    env: {},
+    env: { PATH: "/usr/bin" },
   })),
   spawnProcess: vi.fn(),
   logInfo: vi.fn(),
@@ -66,6 +67,8 @@ vi.mock("../settings/desktop-settings-electron.js", () => ({
 
 vi.mock("./runtime-paths.js", () => ({
   createNodeEntrypointInvocation: mocks.createNodeEntrypointInvocation,
+  resolveBundledOmpPath: vi.fn(() => "/tmp/resources/bin/omp"),
+  resolveBundledRipgrepPath: vi.fn(() => "/tmp/resources/bin/rg"),
   resolveDaemonRunnerEntrypoint: vi.fn(() => ({
     entryPath: "/tmp/daemon.js",
     execArgv: [],
@@ -115,7 +118,11 @@ describe("daemon-manager commands", () => {
     mocks.runExternalCliJsonCommand.mockReset();
     mocks.runExternalCliTextCommand.mockReset();
     mocks.createNodeEntrypointInvocation.mockReset();
-    mocks.createNodeEntrypointInvocation.mockReturnValue({ command: "node", args: [], env: {} });
+    mocks.createNodeEntrypointInvocation.mockReturnValue({
+      command: "node",
+      args: [],
+      env: { PATH: "/usr/bin" },
+    });
     mocks.spawnProcess.mockReset();
     mocks.logInfo.mockReset();
     mocks.logError.mockReset();
@@ -455,6 +462,9 @@ describe("daemon-manager commands", () => {
         envOverlay: expect.objectContaining({
           PASEO_CLI: getBundledCliShimPath(),
           PASEO_WEB_UI_ENABLED: "false",
+          OMP_COMMAND: "/tmp/resources/bin/omp",
+          PATH: ["/tmp/resources/bin", "/usr/bin"].join(delimiter),
+          PASEO_RIPGREP_PATH: "/tmp/resources/bin/rg",
         }),
       }),
     );

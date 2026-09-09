@@ -2442,6 +2442,7 @@ function OmpManagementPanel({
           testID="omp-add-provider-sheet"
           snapPoints={ADD_PROVIDER_SNAP_POINTS}
           contentStyle={sheetStyles.addProviderModalContent}
+          dismissOnBackdropPress={false}
         >
           {renderProviderForm()}
         </AdaptiveModalSheet>

@@ -122,7 +122,7 @@ function supportedPlatform(platform: NodeJS.Platform, arch: string): boolean {
   if (platform === "darwin" || platform === "linux") {
     return arch === "arm64" || arch === "x64";
   }
-  return platform === "win32" && arch === "x64";
+  return platform === "win32" && (arch === "x64" || arch === "arm64");
 }
 
 async function detectLinuxMusl(): Promise<boolean> {
@@ -138,7 +138,7 @@ async function detectLinuxMusl(): Promise<boolean> {
 }
 
 async function resolveReleaseAssetName(platform: NodeJS.Platform, arch: string): Promise<string> {
-  if (platform === "win32") return "omp-windows-x64.exe";
+  if (platform === "win32") return `omp-windows-${arch}.exe`;
   let target = platform === "darwin" ? "darwin" : "linux";
   if (platform === "linux" && (await detectLinuxMusl())) target = "linux-musl";
   return `omp-${target}-${arch}`;

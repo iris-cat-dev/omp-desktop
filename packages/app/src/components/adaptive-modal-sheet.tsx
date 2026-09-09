@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
@@ -468,6 +468,8 @@ export interface AdaptiveModalSheetProps {
   visible: boolean;
   onClose: () => void;
   onDismiss?: () => void;
+  /** Whether pressing the backdrop closes the sheet. */
+  dismissOnBackdropPress?: boolean;
   children: ReactNode;
   /** Sticky footer rendered below the scrollable content. */
   footer?: ReactNode;
@@ -491,6 +493,7 @@ export function AdaptiveModalSheet({
   visible,
   onClose,
   onDismiss,
+  dismissOnBackdropPress = true,
   children,
   footer,
   footerContainerStyle,
@@ -585,9 +588,15 @@ export function AdaptiveModalSheet({
 
   const renderBackdrop = useCallback(
     (props: React.ComponentProps<typeof BottomSheetBackdrop>) => (
-      <BottomSheetBackdrop {...props} disappearsOnIndex={-1} appearsOnIndex={0} opacity={0.45} />
+      <BottomSheetBackdrop
+        {...props}
+        disappearsOnIndex={-1}
+        appearsOnIndex={0}
+        opacity={0.45}
+        pressBehavior={dismissOnBackdropPress ? "close" : "none"}
+      />
     ),
-    [],
+    [dismissOnBackdropPress],
   );
 
   const desktopCardStyle = useMemo(
@@ -726,11 +735,15 @@ export function AdaptiveModalSheet({
 
   const desktopContent = (
     <View style={desktopOverlayStyle} testID={testID}>
-      <Pressable
-        accessibilityLabel={t("common.actions.dismiss")}
-        style={ABSOLUTE_FILL_STYLE}
-        onPress={onClose}
-      />
+      {dismissOnBackdropPress ? (
+        <Pressable
+          accessibilityLabel={t("common.actions.dismiss")}
+          style={ABSOLUTE_FILL_STYLE}
+          onPress={onClose}
+        />
+      ) : (
+        <View style={ABSOLUTE_FILL_STYLE} />
+      )}
       <View
         ref={setWebOverlayScope}
         style={desktopCardStyle}

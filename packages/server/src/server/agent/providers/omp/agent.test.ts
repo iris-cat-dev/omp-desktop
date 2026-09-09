@@ -1440,7 +1440,7 @@ describe("OMP agent client and session", () => {
     expect(omp.isClosed()).toBe(true);
   });
 
-  test("interrupt terminalizes in-flight tool calls and running subagents", async () => {
+  test("interrupt terminalizes in-flight tool calls, retry notices, and running subagents", async () => {
     const omp = new OmpHarness();
     await omp.start();
 
@@ -1463,7 +1463,14 @@ describe("OMP agent client and session", () => {
         index: 0,
       },
     });
-    expect(omp.runningToolCallIds()).toEqual(["tool-1"]);
+    runtime.emit({
+      type: "auto_retry_start",
+      attempt: 2,
+      maxAttempts: 10,
+      delayMs: 1_000,
+      errorMessage: "rate limited",
+    });
+    expect(omp.runningToolCallIds()).toEqual(["tool-1", "omp-auto-retry:2"]);
     expect(omp.subagentUpserts()).toEqual([{ id: "child-1", status: "running" }]);
 
     await omp.interrupt();
@@ -1474,6 +1481,13 @@ describe("OMP agent client and session", () => {
       { id: "child-1", status: "running" },
       { id: "child-1", status: "canceled" },
     ]);
+    expect(omp.timeline()).toContainEqual(
+      expect.objectContaining({
+        type: "tool_call",
+        callId: "omp-auto-retry:2",
+        status: "canceled",
+      }),
+    );
 
     // Late progress after interrupt must not resurrect a running card.
     runtime.emit({

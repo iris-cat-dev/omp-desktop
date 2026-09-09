@@ -43,6 +43,8 @@ mac:
   entitlements: build/entitlements.mac.plist
   entitlementsInherit: build/entitlements.mac.inherit.plist
   extraResources:
+    - from: ../../bin/omp-darwin-${arch}
+      to: bin/omp
     - from: bin/omp-desktop
       to: bin/omp-desktop
     - from: assets/icon-macos.png
@@ -76,6 +78,8 @@ win:
   artifactName: "OMP-Desktop-Setup-${version}-${arch}.${ext}"
   icon: assets/icon.ico
   extraResources:
+    - from: ../../bin/omp-windows-${arch}.exe
+      to: bin/omp.exe
     - from: assets/icon.png
       to: icon.png
     - from: assets/icon.ico

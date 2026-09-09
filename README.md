@@ -4,10 +4,11 @@ An Electron and Web client for [Oh My Pi](https://github.com/can1357/oh-my-pi). 
 
 ## Requirements
 
-- Node.js from `.tool-versions`
-- npm workspaces
-- `omp >= 16.3.9` on `PATH`
+- Node.js from `.tool-versions` and npm workspaces for development and source builds
+- `omp >= 16.3.9` on `PATH` for development and standalone daemon runs
 - A configured OMP model provider
+
+Packaged macOS arm64 and Windows x64/arm64 applications include OMP and do not require a system OMP installation.
 
 ## File drag and drop
 
@@ -48,6 +49,14 @@ The macOS arm64 application is written to:
 ```text
 packages/desktop/release/mac-arm64/OMP Desktop.app
 ```
+
+Desktop packaging reads the architecture-specific OMP executables from the repository-root `bin/` directory:
+
+- `omp-darwin-arm64`
+- `omp-windows-x64.exe`
+- `omp-windows-arm64.exe`
+
+electron-builder installs the selected executable as `Resources/bin/omp` on macOS or `resources/bin/omp.exe` on Windows. Linux packages still require `omp` on `PATH` until a matching Linux binary is added to the packaging configuration.
 
 ### Bundled skills
 

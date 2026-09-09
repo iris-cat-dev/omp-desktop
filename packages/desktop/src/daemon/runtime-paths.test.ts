@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { resolveNodeExecPath } from "./runtime-paths";
+import { resolveBundledOmpPath, resolveNodeExecPath } from "./runtime-paths";
 
 const mocks = vi.hoisted(() => ({
   existsSync: vi.fn(),
@@ -72,5 +72,21 @@ describe("runtime-paths", () => {
     expect(resolveNodeExecPath()).toBe(
       "/Applications/Paseo.app/Contents/Frameworks/Paseo Helper.app/Contents/MacOS/Paseo Helper",
     );
+  });
+
+  it("resolves the packaged OMP executable from app resources", () => {
+    expect(resolveBundledOmpPath()).toBe("/Applications/Paseo.app/Contents/Resources/bin/omp");
+
+    setProcessRuntime({
+      platform: "win32",
+      execPath: "/opt/omp/OMP Desktop.exe",
+      resourcesPath: "/opt/omp/resources",
+    });
+    expect(resolveBundledOmpPath()).toBe("/opt/omp/resources/bin/omp.exe");
+  });
+
+  it("does not resolve a bundled OMP executable during development", () => {
+    mocks.app.isPackaged = false;
+    expect(resolveBundledOmpPath()).toBeNull();
   });
 });

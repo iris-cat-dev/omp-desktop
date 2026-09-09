@@ -1,5 +1,5 @@
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
-import { useState, useCallback, useEffect, useMemo, useRef } from "react";
+import React, { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { View, Text, Pressable, type PressableStateCallbackType } from "react-native";
 import { StyleSheet, useUnistyles } from "react-native-unistyles";
 import { useIsCompactFormFactor } from "@/constants/layout";
@@ -680,9 +680,16 @@ const styles = StyleSheet.create((theme) => ({
     paddingHorizontal: theme.spacing[3],
     paddingBottom: theme.spacing[1],
     flex: 1,
+    minWidth: 0,
   },
   questionText: {
     flex: 1,
+    minWidth: 0,
+    ...(IS_WEB
+      ? {
+          overflowWrap: "anywhere",
+        }
+      : null),
     fontSize: theme.fontSize.base,
     fontWeight: theme.fontWeight.medium,
     lineHeight: 22,

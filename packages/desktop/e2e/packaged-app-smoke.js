@@ -64,6 +64,14 @@ function getCliShimPath(appPath) {
   return path.join(appPath, "resources", "bin", "omp-desktop");
 }
 
+function getBundledOmpPath(appPath) {
+  if (process.platform === "darwin") {
+    return path.join(appPath, "Contents", "Resources", "bin", "omp");
+  }
+
+  return path.join(appPath, "resources", "bin", process.platform === "win32" ? "omp.exe" : "omp");
+}
+
 function getMacMainExecutablePath(appPath) {
   return path.join(appPath, "Contents", "MacOS", EXECUTABLE_NAME);
 }
@@ -641,6 +649,43 @@ async function runCliShimJsonCommand({ appPath, env, args, label }) {
   }
 }
 
+async function smokeBundledOmpRuntime({ appPath, env }) {
+  const binaryPath = getBundledOmpPath(appPath);
+  assertExecutable(binaryPath, "Bundled OMP executable");
+
+  const version = spawnSync(binaryPath, ["--version"], {
+    encoding: "utf8",
+    env,
+  });
+  if (version.error || version.status !== 0) {
+    throw new Error(
+      `Bundled OMP version check failed (status ${version.status}): ${
+        version.error || version.stderr?.trim() || version.stdout?.trim() || "<empty>"
+      }`,
+    );
+  }
+
+  const diagnostic = await runCliShimCommand({
+    appPath,
+    env,
+    args: ["provider", "diagnostic", "omp"],
+    label: "Bundled OMP provider diagnostic",
+  });
+  if (!diagnostic.stdout.includes(binaryPath)) {
+    throw new Error(
+      `Packaged daemon did not resolve the bundled OMP executable ${binaryPath}.\n${diagnostic.stdout}`,
+    );
+  }
+
+  await runCliShimJsonCommand({
+    appPath,
+    env,
+    args: ["provider", "models", "omp"],
+    label: "Bundled OMP provider models",
+  });
+  console.log("Packaged desktop smoke: bundled OMP runtime started through the daemon");
+}
+
 async function smokeCliShim({ appPath, env }) {
   console.log("Packaged desktop smoke: running bundled CLI shim daemon status");
   const result = await runCliShimCommand({
@@ -874,6 +919,7 @@ async function smokePackagedDesktopApp({ appPath }) {
     });
     console.log("Packaged desktop smoke: renderer-started desktop daemon reported running");
     await smokeCliShim({ appPath, env });
+    await smokeBundledOmpRuntime({ appPath, env });
     await smokeCliTerminal({ appPath, env });
     await stopDaemonForCleanup();
     console.log(

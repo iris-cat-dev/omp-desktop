@@ -139,6 +139,7 @@ import { fetchCodexAccountQuota, type CodexAccountQuotaCredential } from "./code
 import { createQuotaProxyFetch } from "../../../../services/quota-fetcher/proxy-fetch.js";
 
 const OMP_PROVIDER = "omp";
+const DEFAULT_OMP_BINARY = process.env.OMP_COMMAND?.trim() || "omp";
 const QUESTION_RESPONSE_HEADER = "Response";
 const QUESTION_COMMENT_HEADER = "Comment";
 const OMP_ASK_USER_FREEFORM_SENTINEL = "✏️ Type custom response...";
@@ -1505,7 +1506,7 @@ function createRuntime(
   return new OmpCliRuntime({
     logger,
     runtimeSettings,
-    command: ["omp"],
+    command: [DEFAULT_OMP_BINARY],
     commandsRpcName: "get_available_commands",
   });
 }
@@ -1518,6 +1519,10 @@ export class OmpAgentSession implements AgentSession {
   private readonly subscribers = new Set<(event: AgentStreamEvent) => void>();
   private readonly blobDir: string | undefined;
   private readonly activeToolCalls = new Map<string, OmpTrackedToolCall>();
+  private readonly activeRuntimeToolCalls = new Map<
+    string,
+    Extract<AgentTimelineItem, { type: "tool_call" }>
+  >();
   private readonly pendingExtensionUiRequests = new Map<string, AgentPermissionRequest>();
   private activeAskUserDialog: ActiveAskUserDialog | null = null;
   private pendingAskUserFollowUpResponse: PendingAskUserFollowUpResponse | null = null;
@@ -2302,8 +2307,20 @@ export class OmpAgentSession implements AgentSession {
   }
 
   private clearOmpSessionState(): void {
+    this.activeRuntimeToolCalls.clear();
     this.subagentIndex.clear(this.runtimeSession);
     this.clearOmpTurnState();
+  }
+
+  private terminalizeActiveRuntimeToolCalls(): void {
+    for (const item of this.activeRuntimeToolCalls.values()) {
+      this.emit({
+        type: "timeline",
+        provider: this.provider,
+        item: { ...item, status: "canceled", error: null },
+      });
+    }
+    this.activeRuntimeToolCalls.clear();
   }
 
   private clearOmpTurnState(): void {
@@ -2312,6 +2329,7 @@ export class OmpAgentSession implements AgentSession {
   }
 
   private terminalizeActiveWork(): void {
+    this.terminalizeActiveRuntimeToolCalls();
     for (const [toolCallId, toolCall] of this.activeToolCalls) {
       this.emitToolCallEvent(toolCallId, toolCall, "canceled", null, null);
     }
@@ -2899,6 +2917,13 @@ export class OmpAgentSession implements AgentSession {
       return false;
     }
     if (mappedEvent.item) {
+      if (mappedEvent.item.type === "tool_call") {
+        if (mappedEvent.item.status === "running") {
+          this.activeRuntimeToolCalls.set(mappedEvent.item.callId, mappedEvent.item);
+        } else {
+          this.activeRuntimeToolCalls.delete(mappedEvent.item.callId);
+        }
+      }
       this.emit({
         type: "timeline",
         provider: this.provider,
@@ -3520,6 +3545,7 @@ export class OmpAgentSession implements AgentSession {
           ...(this.activePlanMessageId ? { messageId: this.activePlanMessageId } : {}),
         }
       : null;
+    this.terminalizeActiveRuntimeToolCalls();
     this.stopAutomaticCredentialResolution();
     this.activeTurnId = null;
     this.activeClientMessageId = null;
@@ -3634,7 +3660,7 @@ export class OmpAgentClient implements AgentClient {
       {
         command: {
           mode: "replace",
-          argv: ["omp"],
+          argv: [DEFAULT_OMP_BINARY],
         },
       },
       options.runtimeSettings,
@@ -3855,7 +3881,7 @@ export class OmpAgentClient implements AgentClient {
               this.runtimeSettings?.command?.mode === "replace"
                 ? this.runtimeSettings.command.argv
                 : [
-                    "omp",
+                    DEFAULT_OMP_BINARY,
                     ...(this.runtimeSettings?.command?.mode === "append"
                       ? (this.runtimeSettings.command.args ?? [])
                       : []),
@@ -3951,7 +3977,7 @@ export class OmpAgentClient implements AgentClient {
               this.runtimeSettings?.command?.mode === "replace"
                 ? this.runtimeSettings.command.argv
                 : [
-                    "omp",
+                    DEFAULT_OMP_BINARY,
                     ...(this.runtimeSettings?.command?.mode === "append"
                       ? (this.runtimeSettings.command.args ?? [])
                       : []),
@@ -4645,7 +4671,7 @@ export class OmpAgentClient implements AgentClient {
   private async resolveOmpLaunch(): Promise<ResolvedProviderLaunch> {
     return resolveProviderLaunch({
       commandConfig: this.runtimeSettings?.command,
-      defaultBinary: "omp",
+      defaultBinary: DEFAULT_OMP_BINARY,
     });
   }
 }

@@ -31,6 +31,7 @@ import {
 } from "./local-transport.js";
 import {
   createNodeEntrypointInvocation,
+  resolveBundledOmpPath,
   resolveBundledRipgrepPath,
   resolveDaemonRunnerEntrypoint,
 } from "./runtime-paths.js";
@@ -349,6 +350,30 @@ async function pollForRunningDaemon(): Promise<DesktopDaemonStatus> {
   }
   return poll(0);
 }
+function createDaemonEnvironment(invocationEnv: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+  // Use the exact packaged binary for provider launches. Keep its directory on PATH as well so
+  // installation status checks and legacy OMP subprocesses resolve the same executable.
+  const bundledRipgrepPath = resolveBundledRipgrepPath();
+  const bundledOmpPath = resolveBundledOmpPath();
+  const daemonPathKey = Object.hasOwn(invocationEnv, "Path") ? "Path" : "PATH";
+  const daemonPath = bundledOmpPath
+    ? [path.dirname(bundledOmpPath), invocationEnv[daemonPathKey]]
+        .filter((entry): entry is string => Boolean(entry))
+        .join(path.delimiter)
+    : null;
+  return {
+    PASEO_DESKTOP_MANAGED: "1",
+    PASEO_CLI: getBundledCliShimPath(),
+    PASEO_WEB_UI_ENABLED: "false",
+    ...(bundledOmpPath && daemonPath
+      ? {
+          OMP_COMMAND: bundledOmpPath,
+          [daemonPathKey]: daemonPath,
+        }
+      : {}),
+    ...(bundledRipgrepPath ? { PASEO_RIPGREP_PATH: bundledRipgrepPath } : {}),
+  };
+}
 
 async function startDaemon(): Promise<DesktopDaemonStatus> {
   assertBuiltInDaemonManagementEnabled(await getDesktopSettingsStore().get());
@@ -383,7 +408,7 @@ async function startDaemon(): Promise<DesktopDaemonStatus> {
     args: reclaimStalePidLock ? ["--reclaim-stale-pid-lock"] : [],
     baseEnv: process.env,
   });
-  const bundledRipgrepPath = resolveBundledRipgrepPath();
+  const envOverlay = createDaemonEnvironment(invocation.env);
 
   logDesktopDaemonLifecycle("starting detached daemon", {
     appIsPackaged: app.isPackaged,
@@ -404,12 +429,7 @@ async function startDaemon(): Promise<DesktopDaemonStatus> {
     detached: true,
     envMode: "internal",
     env: invocation.env,
-    envOverlay: {
-      PASEO_DESKTOP_MANAGED: "1",
-      PASEO_CLI: getBundledCliShimPath(),
-      PASEO_WEB_UI_ENABLED: "false",
-      ...(bundledRipgrepPath ? { PASEO_RIPGREP_PATH: bundledRipgrepPath } : {}),
-    },
+    envOverlay,
     stdio: ["ignore", "ignore", "ignore"],
   });
 
