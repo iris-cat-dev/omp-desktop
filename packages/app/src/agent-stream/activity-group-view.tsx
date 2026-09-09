@@ -51,6 +51,7 @@ export const AgentActivityGroupView = memo(function AgentActivityGroupView({
     <ExpandableBadge
       testID="agent-activity-group"
       label={t("agentStream.activityGroup")}
+      secondaryLabel={expanded ? undefined : String(group.items.length)}
       icon={Brain}
       isLoading={group.isLoading}
       isExpanded={expanded}

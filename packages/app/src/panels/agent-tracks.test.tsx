@@ -328,6 +328,32 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+describe("AgentTracks pill order", () => {
+  it("places the terminal indicator immediately after the subagent indicator", () => {
+    const process: BackgroundProcess = {
+      id: "terminal-build",
+      name: "Terminal build",
+      command: "bun run build",
+      cwd: "/repo",
+      ownerAgentId: null,
+      scope: "workspace",
+      source: "terminal",
+      status: "running",
+      startedAt: 1,
+      endedAt: null,
+      exitCode: null,
+      terminalId: "terminal-1",
+    };
+    renderAgentTracks(HOST_WORKSPACE_ID, providerRow, [process]);
+
+    expect(screen.getAllByRole("button").map((button) => button.textContent)).toEqual([
+      "打开 provider 子代理",
+      process.name,
+      "打开更改",
+    ]);
+  });
+});
+
 describe("AgentTracks provider 子代理路由", () => {
   it.each([
     {

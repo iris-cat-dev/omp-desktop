@@ -49,6 +49,12 @@ The macOS arm64 application is written to:
 packages/desktop/release/mac-arm64/OMP Desktop.app
 ```
 
+### Bundled skills
+
+The repository-root `skills/` directory is the source catalog for bundled orchestration skills. During the server build, `packages/server/package.json` removes the previous `dist/server/skills` directory and recursively copies `../../skills` into it. This makes the same catalog available to the development server and packaged application.
+
+The directory currently contains only `.gitkeep`, which keeps the otherwise-empty catalog under version control. Keep the `skills/` directory even when no bundled skills are present: removing it causes the recursive copy step to fail. Add future bundled skills as subdirectories containing their `SKILL.md` files.
+
 ## Self-hosted Web and relay
 
 The default configuration enables the hosted Relay at `relay.paseo.sh:443` with TLS. Self-hosted deployments can replace that endpoint and do not otherwise depend on a hosted Paseo service.

@@ -145,13 +145,13 @@ export const AgentTracks = memo(function AgentTracks({
         archiveFinishedStatus={archiveFinishedStatus}
         onDetachSubagent={canDetachSubagents ? detachSubagent : undefined}
       />
+      <BackgroundProcessesTrack state={backgroundProcesses} onOpen={handleOpenProcess} />
       <WorkspaceDiffStatPill
         serverId={serverId}
         workspaceId={workspaceId}
         onPress={handleOpenChanges}
       />
       <WorkspaceBranchPill serverId={serverId} workspaceId={workspaceId} />
-      <BackgroundProcessesTrack state={backgroundProcesses} onOpen={handleOpenProcess} />
     </ComposerTrackBar>
   );
 });
