@@ -297,6 +297,19 @@ export const ptBR: TranslationResources = {
       question: "Como você quer prosseguir?",
       proposedPlan: "Plano proposto",
     },
+    turnMetadata: {
+      tokens: "tokens",
+    },
+    turnFileChanges: {
+      added: "Adicionado {{name}}",
+      modified: "Modificado {{name}}",
+      deleted: "Excluído {{name}}",
+      restoreTitle: "Restaurar arquivo excluído",
+      restoreMessage: 'Restaurar "{{name}}"? Ele voltará ao estado antes desta alteração.',
+      restoreConfirm: "Restaurar",
+      restoreSuccess: "{{name}} restaurado",
+      restoreFailed: "Não foi possível restaurar {{name}}",
+    },
   },
   agentPanel: {
     states: {

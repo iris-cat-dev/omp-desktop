@@ -2787,6 +2787,59 @@ describe("processTimelineResponse", () => {
     expect(result.sideEffects).not.toContainEqual(expect.objectContaining({ type: "catch_up" }));
   });
 
+  it("keeps live-painted tool calls when a merge window page carries no entries", () => {
+    // Regression: a window response with an empty entries list used to filter
+    // head items by the cursor window anyway, dropping a completed write that
+    // the empty page never re-provided.
+    const result = processTimelineResponse({
+      ...baseTimelineInput,
+      currentTail: [
+        {
+          kind: "user_message",
+          id: "u1",
+          text: "create file",
+          timestamp: new Date(1000),
+          timelineCursor: { epoch: "epoch-1", seq: 1 },
+        },
+        {
+          kind: "tool_call",
+          id: "agent_tool_write-1",
+          timestamp: new Date(2000),
+          timelineCursor: { epoch: "epoch-1", seq: 2 },
+          payload: {
+            source: "agent",
+            data: {
+              provider: "omp",
+              callId: "write-1",
+              name: "write",
+              status: "completed",
+              error: null,
+              detail: { type: "write", filePath: "new.html" },
+            },
+          },
+        },
+      ],
+      currentHead: [],
+      currentCursor: { epoch: "epoch-1", startSeq: 1, endSeq: 2 },
+      sendingClientMessageIds: [],
+      payload: {
+        ...baseTimelineInput.payload,
+        direction: "tail",
+        mergeWindow: true,
+        epoch: "epoch-1",
+        startCursor: { seq: 1 },
+        endCursor: { seq: 2 },
+        hasOlder: false,
+        hasNewer: false,
+        entries: [],
+      },
+    });
+
+    const toolCalls = result.tail.filter(
+      (item) => item.kind === "tool_call" && item.payload.source === "agent",
+    );
+    expect(toolCalls).toHaveLength(1);
+  });
   it("keeps live assistant blocks ordered when merging a disjoint prompt-jump window", () => {
     const live = processAgentStreamEvents({
       events: [

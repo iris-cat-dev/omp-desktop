@@ -297,6 +297,19 @@ export const ko: TranslationResources = {
       question: "어떻게 진행할까요?",
       proposedPlan: "제안된 계획",
     },
+    turnMetadata: {
+      tokens: "토큰",
+    },
+    turnFileChanges: {
+      added: "{{name}} 추가됨",
+      modified: "{{name}} 수정됨",
+      deleted: "{{name}} 삭제됨",
+      restoreTitle: "삭제된 파일 복원",
+      restoreMessage: '"{{name}}"을(를) 복원할까요? 변경 전 상태로 돌아갑니다.',
+      restoreConfirm: "복원",
+      restoreSuccess: "{{name}} 복원됨",
+      restoreFailed: "{{name}} 복원 실패",
+    },
   },
   agentPanel: {
     states: {

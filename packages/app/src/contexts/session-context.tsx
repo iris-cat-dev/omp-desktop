@@ -19,6 +19,7 @@ import {
   type TimelineReducerSideEffect,
 } from "@/timeline/session-stream-reducers";
 import { useCreateFlowStore } from "@/stores/create-flow-store";
+import type { AgentTimelineCursorState } from "@/stores/session-store";
 import {
   isTimelineResumeSnapshotAuthoritative,
   planTimelineTailFetch,
@@ -245,6 +246,57 @@ function handleTimelineError(input: {
   }
 }
 
+type CommitTimelineStoreActions = Pick<
+  ReturnType<typeof useSessionStore.getState>,
+  | "setAgentStreamState"
+  | "setAgentTimelineHasNewer"
+  | "markAgentHistorySynchronized"
+  | "applyAgentTimelineResponseState"
+>;
+
+// Applies the reducer output's commit decision to the store: a discarded
+// page only acknowledges client messages and refreshes has-newer, an applied
+// page writes the new timeline slice. Extracted from applyTimelineResponse to
+// keep its complexity bounded.
+function commitTimelineResponseResult(input: {
+  result: ProcessTimelineResponseOutput;
+  payload: TimelineResponsePayload;
+  currentNewerAvailable: boolean;
+  currentCursor: AgentTimelineCursorState | undefined;
+  shouldMarkAuthoritativeHistoryApplied: boolean;
+  serverId: string;
+  agentId: string;
+  store: CommitTimelineStoreActions;
+}): void {
+  const { result, payload } = input;
+  const store = input.store;
+  if (result.commit === "discard") {
+    if (result.acknowledgedClientMessageIds.length > 0) {
+      store.setAgentStreamState(input.serverId, input.agentId, {
+        acknowledgedClientMessageIds: result.acknowledgedClientMessageIds,
+      });
+    }
+    if (payload.direction !== "before") {
+      store.setAgentTimelineHasNewer(input.serverId, (current) => {
+        const next = new Map(current);
+        next.set(input.agentId, payload.hasNewer);
+        return next;
+      });
+    }
+    store.markAgentHistorySynchronized(input.serverId, input.agentId);
+    return;
+  }
+  store.applyAgentTimelineResponseState(input.serverId, input.agentId, {
+    items: result.tail,
+    head: result.head,
+    range: result.cursorChanged ? (result.cursor ?? null) : (input.currentCursor ?? null),
+    older: result.older,
+    newer: payload.direction === "before" ? input.currentNewerAvailable : payload.hasNewer,
+    synchronized: input.shouldMarkAuthoritativeHistoryApplied,
+    acknowledgedClientMessageIds: result.acknowledgedClientMessageIds,
+  });
+}
+
 function executeTimelineSideEffects(input: {
   sideEffects: TimelineReducerSideEffect[];
   agentId: string;
@@ -338,6 +390,7 @@ function SessionProviderInternal({ children, serverId, client }: SessionProvider
   const setAgentStreamHead = useSessionStore((state) => state.setAgentStreamHead);
   const setAgentStreamState = useSessionStore((state) => state.setAgentStreamState);
   const applyAgentTurnLiveness = useSessionStore((state) => state.applyAgentTurnLiveness);
+  const recordAgentTurnUsage = useSessionStore((state) => state.recordAgentTurnUsage);
   const clearAgentTurnLiveness = useSessionStore((state) => state.clearAgentTurnLiveness);
   const clearAgentStreamHead = useSessionStore((state) => state.clearAgentStreamHead);
   const setAgentTimelineCursor = useSessionStore((state) => state.setAgentTimelineCursor);
@@ -611,34 +664,21 @@ function SessionProviderInternal({ children, serverId, client }: SessionProvider
         return;
       }
 
-      if (result.commit === "discard") {
-        if (result.acknowledgedClientMessageIds.length > 0) {
-          setAgentStreamState(serverId, agentId, {
-            acknowledgedClientMessageIds: result.acknowledgedClientMessageIds,
-          });
-        }
-        if (payload.direction !== "before") {
-          setAgentTimelineHasNewer(serverId, (current) => {
-            const next = new Map(current);
-            next.set(agentId, payload.hasNewer);
-            return next;
-          });
-        }
-        markAgentHistorySynchronized(serverId, agentId);
-      } else {
-        applyAgentTimelineResponseState(serverId, agentId, {
-          items: result.tail,
-          head: result.head,
-          range: result.cursorChanged ? (result.cursor ?? null) : (currentCursor ?? null),
-          older: result.older,
-          newer:
-            payload.direction === "before"
-              ? timeline.status === "synced" && timeline.newer === "available"
-              : payload.hasNewer,
-          synchronized: shouldMarkAuthoritativeHistoryApplied,
-          acknowledgedClientMessageIds: result.acknowledgedClientMessageIds,
-        });
-      }
+      commitTimelineResponseResult({
+        result,
+        payload,
+        currentNewerAvailable: timeline.status === "synced" && timeline.newer === "available",
+        currentCursor,
+        shouldMarkAuthoritativeHistoryApplied,
+        serverId,
+        agentId,
+        store: {
+          setAgentStreamState,
+          setAgentTimelineHasNewer,
+          markAgentHistorySynchronized,
+          applyAgentTimelineResponseState,
+        },
+      });
 
       executeTimelineSideEffects({
         sideEffects: result.sideEffects,
@@ -772,6 +812,15 @@ function SessionProviderInternal({ children, serverId, client }: SessionProvider
         event.type === "turn_canceled"
       ) {
         voiceRuntime?.onTurnEvent(serverId, agentId, event.type);
+      }
+      if (event.type === "turn_completed" && event.usage && event.turnId) {
+        recordAgentTurnUsage(serverId, agentId, event.turnId, event.usage);
+      }
+      // OMP providers report usage via a separate usage_updated event that
+      // arrives right after turn_completed; turn_completed itself carries no
+      // usage there. Both must feed the per-turn usage map for footer stats.
+      if (event.type === "usage_updated" && event.turnId) {
+        recordAgentTurnUsage(serverId, agentId, event.turnId, event.usage);
       }
       const turnLiveness = deriveAgentStreamTurnLiveness([
         { event: streamEvent, seq, epoch, timestamp: parsedTimestamp },
@@ -1036,6 +1085,7 @@ function SessionProviderInternal({ children, serverId, client }: SessionProvider
     applyWorkspaceSetupProgress,
     applyTimelineResponse,
     updateSessionServerInfo,
+    recordAgentTurnUsage,
     toast,
     voiceRuntime,
     voiceAudioEngine,

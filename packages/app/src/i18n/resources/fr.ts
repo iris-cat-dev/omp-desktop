@@ -299,6 +299,19 @@ export const fr: TranslationResources = {
       question: "Comment souhaitez-vous procéder?",
       proposedPlan: "Plan proposé",
     },
+    turnMetadata: {
+      tokens: "jetons",
+    },
+    turnFileChanges: {
+      added: "Ajouté {{name}}",
+      modified: "Modifié {{name}}",
+      deleted: "Supprimé {{name}}",
+      restoreTitle: "Restaurer le fichier supprimé",
+      restoreMessage: "Restaurer « {{name}} » ? Il reviendra à son état avant cette modification.",
+      restoreConfirm: "Restaurer",
+      restoreSuccess: "{{name}} restauré",
+      restoreFailed: "Impossible de restaurer {{name}}",
+    },
   },
   agentPanel: {
     states: {

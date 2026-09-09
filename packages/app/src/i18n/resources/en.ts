@@ -321,6 +321,19 @@ export const en = {
       question: "How would you like to proceed?",
       proposedPlan: "Proposed plan",
     },
+    turnMetadata: {
+      tokens: "tokens",
+    },
+    turnFileChanges: {
+      added: "Added {{name}}",
+      modified: "Modified {{name}}",
+      deleted: "Deleted {{name}}",
+      restoreTitle: "Restore deleted file",
+      restoreMessage: 'Restore "{{name}}"? It will be restored to its state before this change.',
+      restoreConfirm: "Restore",
+      restoreSuccess: "Restored {{name}}",
+      restoreFailed: "Couldn't restore {{name}}",
+    },
   },
   agentPanel: {
     states: {
