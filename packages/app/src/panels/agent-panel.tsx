@@ -94,6 +94,10 @@ import {
 import { WorkspaceDraftAgentTab } from "@/composer/draft/workspace-tab";
 import { AgentTracks, hasAgentTracks } from "@/panels/agent-tracks";
 import {
+  useBackgroundProcesses,
+  type BackgroundProcessesState,
+} from "@/background-processes/query";
+import {
   AGENT_TASK_PANEL_DESKTOP_WIDTH,
   AgentTaskPanel,
   AgentTaskPanelToggle,
@@ -121,6 +125,14 @@ import type { WorkspaceFileOpenRequest } from "@/workspace/file-open";
 import { deriveSidebarStateBucket } from "@/utils/sidebar-agent-state";
 import { buildDraftAgentSetup, type ClientSlashCommand } from "@/client-slash-commands";
 import { runQuickAsk } from "@/quick-ask/run-quick-ask";
+
+function shouldPollBackgroundProcesses(hasComposer: boolean, workspaceFocused: boolean): boolean {
+  return hasComposer && workspaceFocused;
+}
+
+function hasVisibleBackgroundProcessState(state: BackgroundProcessesState): boolean {
+  return state.processes.length > 0 || state.error !== null;
+}
 
 interface ChatAgentStateShape {
   serverId: string | null;
@@ -1399,6 +1411,13 @@ const ChatAgentReadyContent = memo(function ChatAgentReadyContent({
   });
   const hasActiveComposer =
     !agentState.archivedAt && !isArchivingCurrentAgent && !historyUnavailable;
+  const { isWorkspaceFocused } = usePaneFocus();
+  const backgroundProcesses = useBackgroundProcesses(
+    serverId,
+    agentId,
+    shouldPollBackgroundProcesses(hasActiveComposer, isWorkspaceFocused),
+  );
+  const hasVisibleBackgroundProcesses = hasVisibleBackgroundProcessState(backgroundProcesses);
   const hasVisibleAgentTracks = hasAgentTracks({
     subagentRows,
     archiveFinishedStatus: archiveFinishedSubagents.status,
@@ -1509,6 +1528,7 @@ const ChatAgentReadyContent = memo(function ChatAgentReadyContent({
             historyUnavailable ? t("agentPanel.states.historyUnavailableEmpty") : undefined
           }
           hasVisibleAgentTracks={hasVisibleAgentTracks}
+          hasVisibleBackgroundProcesses={hasVisibleBackgroundProcesses}
           toast={toastApi}
           onOpenWorkspaceFile={onOpenWorkspaceFile}
         />
@@ -1517,6 +1537,8 @@ const ChatAgentReadyContent = memo(function ChatAgentReadyContent({
         <AgentTracks
           serverId={serverId}
           workspaceId={workspaceId}
+          agentId={agentId}
+          backgroundProcesses={backgroundProcesses}
           cwd={cwd}
           subagentRows={subagentRows}
           archiveFinishedStatus={archiveFinishedSubagents.status}
@@ -1655,6 +1677,7 @@ const AgentStreamSection = memo(function AgentStreamSection({
   hasAppliedAuthoritativeHistory,
   hasActiveComposer,
   hasVisibleAgentTracks,
+  hasVisibleBackgroundProcesses,
   toast,
   onOpenWorkspaceFile,
   readOnly,
@@ -1669,6 +1692,7 @@ const AgentStreamSection = memo(function AgentStreamSection({
   hasAppliedAuthoritativeHistory: boolean;
   hasActiveComposer: boolean;
   hasVisibleAgentTracks: boolean;
+  hasVisibleBackgroundProcesses: boolean;
   toast: ReturnType<typeof useToastHost>["api"];
   readOnly: boolean;
   emptyText?: string;
@@ -1678,7 +1702,11 @@ const AgentStreamSection = memo(function AgentStreamSection({
   const hasWorkspaceDiffStat = useWorkspaceHasDiffStat(serverId, workspaceId);
   const hasWorkspaceBranch = useWorkspaceHasBranch(serverId, workspaceId);
   const hasVisibleComposerTracks =
-    hasActiveComposer && (hasVisibleAgentTracks || hasWorkspaceDiffStat || hasWorkspaceBranch);
+    hasActiveComposer &&
+    (hasVisibleAgentTracks ||
+      hasVisibleBackgroundProcesses ||
+      hasWorkspaceDiffStat ||
+      hasWorkspaceBranch);
   const bottomOverlayTailClearance = hasVisibleComposerTracks
     ? resolveComposerTrackTailClearance(isCompactFormFactor)
     : 0;

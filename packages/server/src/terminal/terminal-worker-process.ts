@@ -168,6 +168,10 @@ function watchTerminal(session: TerminalSession): void {
       title,
     });
   });
+  const unsubscribeCommandStarted = session.onCommandStarted?.(() => {
+    outputCoalescer.flush();
+    sendToParent({ type: "terminalCommandStarted", terminalId: session.id });
+  });
   const unsubscribeCommandFinished = session.onCommandFinished((info) => {
     outputCoalescer.flush();
     sendToParent({
@@ -190,6 +194,7 @@ function watchTerminal(session: TerminalSession): void {
     unsubscribeExit,
     unsubscribeTitle,
     unsubscribeCommandFinished,
+    ...(unsubscribeCommandStarted ? [unsubscribeCommandStarted] : []),
     unsubscribeActivity,
   ]);
 }

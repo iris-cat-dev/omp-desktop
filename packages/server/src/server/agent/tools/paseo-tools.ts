@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { registerAgentTerminal } from "../../../terminal/background-processes.js";
 import { ensureValidJson } from "../../json-utils.js";
 import type { Logger } from "pino";
 
@@ -2475,6 +2476,7 @@ export function createPaseoToolCatalog(options: PaseoToolHostDependencies): Pase
         workspaceId,
         ...(name?.trim() ? { name: name.trim() } : {}),
       });
+      if (callerAgentId) registerAgentTerminal(terminalManager, terminal, callerAgentId);
 
       return {
         content: [],

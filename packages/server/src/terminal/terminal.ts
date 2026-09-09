@@ -89,6 +89,7 @@ export interface TerminalSession {
   subscribe(listener: (msg: ServerMessage) => void, options?: TerminalSubscribeOptions): () => void;
   onExit(listener: (info: TerminalExitInfo) => void): () => void;
   onCommandFinished(listener: (info: TerminalCommandFinishedInfo) => void): () => void;
+  onCommandStarted?(listener: () => void): () => void;
   onTitleChange(listener: (title?: string) => void): () => void;
   onActivityChange(listener: (transition: TerminalActivityTransition) => void): () => void;
   getSize(): { rows: number; cols: number };
@@ -948,6 +949,7 @@ export async function createTerminal(options: CreateTerminalOptions): Promise<Te
   const listeners = new Set<(msg: ServerMessage) => void>();
   const exitListeners = new Set<(info: TerminalExitInfo) => void>();
   const commandFinishedListeners = new Set<(info: TerminalCommandFinishedInfo) => void>();
+  const commandStartedListeners = new Set<() => void>();
   const titleChangeListeners = new Set<(title?: string) => void>();
   let killed = false;
   let disposed = false;
@@ -1152,15 +1154,24 @@ export async function createTerminal(options: CreateTerminalOptions): Promise<Te
   };
 
   const disposeCommandLifecycleSubscription = terminal.parser.registerOscHandler(633, (data) => {
-    const command = data.split(";", 1)[0];
-    if (command === "A") {
+    const eventCode = data.split(";", 1)[0];
+    if (eventCode === "A") {
       recordPromptMarker();
-    } else if (command === "B") {
+    } else if (eventCode === "B") {
       if (!currentPromptMarker || currentPromptMarker.executed) {
         recordPromptMarker();
       }
       if (currentPromptMarker) {
         currentPromptMarker.executed = true;
+      }
+    }
+    if (eventCode === "C") {
+      for (const listener of Array.from(commandStartedListeners)) {
+        try {
+          listener();
+        } catch {
+          /* Isolate terminal observers. */
+        }
       }
     }
 
@@ -1174,7 +1185,7 @@ export async function createTerminal(options: CreateTerminalOptions): Promise<Te
         }
       }
     }
-    if (command === "D") {
+    if (eventCode === "D") {
       currentPromptMarker = null;
     }
     return true;
@@ -1254,6 +1265,7 @@ export async function createTerminal(options: CreateTerminalOptions): Promise<Te
     listeners.clear();
     exitListeners.clear();
     commandFinishedListeners.clear();
+    commandStartedListeners.clear();
     titleChangeListeners.clear();
     activityChangeListeners.clear();
   }
@@ -1505,6 +1517,13 @@ export async function createTerminal(options: CreateTerminalOptions): Promise<Te
     };
   }
 
+  function onCommandStarted(listener: () => void): () => void {
+    commandStartedListeners.add(listener);
+    return () => {
+      commandStartedListeners.delete(listener);
+    };
+  }
+
   function onTitleChange(listener: (title?: string) => void): () => void {
     titleChangeListeners.add(listener);
     if (title !== undefined) {
@@ -1646,6 +1665,7 @@ export async function createTerminal(options: CreateTerminalOptions): Promise<Te
     subscribe,
     onExit,
     onCommandFinished,
+    onCommandStarted,
     onTitleChange,
     onActivityChange,
     getSize,

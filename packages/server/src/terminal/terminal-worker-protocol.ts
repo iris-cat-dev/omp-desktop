@@ -115,6 +115,7 @@ export type TerminalWorkerResponse =
     };
 
 export type TerminalWorkerEvent =
+  | { type: "terminalCommandStarted"; terminalId: string }
   | {
       type: "terminalCreated";
       terminal: WorkerTerminalInfo;

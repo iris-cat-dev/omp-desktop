@@ -3012,6 +3012,44 @@ export class DaemonClient {
     return payload;
   }
 
+  async listBackgroundProcesses(agentId: string) {
+    const requestId = this.createRequestId();
+    return this.sendRequest({
+      requestId,
+      message: SessionInboundMessageSchema.parse({
+        type: "agent.background_processes.list.request",
+        agentId,
+        requestId,
+      }),
+      options: { skipQueue: true },
+      select: (response) =>
+        response.type === "agent.background_processes.list.response" &&
+        response.payload.requestId === requestId
+          ? response.payload
+          : null,
+    });
+  }
+
+  async getBackgroundProcessOutput(agentId: string, processId: string, cursor?: number) {
+    const requestId = this.createRequestId();
+    return this.sendRequest({
+      requestId,
+      message: SessionInboundMessageSchema.parse({
+        type: "agent.background_processes.output.request",
+        agentId,
+        processId,
+        cursor,
+        requestId,
+      }),
+      options: { skipQueue: true },
+      select: (response) =>
+        response.type === "agent.background_processes.output.response" &&
+        response.payload.requestId === requestId
+          ? response.payload
+          : null,
+    });
+  }
+
   async listProviderSubagents(
     parentAgentId: string,
     options: { requestId?: string; timeout?: number } = {},

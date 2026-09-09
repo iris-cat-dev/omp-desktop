@@ -5,6 +5,7 @@ import { providerUsage } from "./provider-usage";
 
 export const ja: TranslationResources = {
   providerUsage: providerUsage.ja,
+  backgroundProcesses: en.backgroundProcesses,
   externalFilePreview: en.externalFilePreview,
   common: {
     back: "戻る",

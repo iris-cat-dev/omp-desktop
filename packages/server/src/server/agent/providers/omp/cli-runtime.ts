@@ -1,4 +1,13 @@
 import type { ChildProcessWithoutNullStreams } from "node:child_process";
+import { existsSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { z } from "zod";
+import {
+  BackgroundProcessSchema,
+  BackgroundProcessOutputSchema,
+  type BackgroundProcess,
+  type BackgroundProcessOutput,
+} from "@omp-desktop/protocol/background-processes";
 import type { Logger } from "pino";
 
 import type { ProviderRuntimeSettings } from "../../provider-launch-config.js";
@@ -53,6 +62,16 @@ const DEFAULT_COMMANDS_RPC_NAME = "get_available_commands";
 /** Allow cold OMP starts the same 30-second budget as other control-plane RPCs. */
 const OMP_READY_TIMEOUT_MS = JSONL_RPC_DEFAULT_TIMEOUT_MS;
 
+export function resolveOmpBackgroundJobsExtensionPath(
+  moduleUrl: string | URL = import.meta.url,
+  pathExists: (path: string) => boolean = existsSync,
+): string {
+  const compiled = fileURLToPath(new URL("./background-jobs-extension.js", moduleUrl));
+  const source = fileURLToPath(new URL("./background-jobs-extension.ts", moduleUrl));
+  const extension = pathExists(compiled) ? compiled : source;
+  return extension.replace(/\.asar(?=[/\\]|$)/, ".asar.unpacked");
+}
+
 export class OmpReadyTimeoutError extends Error {
   constructor(timeoutMs: number) {
     super(
@@ -87,6 +106,9 @@ export class OmpCliRuntime implements OmpRuntime {
       runtimeSettings: this.options.runtimeSettings,
       session: input,
     });
+    if (input.protocolMode === "rpc-ui") {
+      launch.argv.push("--extension", resolveOmpBackgroundJobsExtensionPath());
+    }
     const [command, ...args] = launch.argv;
     const processLaunch: JsonlRpcLaunch = {
       command,
@@ -102,12 +124,13 @@ export class OmpCliRuntime implements OmpRuntime {
       ...(spawn ? { spawn: () => spawn(launch) } : {}),
     };
     const process = new JsonlRpcProcess(processOptions);
+    const runtimeSession = new OmpCliRuntimeSession(process, this.commandsRpcName);
     const handleAbort = () => void process.close(input.signal?.reason).catch(() => undefined);
     input.signal?.addEventListener("abort", handleAbort, { once: true });
     try {
       await negotiateOmpProtocolV2(process, this.options.logger);
       input.signal?.throwIfAborted();
-      return new OmpCliRuntimeSession(process, this.commandsRpcName);
+      return runtimeSession;
     } catch (error) {
       const startupError = error instanceof Error ? error : new Error(String(error));
       await process.close(startupError);
@@ -175,12 +198,23 @@ function waitForOmpReadyFrame(process: JsonlRpcProcess): Promise<Record<string, 
 class OmpCliRuntimeSession implements OmpRuntimeSession {
   private readonly subscribers = new Set<(event: OmpRuntimeEvent) => void>();
   activeBranchEntryId?: string;
+  private backgroundJobsEndpoint: { port: number; token: string } | null = null;
 
   constructor(
     private readonly process: JsonlRpcProcess,
     private readonly commandsRpcName: "get_available_commands",
   ) {
     process.onMessage((message) => {
+      if (message.type === "desktop_background_jobs_ready") {
+        const endpoint = z
+          .object({
+            port: z.number().int().min(1).max(65535),
+            token: z.string().min(1),
+          })
+          .safeParse(message);
+        if (endpoint.success) this.backgroundJobsEndpoint = endpoint.data;
+        return;
+      }
       const event = OmpRuntimeEventSchema.safeParse(message);
       if (event.success) {
         this.emit(event.data);
@@ -231,6 +265,35 @@ class OmpCliRuntimeSession implements OmpRuntimeSession {
 
   async getState(): Promise<OmpSessionState> {
     return OmpSessionStateSchema.parse(await this.request({ type: "get_state" }));
+  }
+
+  async listBackgroundJobs(): Promise<BackgroundProcess[]> {
+    if (!this.backgroundJobsEndpoint) return [];
+    const payload = await this.requestBackgroundJobs("/list");
+    return z.object({ processes: z.array(BackgroundProcessSchema) }).parse(payload).processes;
+  }
+
+  async getBackgroundJobOutput(
+    processId: string,
+    cursor?: number,
+  ): Promise<BackgroundProcessOutput> {
+    const query = new URLSearchParams({ id: processId });
+    if (cursor !== undefined) query.set("cursor", String(cursor));
+    return BackgroundProcessOutputSchema.parse(
+      await this.requestBackgroundJobs(`/output?${query}`),
+    );
+  }
+
+  private async requestBackgroundJobs(path: string): Promise<unknown> {
+    const endpoint = this.backgroundJobsEndpoint;
+    if (!endpoint) throw new Error("OMP background-process bridge is not available yet");
+    const response = await fetch(`http://127.0.0.1:${endpoint.port}${path}`, {
+      headers: { authorization: `Bearer ${endpoint.token}` },
+      signal: AbortSignal.timeout(5_000),
+      redirect: "error",
+    });
+    if (!response.ok) throw new Error(`OMP background-process request failed (${response.status})`);
+    return response.json();
   }
 
   async setFastMode(enabled: boolean): Promise<OmpFastModeResult> {

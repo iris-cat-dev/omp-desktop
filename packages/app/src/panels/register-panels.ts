@@ -8,6 +8,7 @@ import { filesPanelRegistration } from "@/panels/files-panel";
 import { registerPanel } from "@/panels/panel-registry";
 import { setupPanelRegistration } from "@/panels/setup-panel";
 import { terminalPanelRegistration } from "@/panels/terminal-panel";
+import { backgroundProcessPanelRegistration } from "@/panels/background-process-panel";
 import { providerSubagentPanelRegistration } from "@/panels/provider-subagent-panel";
 import { pullRequestPanelRegistration } from "@/panels/pull-request-panel";
 import { newTabPanelRegistration } from "@/panels/new-tab-panel";
@@ -24,6 +25,7 @@ export function ensurePanelsRegistered(): void {
   registerPanel(providerSubagentPanelRegistration);
   registerPanel(setupPanelRegistration);
   registerPanel(terminalPanelRegistration);
+  registerPanel(backgroundProcessPanelRegistration);
   registerPanel(browserPanelRegistration);
   registerPanel(filePanelRegistration);
   registerPanel(localFilePanelRegistration);

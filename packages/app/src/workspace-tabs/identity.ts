@@ -56,6 +56,11 @@ function normalizeSimpleWorkspaceTabTarget(value: WorkspaceTabTarget): Workspace
       const terminalId = trimNonEmpty(value.terminalId);
       return terminalId ? { kind: "terminal", terminalId } : null;
     }
+    case "background_process": {
+      const agentId = trimNonEmpty(value.agentId);
+      const processId = trimNonEmpty(value.processId);
+      return agentId && processId ? { kind: "background_process", agentId, processId } : null;
+    }
     case "browser": {
       const browserId = trimNonEmpty(value.browserId);
       return browserId ? { kind: "browser", browserId } : null;
@@ -153,6 +158,16 @@ function secondaryWorkspaceTabTargetsEqual(
   if (left.kind === "pull_request" && right.kind === "pull_request") {
     return true;
   }
+  return tertiaryWorkspaceTabTargetsEqual(left, right);
+}
+
+function tertiaryWorkspaceTabTargetsEqual(
+  left: WorkspaceTabTarget,
+  right: WorkspaceTabTarget,
+): boolean {
+  if (left.kind === "background_process" && right.kind === "background_process") {
+    return left.agentId === right.agentId && left.processId === right.processId;
+  }
   if (left.kind === "setup" && right.kind === "setup") {
     return left.workspaceId === right.workspaceId;
   }
@@ -207,6 +222,9 @@ export function buildDeterministicWorkspaceTabId(target: WorkspaceTabTarget): st
   }
   if (target.kind === "provider_subagent") {
     return `provider_subagent_${target.parentAgentId.length}_${target.parentAgentId}_${target.subagentId.length}_${target.subagentId}`;
+  }
+  if (target.kind === "background_process") {
+    return `background_process_${target.agentId.length}_${target.agentId}_${target.processId.length}_${target.processId}`;
   }
   if (target.kind === "terminal") {
     return `terminal_${target.terminalId}`;

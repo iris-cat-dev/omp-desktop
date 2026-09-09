@@ -5,6 +5,7 @@ import { providerUsage } from "./provider-usage";
 
 export const ar: TranslationResources = {
   providerUsage: providerUsage.ar,
+  backgroundProcesses: en.backgroundProcesses,
   externalFilePreview: en.externalFilePreview,
   common: {
     back: "خلف",

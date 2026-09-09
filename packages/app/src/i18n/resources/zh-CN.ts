@@ -2,9 +2,11 @@ import { en, type TranslationResources } from "./en";
 import { pluginSettings } from "./plugin-settings";
 import { ompProviderSettings } from "./omp-provider-settings";
 import { providerUsage } from "./provider-usage";
+import { backgroundProcesses } from "./background-processes";
 
 export const zhCN: TranslationResources = {
   providerUsage: providerUsage["zh-CN"],
+  backgroundProcesses: backgroundProcesses["zh-CN"],
   externalFilePreview: {
     title: "本地文件预览",
     localOnly: "只读预览。文件保留在此设备上，不会上传。",

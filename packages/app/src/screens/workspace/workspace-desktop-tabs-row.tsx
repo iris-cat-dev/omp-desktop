@@ -510,7 +510,7 @@ function getFallbackTabLabel(
   if (tab.target.kind === "setup") {
     return labels.setup;
   }
-  if (tab.target.kind === "terminal") {
+  if (tab.target.kind === "terminal" || tab.target.kind === "background_process") {
     return labels.terminal;
   }
   if (tab.target.kind === "file") {

@@ -95,6 +95,26 @@ async function copyRipgrep(resourcesDir, platform, arch) {
   console.log(`Bundled ripgrep for ${platform}-${arch}: ${destination}`);
 }
 
+function assertBackgroundJobsExtension(resourcesDir) {
+  const extensionPath = path.join(
+    resourcesDir,
+    "app.asar.unpacked",
+    "node_modules",
+    "@omp-desktop",
+    "server",
+    "dist",
+    "server",
+    "server",
+    "agent",
+    "providers",
+    "omp",
+    "background-jobs-extension.js",
+  );
+  if (!fs.existsSync(extensionPath)) {
+    throw new Error(`Packaged OMP background-jobs extension is missing: ${extensionPath}`);
+  }
+}
+
 function dirSizeSync(dir) {
   let total = 0;
   for (const entry of fs.readdirSync(dir, { withFileTypes: true, recursive: true })) {
@@ -120,6 +140,7 @@ exports.default = async function afterPack(context) {
       ? path.join(context.appOutDir, `${PRODUCT_NAME}.app`, "Contents", "Resources")
       : path.join(context.appOutDir, "resources");
   await copyRipgrep(resourcesDir, platform, arch);
+  assertBackgroundJobsExtension(resourcesDir);
   pruneNativeModules(context.appOutDir, platform, arch);
 
   if (platform === "linux" || platform === "win32") {

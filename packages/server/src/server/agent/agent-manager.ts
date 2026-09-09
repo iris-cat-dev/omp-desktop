@@ -1,4 +1,8 @@
 import { randomUUID } from "node:crypto";
+import type {
+  BackgroundProcess,
+  BackgroundProcessOutput,
+} from "@omp-desktop/protocol/background-processes";
 import { resolve } from "node:path";
 import { stat } from "node:fs/promises";
 import {
@@ -1093,6 +1097,27 @@ export class AgentManager {
   fetchTimeline(id: string, options?: AgentTimelineFetchOptions): AgentTimelineFetchResult {
     this.requireAgent(id);
     return this.timelineStore.fetch(id, options);
+  }
+
+  async listBackgroundProcesses(agentId: string): Promise<BackgroundProcess[]> {
+    const agent = this.requirePublicAgent(agentId);
+    const processes = (await agent.session?.listBackgroundProcesses?.()) ?? [];
+    for (const entry of processes) {
+      entry.ownerAgentId = entry.scope === "agent" ? agentId : null;
+    }
+    return processes;
+  }
+
+  async getBackgroundProcessOutput(
+    agentId: string,
+    processId: string,
+    cursor?: number,
+  ): Promise<BackgroundProcessOutput> {
+    const agent = this.requirePublicAgent(agentId);
+    if (!agent.session?.getBackgroundProcessOutput) {
+      throw new Error("Background process output is unavailable");
+    }
+    return agent.session.getBackgroundProcessOutput(processId, cursor);
   }
 
   listProviderSubagents(parentAgentId: string): ProviderSubagentDescriptor[] {

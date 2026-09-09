@@ -48,7 +48,7 @@ async function writeOmpHistory(history: OmpResumeHistory): Promise<string> {
   const directory = await mkdtemp(join(tmpdir(), "paseo-omp-resume-"));
   const sessionFile = join(directory, "session.jsonl");
   const entries = [
-    { type: "session", id: "session-root", parentId: null },
+    { type: "session", id: "session-root", parentId: null, cwd: CWD },
     {
       type: "message",
       id: history.user.id,

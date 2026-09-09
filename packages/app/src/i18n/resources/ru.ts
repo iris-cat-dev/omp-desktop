@@ -5,6 +5,7 @@ import { providerUsage } from "./provider-usage";
 
 export const ru: TranslationResources = {
   providerUsage: providerUsage.ru,
+  backgroundProcesses: en.backgroundProcesses,
   externalFilePreview: en.externalFilePreview,
   common: {
     back: "Назад",

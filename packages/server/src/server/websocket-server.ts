@@ -1656,6 +1656,8 @@ export class VoiceAssistantWebSocketServer {
         ...(this.workspaceLabelService ? { workspaceLabels: true } : {}),
         // COMPAT(providersSnapshot): keep optional until all clients rely on snapshot flow.
         providersSnapshot: true,
+        // COMPAT(backgroundProcesses): added 2026-09-09, remove gate after 2027-03-09.
+        backgroundProcesses: true,
         // COMPAT(providersSnapshotCwd): added in v0.3.2, remove gate after 2027-02-10.
         providersSnapshotCwd: true,
         // COMPAT(ompProviderManagement): added in v0.1.0, remove gate after 2027-03-13.

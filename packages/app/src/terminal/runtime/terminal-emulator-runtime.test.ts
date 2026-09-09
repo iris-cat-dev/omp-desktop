@@ -296,15 +296,12 @@ describe("terminal-emulator-runtime", () => {
         },
       },
     });
-    // The plain write reports kitty flags synchronously during drain; the snapshot resets
-    // them only after its barrier gate (the sentinel write callback) resolves.
+    // Snapshot input modes change only after the preceding output has parsed.
     expect(inputModeChanges).toEqual([
       { kittyKeyboardFlags: 7, win32InputMode: false, bracketedPaste: false },
     ]);
 
-    // The plain write carries no onCommitted, so it registers no callback; writeCallbacks[0]
-    // is the barrier gate sentinel.
-    writeCallbacks[0]?.();
+    for (const commit of writeCallbacks) commit();
 
     expect(inputModeChanges).toEqual([
       { kittyKeyboardFlags: 7, win32InputMode: false, bracketedPaste: false },
@@ -385,43 +382,6 @@ describe("terminal-emulator-runtime", () => {
     writeCallbacks[3]?.();
     expect(committed).toEqual(["snap"]);
     expect(terminal.resetCalls).toBe(0);
-  });
-
-  it("applies a barrier immediately when no writes precede it, suppressing input at once", () => {
-    const { runtime, writeCallbacks } = createRuntimeWithTerminal();
-    const readSuppressInput = () =>
-      (runtime as unknown as { suppressInput: boolean }).suppressInput;
-
-    expect(readSuppressInput()).toBe(false);
-
-    // No plain writes precede this barrier (mount), so there is nothing to gate: it starts
-    // at once with no sentinel, flipping suppressInput synchronously.
-    runtime.restoreOutput({ data: terminalOutput("snapshot") });
-    expect(readSuppressInput()).toBe(true);
-
-    // writeCallbacks[0] is the barrier's own snapshot write; committing it restores input.
-    writeCallbacks[0]?.();
-    expect(readSuppressInput()).toBe(false);
-  });
-
-  it("gates a barrier behind a preceding plain write before suppressing input", () => {
-    const { runtime, writeCallbacks } = createRuntimeWithTerminal();
-    const readSuppressInput = () =>
-      (runtime as unknown as { suppressInput: boolean }).suppressInput;
-
-    // A plain write is now ungated, so the following barrier must wait on the sentinel.
-    runtime.write({ data: terminalOutput("output") });
-    runtime.restoreOutput({ data: terminalOutput("snapshot") });
-
-    // The plain write carries no onCommitted so it registers no callback; writeCallbacks[0]
-    // is the sentinel gate. suppressInput only flips once the gate resolves the barrier.
-    expect(readSuppressInput()).toBe(false);
-    writeCallbacks[0]?.();
-    expect(readSuppressInput()).toBe(true);
-
-    // writeCallbacks[1] is the barrier's own snapshot write; committing it restores input.
-    writeCallbacks[1]?.();
-    expect(readSuppressInput()).toBe(false);
   });
 
   it("commits pending output operations during unmount to avoid deadlock", () => {

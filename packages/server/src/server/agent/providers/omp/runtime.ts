@@ -1,4 +1,8 @@
 import type {
+  BackgroundProcess,
+  BackgroundProcessOutput,
+} from "@omp-desktop/protocol/background-processes";
+import type {
   OmpAgentMessage,
   OmpFastModeResult,
   OmpModel,
@@ -54,6 +58,8 @@ export interface OmpRuntimeSession {
   setAutoCompaction(enabled: boolean): Promise<void>;
   abort(): Promise<void>;
   getState(): Promise<OmpSessionState>;
+  listBackgroundJobs?(): Promise<BackgroundProcess[]>;
+  getBackgroundJobOutput?(processId: string, cursor?: number): Promise<BackgroundProcessOutput>;
   setFastMode(enabled: boolean): Promise<OmpFastModeResult>;
   getMessages(): Promise<OmpAgentMessage[]>;
   getAvailableModels(timeoutMs?: number | null): Promise<OmpModel[]>;

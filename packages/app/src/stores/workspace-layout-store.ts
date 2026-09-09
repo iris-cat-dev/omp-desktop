@@ -199,6 +199,11 @@ const WorkspaceTabTargetStorageSchema = z.discriminatedUnion("kind", [
     subagentId: z.string(),
   }),
   z.strictObject({ kind: z.literal("terminal"), terminalId: z.string() }),
+  z.strictObject({
+    kind: z.literal("background_process"),
+    agentId: z.string(),
+    processId: z.string(),
+  }),
   z.strictObject({ kind: z.literal("browser"), browserId: z.string() }),
   z.strictObject({ kind: z.literal("files") }),
   z.strictObject({ kind: z.literal("pull_request") }),
@@ -522,7 +527,9 @@ function enforceWorkspaceTabZones(input: {
   const originalFocusedTabId = originalFocusedPane?.focusedTabId ?? null;
   const initialTabs = collectAllTabs(input.layout.root);
   const conversationTabs = initialTabs.filter((tab) => isWorkspaceConversationTarget(tab.target));
-  const terminalTabs = initialTabs.filter((tab) => tab.target.kind === "terminal");
+  const terminalTabs = initialTabs.filter(
+    (tab) => tab.target.kind === "terminal" || tab.target.kind === "background_process",
+  );
   if (conversationTabs.length === 0 && terminalTabs.length === 0) {
     return input.layout;
   }
@@ -681,7 +688,7 @@ function getOpenTabPlacement(
     layout,
     state.sidePanelPaneIdByWorkspace[workspaceKey],
   );
-  if (!isWorkspaceConversationTarget(target) && target.kind !== "terminal") {
+  if (!isWorkspaceConversationTarget(target) && target.kind !== "terminal" && target.kind !== "background_process") {
     return {
       layout,
       placement: placement ?? AMBIENT_PLACEMENT,
@@ -693,7 +700,7 @@ function getOpenTabPlacement(
   if (!mainPane) {
     return null;
   }
-  if (target.kind !== "terminal") {
+  if (target.kind !== "terminal" && target.kind !== "background_process") {
     return {
       layout: mainPane.layout,
       placement: { mode: "prefer", paneId: mainPane.paneId },

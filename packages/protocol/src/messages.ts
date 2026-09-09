@@ -1,4 +1,10 @@
 import { z } from "zod";
+import {
+  BackgroundProcessListRequestSchema,
+  BackgroundProcessOutputRequestSchema,
+  BackgroundProcessListResponseSchema,
+  BackgroundProcessOutputResponseSchema,
+} from "./background-processes.js";
 import { TerminalActivitySchema } from "./terminal-activity.js";
 import { CLIENT_CAPS } from "./client-capabilities.js";
 import { AGENT_LIFECYCLE_STATUSES } from "./agent-lifecycle.js";
@@ -3304,6 +3310,8 @@ export const SessionInboundMessageSchema = z.discriminatedUnion("type", [
   DaemonUpdateRequestMessageSchema,
   FetchAgentTimelineRequestMessageSchema,
   AgentTimelineListPromptsRequestMessageSchema,
+  BackgroundProcessListRequestSchema,
+  BackgroundProcessOutputRequestSchema,
   ProviderSubagentListRequestMessageSchema,
   ProviderSubagentTimelineRequestMessageSchema,
   SetAgentTimelineSubscriptionRequestMessageSchema,
@@ -3592,6 +3600,8 @@ export const ServerInfoStatusPayloadSchema = z
     features: z
       .object({
         providersSnapshot: z.boolean().optional(),
+        // COMPAT(backgroundProcesses): added 2026-09-09, remove gate after 2027-03-09.
+        backgroundProcesses: z.boolean().optional(),
         // COMPAT(providersSnapshotCwd): added in v0.3.2, remove gate after 2027-02-10.
         providersSnapshotCwd: z.boolean().optional(),
         // COMPAT(directorySync): added in v0.3.x, remove gate after 2027-02-12.
@@ -6839,6 +6849,8 @@ export const SessionOutboundMessageSchema = z.discriminatedUnion("type", [
   FetchAgentResponseMessageSchema,
   FetchAgentTimelineResponseMessageSchema,
   AgentTimelineListPromptsResponseMessageSchema,
+  BackgroundProcessListResponseSchema,
+  BackgroundProcessOutputResponseSchema,
   ProviderSubagentListResponseMessageSchema,
   ProviderSubagentTimelineResponseMessageSchema,
   ProviderSubagentUpdateMessageSchema,

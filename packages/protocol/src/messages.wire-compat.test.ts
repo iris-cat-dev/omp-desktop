@@ -77,13 +77,14 @@ describe("wire schema compatibility", () => {
     ]);
   });
 
-  test("server info strips unknown legacy features while accepting former turn identity", () => {
+  test("server info preserves current features while stripping unknown legacy entries", () => {
     const parsed = ServerInfoStatusPayloadSchema.parse({
       status: "server_info",
       serverId: "legacy-server",
       features: {
         workspaceGithubClone: true,
         agentTurnIdentity: true,
+        backgroundProcesses: true,
       },
     });
 
@@ -92,7 +93,7 @@ describe("wire schema compatibility", () => {
       serverId: "legacy-server",
       hostname: null,
       version: null,
-      features: { agentTurnIdentity: true },
+      features: { agentTurnIdentity: true, backgroundProcesses: true },
     });
   });
 

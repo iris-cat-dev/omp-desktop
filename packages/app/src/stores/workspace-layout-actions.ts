@@ -1094,7 +1094,10 @@ export function findBottomTerminalPaneId(input: {
   const findTerminalPane = (node: SplitNode): string | null => {
     if (node.kind === "pane") {
       return !node.pane.hidden &&
-        node.pane.tabIds.some((tabId) => tabsById.get(tabId)?.target.kind === "terminal")
+        node.pane.tabIds.some((tabId) => {
+          const kind = tabsById.get(tabId)?.target.kind;
+          return kind === "terminal" || kind === "background_process";
+        })
         ? node.pane.id
         : null;
     }

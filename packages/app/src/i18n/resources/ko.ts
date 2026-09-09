@@ -5,6 +5,7 @@ import { providerUsage } from "./provider-usage";
 
 export const ko: TranslationResources = {
   providerUsage: providerUsage.ko,
+  backgroundProcesses: en.backgroundProcesses,
   externalFilePreview: en.externalFilePreview,
   common: {
     back: "뒤로",

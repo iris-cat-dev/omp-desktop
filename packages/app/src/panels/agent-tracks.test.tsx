@@ -4,6 +4,7 @@ import React, { type ReactNode } from "react";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { DaemonClient } from "@omp-desktop/client/internal/daemon-client";
+import type { BackgroundProcess } from "@omp-desktop/protocol/background-processes";
 import type * as LayoutModule from "@/constants/layout";
 import { AgentTracks } from "@/panels/agent-tracks";
 import { PaneProvider, type PaneContextValue } from "@/panels/pane-context";
@@ -21,6 +22,15 @@ import type { WorkspaceTab } from "@/workspace-tabs/model";
 import { navigateToAgent } from "@/utils/navigate-to-agent";
 
 const layoutMode = vi.hoisted(() => ({ isCompact: false }));
+
+function createBackgroundProcessState(processes: BackgroundProcess[]) {
+  return {
+    processes,
+    error: null,
+    isConnected: true,
+    isLoading: false,
+  };
+}
 
 vi.mock("@react-native-async-storage/async-storage", () => {
   const storage = new Map<string, string>();
@@ -52,6 +62,22 @@ vi.mock("@/composer/diff-stat-pill", () => ({
 vi.mock("@/composer/workspace-diff-stat", () => ({ useWorkspaceHasDiffStat: () => false }));
 vi.mock("@/composer/tracks", () => ({
   ComposerTrackBar: ({ children }: { children: ReactNode }) => children,
+}));
+vi.mock("@/background-processes/track", () => ({
+  BackgroundProcessesTrack: ({
+    state,
+    onOpen,
+  }: {
+    state: { processes: BackgroundProcess[] };
+    onOpen: (process: BackgroundProcess) => void;
+  }) =>
+    state.processes.map((process) =>
+      React.createElement(
+        "button",
+        { key: process.id, type: "button", onClick: () => onOpen(process) },
+        process.name,
+      ),
+    ),
 }));
 vi.mock("@/subagents", () => ({
   useArchiveSubagent: () => vi.fn(),
@@ -208,7 +234,11 @@ function createHostPaneContext(
   return paneContext;
 }
 
-function renderAgentTracks(agentWorkspaceId: string, row: SubagentRow): TracksFixture {
+function renderAgentTracks(
+  agentWorkspaceId: string,
+  row: SubagentRow,
+  processes: BackgroundProcess[] = [],
+): TracksFixture {
   const hostWorkspaceKey = buildWorkspaceTabPersistenceKey({
     serverId: SERVER_ID,
     workspaceId: HOST_WORKSPACE_ID,
@@ -232,12 +262,15 @@ function renderAgentTracks(agentWorkspaceId: string, row: SubagentRow): TracksFi
   const hostTabsBefore = store.getWorkspaceTabs(hostWorkspaceKey);
   const layoutsBefore = useWorkspaceLayoutStore.getState().layoutByWorkspace;
   const paneContext = createHostPaneContext(hostWorkspaceKey, parentTarget, parentTabId);
+  const backgroundProcesses = createBackgroundProcessState(processes);
 
   render(
     <PaneProvider value={paneContext}>
       <AgentTracks
         serverId={SERVER_ID}
         workspaceId={agentWorkspaceId}
+        agentId={PARENT_AGENT_ID}
+        backgroundProcesses={backgroundProcesses}
         cwd="/repo"
         subagentRows={[row]}
         archiveFinishedStatus={IDLE_ARCHIVE_STATUS}
@@ -380,5 +413,47 @@ describe("AgentTracks Paseo 子会话路由", () => {
       agentId: row.id,
     });
     expect(useWorkspaceLayoutStore.getState().layoutByWorkspace).toBe(fixture.layoutsBefore);
+  });
+});
+
+describe("background process output routing", () => {
+  it("reuses a bottom output tab while preserving the host chat and its agent identity", () => {
+    const process: BackgroundProcess = {
+      id: "daemon-build",
+      name: "Background build",
+      command: "bun run build",
+      cwd: "/repo",
+      ownerAgentId: null,
+      scope: "workspace",
+      source: "omp-daemon",
+      status: "exited",
+      startedAt: 1,
+      endedAt: 2,
+      exitCode: 0,
+      terminalId: null,
+    };
+    const fixture = renderAgentTracks(OTHER_WORKSPACE_ID, providerRow, [process]);
+    fireEvent.click(screen.getByRole("button", { name: process.name }));
+    fireEvent.click(screen.getByRole("button", { name: process.name }));
+    const store = useWorkspaceLayoutStore.getState();
+    const tabs = store.getWorkspaceTabs(fixture.hostWorkspaceKey);
+    const outputs = tabs.filter((tab) => tab.target.kind === "background_process");
+    expect(outputs).toHaveLength(1);
+    expect(outputs[0].target).toEqual({
+      kind: "background_process",
+      agentId: PARENT_AGENT_ID,
+      processId: process.id,
+    });
+    const layout = store.layoutByWorkspace[fixture.hostWorkspaceKey];
+    const chatPane = findPaneContainingTab(layout.root, fixture.parentTabId);
+    const outputPane = findPaneContainingTab(layout.root, outputs[0].tabId);
+    expect(chatPane?.focusedTabId).toBe(fixture.parentTabId);
+    expect(outputPane?.id).not.toBe(chatPane?.id);
+    store.closeTab(fixture.hostWorkspaceKey, outputs[0].tabId);
+    expect(
+      store
+        .getWorkspaceTabs(fixture.hostWorkspaceKey)
+        .some((tab) => tab.tabId === fixture.parentTabId),
+    ).toBe(true);
   });
 });

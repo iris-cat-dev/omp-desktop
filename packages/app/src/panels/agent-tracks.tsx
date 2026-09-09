@@ -1,4 +1,8 @@
 import { memo, useCallback, type ReactElement } from "react";
+import type { BackgroundProcess } from "@omp-desktop/protocol/background-processes";
+import type { BackgroundProcessesState } from "@/background-processes/query";
+import { BackgroundProcessesTrack } from "@/background-processes/track";
+import { useBackgroundProcessTerminalTabs } from "@/background-processes/terminal-tabs";
 import { WorkspaceBranchPill } from "@/composer/branch-pill";
 import { useWorkspaceHasBranch } from "@/composer/workspace-branch";
 import { WorkspaceDiffStatPill } from "@/composer/diff-stat-pill";
@@ -7,6 +11,7 @@ import { ComposerTrackBar } from "@/composer/tracks";
 import { supportsDesktopPaneSplits, useIsCompactFormFactor } from "@/constants/layout";
 import { usePaneContext } from "@/panels/pane-context";
 import { useSessionStore } from "@/stores/session-store";
+import { useWorkspaceLayoutStore } from "@/stores/workspace-layout-store";
 import {
   type ArchiveFinishedStatus,
   useArchiveSubagent,
@@ -28,6 +33,8 @@ export const AgentTracks = memo(function AgentTracks({
   serverId,
   workspaceId,
   cwd,
+  agentId,
+  backgroundProcesses,
   subagentRows,
   archiveFinishedStatus,
   onArchiveFinished,
@@ -35,11 +42,13 @@ export const AgentTracks = memo(function AgentTracks({
   serverId: string;
   workspaceId: string;
   cwd: string;
+  agentId: string;
+  backgroundProcesses: BackgroundProcessesState;
   subagentRows: SubagentRow[];
   archiveFinishedStatus: ArchiveFinishedStatus;
   onArchiveFinished: () => void;
 }): ReactElement | null {
-  const { openTab, workspaceId: paneWorkspaceId } = usePaneContext();
+  const { openTab, tabId, workspaceId: paneWorkspaceId } = usePaneContext();
   const hasWorkspaceDiffStat = useWorkspaceHasDiffStat(serverId, workspaceId);
   const hasWorkspaceBranch = useWorkspaceHasBranch(serverId, workspaceId);
   const isCompact = useIsCompactFormFactor();
@@ -77,6 +86,35 @@ export const AgentTracks = memo(function AgentTracks({
     },
     [openTab],
   );
+  const handleOpenProcess = useCallback(
+    (process: BackgroundProcess) => {
+      if (process.source === "terminal" && process.terminalId) {
+        if (!paneWorkspaceKey) return;
+        const store = useWorkspaceLayoutStore.getState();
+        const processTabId = store.openTab({
+          workspaceKey: paneWorkspaceKey,
+          target: { kind: "terminal", terminalId: process.terminalId },
+          intent: "reveal",
+          parentTabId: tabId,
+        });
+        if (processTabId) {
+          useBackgroundProcessTerminalTabs
+            .getState()
+            .setHidden(paneWorkspaceKey, process.terminalId, false);
+          const state = store
+            .getWorkspaceTabs(paneWorkspaceKey)
+            .find((tab) => tab.tabId === processTabId)?.state;
+          store.setTabState(paneWorkspaceKey, processTabId, {
+            ...(state && typeof state === "object" && !Array.isArray(state) ? state : {}),
+            backgroundProcessOutput: true,
+          });
+        }
+      } else {
+        openTab({ kind: "background_process", agentId, processId: process.id });
+      }
+    },
+    [agentId, openTab, paneWorkspaceKey, tabId],
+  );
   const handleOpenChanges = useCallback(() => {
     openSidePanelView({
       isCompact,
@@ -89,6 +127,8 @@ export const AgentTracks = memo(function AgentTracks({
   if (
     !hasWorkspaceDiffStat &&
     !hasWorkspaceBranch &&
+    backgroundProcesses.processes.length === 0 &&
+    !backgroundProcesses.error &&
     !hasAgentTracks({ subagentRows, archiveFinishedStatus })
   ) {
     return null;
@@ -111,6 +151,7 @@ export const AgentTracks = memo(function AgentTracks({
         onPress={handleOpenChanges}
       />
       <WorkspaceBranchPill serverId={serverId} workspaceId={workspaceId} />
+      <BackgroundProcessesTrack state={backgroundProcesses} onOpen={handleOpenProcess} />
     </ComposerTrackBar>
   );
 });

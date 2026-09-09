@@ -1,8 +1,10 @@
 import { ompProviderSettings } from "./omp-provider-settings";
 import { providerUsage } from "./provider-usage";
+import { backgroundProcesses } from "./background-processes";
 
 export const en = {
   providerUsage: providerUsage.en,
+  backgroundProcesses: backgroundProcesses.en,
   externalFilePreview: {
     title: "Local file preview",
     localOnly: "Read-only. Files stay on this device and are not uploaded.",

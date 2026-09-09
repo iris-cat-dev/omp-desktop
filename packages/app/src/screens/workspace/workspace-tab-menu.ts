@@ -133,6 +133,9 @@ function getCloseButtonTestId(tab: WorkspaceTabDescriptor): string {
   if (tab.target.kind === "terminal") {
     return `workspace-terminal-close-${tab.target.terminalId}`;
   }
+  if (tab.target.kind === "background_process") {
+    return `workspace-background-process-close-${encodeFilePathForPathSegment(buildDeterministicWorkspaceTabId(tab.target))}`;
+  }
   if (tab.target.kind === "draft") {
     return `workspace-draft-close-${tab.target.draftId}`;
   }

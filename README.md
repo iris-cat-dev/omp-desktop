@@ -18,6 +18,10 @@ An Electron and Web client for [Oh My Pi](https://github.com/can1357/oh-my-pi). 
 - Local text previews support files up to 2 MiB, including extensionless files. Directories, binary files, and larger files show an explanation instead.
 - Terminal surfaces keep their existing file-path drop behavior.
 
+## Background processes
+
+Background commands started by the current Agent appear beside the workspace branch under the composer. The indicator shows the active count; opening it lists live and recently completed commands. Select a command to open its read-only terminal output in a bottom pane. Closing that pane does not stop the process, and reconnecting restores the process state and retained output.
+
 ## Development
 
 ```bash

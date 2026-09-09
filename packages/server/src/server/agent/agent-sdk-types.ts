@@ -1,4 +1,8 @@
 import type {
+  BackgroundProcess,
+  BackgroundProcessOutput,
+} from "@omp-desktop/protocol/background-processes";
+import type {
   AgentProviderNotice,
   AgentTaskItem,
   ProviderOptions,
@@ -681,6 +685,8 @@ export interface AgentSession {
   /** Release live runtime resources without archiving or deleting the durable native session. */
   close(): Promise<void>;
   listCommands?(): Promise<AgentSlashCommand[]>;
+  listBackgroundProcesses?(): Promise<BackgroundProcess[]>;
+  getBackgroundProcessOutput?(processId: string, cursor?: number): Promise<BackgroundProcessOutput>;
   setModel?(modelId: string | null): Promise<void>;
   setThinkingOption?(thinkingOptionId: string | null): Promise<void | AgentProviderNotice>;
   setFeature?(featureId: string, value: unknown): Promise<void>;

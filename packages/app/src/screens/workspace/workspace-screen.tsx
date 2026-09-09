@@ -90,6 +90,7 @@ import {
   useHosts,
 } from "@/runtime/host-runtime";
 import { prefetchProvidersSnapshot } from "@/hooks/use-providers-snapshot";
+import { useBackgroundProcessTerminalTabs } from "@/background-processes/terminal-tabs";
 import {
   shouldSeedWorkspaceSetupTab,
   useWorkspaceSetupStore,
@@ -285,7 +286,7 @@ function getFallbackTabOptionLabel(
   if (tab.target.kind === "setup") {
     return labels.setup;
   }
-  if (tab.target.kind === "terminal") {
+  if (tab.target.kind === "terminal" || tab.target.kind === "background_process") {
     return labels.terminal;
   }
   if (tab.target.kind === "browser") {
@@ -339,7 +340,7 @@ function getFallbackTabOptionDescription(
   if (tab.target.kind === "agent") {
     return labels.agent;
   }
-  if (tab.target.kind === "terminal") {
+  if (tab.target.kind === "terminal" || tab.target.kind === "background_process") {
     return labels.terminal;
   }
   if (tab.target.kind === "browser") {
@@ -367,6 +368,18 @@ function getFallbackTabOptionDescription(
     return tab.target.panelId;
   }
   return tab.target.path;
+}
+
+function isPassiveBackgroundTerminalTab(
+  tab: Pick<WorkspaceTabDescriptor, "target" | "state"> | undefined,
+): boolean {
+  return Boolean(
+    tab?.target.kind === "terminal" &&
+    tab.state &&
+    typeof tab.state === "object" &&
+    !Array.isArray(tab.state) &&
+    tab.state.backgroundProcessOutput === true,
+  );
 }
 
 interface MobileWorkspaceTabSwitcherProps {
@@ -1656,6 +1669,17 @@ function WorkspaceScreenContent({
         unpinWorkspaceAgent(persistenceKey, input.target.agentId);
         hideWorkspaceAgent(persistenceKey, input.target.agentId);
       }
+      if (input.target?.kind === "terminal") {
+        const tab = useWorkspaceLayoutStore
+          .getState()
+          .getWorkspaceTabs(persistenceKey)
+          .find((entry) => entry.tabId === normalizedTabId);
+        if (isPassiveBackgroundTerminalTab(tab)) {
+          useBackgroundProcessTerminalTabs
+            .getState()
+            .setHidden(persistenceKey, input.target.terminalId, true);
+        }
+      }
       if (input.target?.kind === "browser") {
         const { browserId } = input.target;
         useBrowserStore.getState().removeBrowser(browserId);
@@ -1762,6 +1786,9 @@ function WorkspaceScreenContent({
     [openWorkspaceTabFocused, openWorkspaceTabInBackground, persistenceKey],
   );
 
+  const hiddenProcessTerminalIds = useBackgroundProcessTerminalTabs((state) =>
+    persistenceKey ? state.hiddenByWorkspace[persistenceKey] : undefined,
+  );
   useLayoutEffect(() => {
     if (!isRouteFocused) {
       return;
@@ -1788,7 +1815,9 @@ function WorkspaceScreenContent({
         agentsHydrated: hasHydratedAgents,
         terminalsHydrated: terminalsQuery.isSuccess,
         knownTerminalIds,
-        standaloneTerminalIds,
+        standaloneTerminalIds: standaloneTerminalIds.filter(
+          (id) => !hiddenProcessTerminalIds?.has(id),
+        ),
         hasActivePendingTerminalCreate:
           createTerminalMutation.isPending || pendingTerminalCreateInput !== null,
         hasActivePendingDraftCreate: hasActivePendingDraftCreateInWorkspace,
@@ -1807,6 +1836,7 @@ function WorkspaceScreenContent({
     reconcileWorkspaceTabs,
     knownTerminalIds,
     standaloneTerminalIds,
+    hiddenProcessTerminalIds,
     terminalsQuery.isSuccess,
     uiTabs,
     workspaceAgentVisibility,
@@ -2371,6 +2401,10 @@ function WorkspaceScreenContent({
         return;
       }
       if (!(await confirmDiscardModifiedTab(tabId))) {
+        return;
+      }
+      if (isPassiveBackgroundTerminalTab(tab)) {
+        handleClosePassiveTab({ tabId, target: tab.target });
         return;
       }
       if (tab.target.kind === "terminal") {

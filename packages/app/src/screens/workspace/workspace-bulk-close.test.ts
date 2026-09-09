@@ -34,6 +34,32 @@ function makeFileTab(path: string): WorkspaceTabDescriptor {
 }
 
 describe("workspace bulk close helpers", () => {
+  it("closes process output views without stopping their underlying terminals or jobs", async () => {
+    const terminal = { ...makeTerminalTab("live"), state: { backgroundProcessOutput: true } };
+    const process: WorkspaceTabDescriptor = {
+      key: "process",
+      tabId: "process",
+      kind: "background_process",
+      target: { kind: "background_process", agentId: "agent", processId: "job" },
+    };
+    const groups = classifyBulkClosableTabs([terminal, process]);
+    const closeItems = vi.fn();
+    const closed: string[] = [];
+    await closeBulkWorkspaceTabs({
+      groups,
+      client: { closeItems },
+      closeTab: async (_id, action) => {
+        await action();
+      },
+      closeWorkspaceTabWithCleanup: ({ tabId }) => {
+        closed.push(tabId);
+      },
+      closeLayoutOnlyAgent: async () => {},
+      logLabel: "process output",
+    });
+    expect(closeItems).not.toHaveBeenCalled();
+    expect(closed).toEqual(["terminal_live", "process"]);
+  });
   it("classifies agent, terminal, and passive tabs for shared bulk close handling", () => {
     const groups = classifyBulkClosableTabs([
       makeAgentTab("a1"),

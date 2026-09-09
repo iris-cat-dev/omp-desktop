@@ -1,4 +1,9 @@
 import { randomUUID } from "node:crypto";
+import type {
+  BackgroundProcess,
+  BackgroundProcessOutput,
+} from "@omp-desktop/protocol/background-processes";
+import { OmpBackgroundDaemons } from "./background-daemons.js";
 import { createRequire } from "node:module";
 import { existsSync, promises as fs } from "node:fs";
 import { homedir } from "node:os";
@@ -528,6 +533,7 @@ interface OmpAgentSessionOptions {
   usagePollScheduler?: OmpUsagePollScheduler;
   paseoTools?: PaseoToolCatalog;
   blobDir?: string;
+  backgroundDaemons?: OmpBackgroundDaemons;
   /**
    * When false (resumed sessions), replayed session events are dropped until
    * the first prompt or agent_start so history is not re-emitted as live
@@ -1549,11 +1555,13 @@ export class OmpAgentSession implements AgentSession {
   private lastEmittedLiveUserMessageText: string | null = null;
   private lastSubmittedPromptText: string | null = null;
   private lastSubmittedPromptClientMessageId: string | null = null;
+  private readonly backgroundDaemons?: OmpBackgroundDaemons;
 
   constructor(options: OmpAgentSessionOptions) {
     this.runtimeSession = options.runtimeSession;
     this.config = options.config;
     this.blobDir = options.blobDir;
+    this.backgroundDaemons = options.backgroundDaemons;
     this.oauthAccounts = [...(options.oauthAccounts ?? [])];
     this.automaticCredentialId = options.automaticCredentialId;
     this.automaticCredentialResolver = options.automaticCredentialResolver;
@@ -1658,6 +1666,52 @@ export class OmpAgentSession implements AgentSession {
 
   get id(): string | null {
     return this.state.sessionId;
+  }
+
+  async listBackgroundProcesses(): Promise<BackgroundProcess[]> {
+    const [daemons, jobs] = await Promise.all([
+      this.backgroundDaemons?.list() ?? [],
+      this.runtimeSession.listBackgroundJobs?.() ?? [],
+    ]);
+    const ownedDaemons: BackgroundProcess[] = [];
+    for (const entry of daemons) {
+      if (entry.providerOwnerId === null || entry.providerOwnerId !== this.state.sessionId)
+        continue;
+      ownedDaemons.push({
+        id: entry.id,
+        name: entry.name,
+        command: entry.command,
+        cwd: entry.cwd,
+        ownerAgentId: entry.ownerAgentId,
+        scope: "agent",
+        source: entry.source,
+        status: entry.status,
+        startedAt: entry.startedAt,
+        endedAt: entry.endedAt,
+        exitCode: entry.exitCode,
+        terminalId: entry.terminalId,
+      });
+    }
+    return ownedDaemons.concat(jobs);
+  }
+
+  async getBackgroundProcessOutput(
+    processId: string,
+    cursor?: number,
+  ): Promise<BackgroundProcessOutput> {
+    // Resolve against the current session's scoped list before either backend
+    // sees an ID. Sharing a cwd does not grant access to another conversation.
+    const entry = (await this.listBackgroundProcesses()).find(
+      (process) => process.id === processId,
+    );
+    if (!entry) throw new Error("Background process not found");
+    if (entry.source === "omp-daemon" && this.backgroundDaemons) {
+      return this.backgroundDaemons.output(processId, cursor);
+    }
+    if (entry.source === "omp-job" && this.runtimeSession.getBackgroundJobOutput) {
+      return this.runtimeSession.getBackgroundJobOutput(processId, cursor);
+    }
+    throw new Error("Background process output is unavailable");
   }
 
   async run(prompt: AgentPromptInput, options?: AgentRunOptions): Promise<AgentRunResult> {
@@ -2208,6 +2262,7 @@ export class OmpAgentSession implements AgentSession {
       return;
     }
     this.closed = true;
+    this.backgroundDaemons?.dispose();
     this.stopAutomaticCredentialResolution();
     this.usagePoller.close();
     this.cancelNoTurnPromptCompletion();
@@ -3743,6 +3798,19 @@ export class OmpAgentClient implements AgentClient {
           automaticCredentialScheduler: this.automaticCredentialScheduler,
           usagePollScheduler: this.usagePollScheduler,
           paseoTools: launchContext?.paseoTools,
+          backgroundDaemons: new OmpBackgroundDaemons({
+            cwd: config.cwd,
+            env: { ...process.env, ...this.runtimeSettings?.env, ...launchContext?.env },
+            command:
+              this.runtimeSettings?.command?.mode === "replace"
+                ? this.runtimeSettings.command.argv
+                : [
+                    "omp",
+                    ...(this.runtimeSettings?.command?.mode === "append"
+                      ? (this.runtimeSettings.command.args ?? [])
+                      : []),
+                  ],
+          }),
           blobDir: join(
             dirname(
               resolveOmpDiagnosticPaths({
@@ -3826,6 +3894,19 @@ export class OmpAgentClient implements AgentClient {
           automaticCredentialScheduler: this.automaticCredentialScheduler,
           usagePollScheduler: this.usagePollScheduler,
           paseoTools: launchContext?.paseoTools,
+          backgroundDaemons: new OmpBackgroundDaemons({
+            cwd: resumeConfig.config.cwd,
+            env: { ...process.env, ...this.runtimeSettings?.env, ...launchContext?.env },
+            command:
+              this.runtimeSettings?.command?.mode === "replace"
+                ? this.runtimeSettings.command.argv
+                : [
+                    "omp",
+                    ...(this.runtimeSettings?.command?.mode === "append"
+                      ? (this.runtimeSettings.command.args ?? [])
+                      : []),
+                  ],
+          }),
           blobDir: join(
             dirname(
               resolveOmpDiagnosticPaths({

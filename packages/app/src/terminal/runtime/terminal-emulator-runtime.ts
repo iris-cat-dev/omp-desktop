@@ -373,6 +373,7 @@ export class TerminalEmulatorRuntime {
 
   setCallbacks(input: { callbacks: TerminalEmulatorRuntimeCallbacks }): void {
     this.callbacks = input.callbacks;
+    if (this.terminal) this.terminal.options.disableStdin = !input.callbacks.onInput;
   }
 
   setPendingModifiers(input: { pendingModifiers: PendingTerminalModifiers }): void {
@@ -393,6 +394,7 @@ export class TerminalEmulatorRuntime {
 
     const terminal = new Terminal({
       allowProposedApi: true,
+      disableStdin: !this.callbacks.onInput,
       convertEol: false,
       cursorBlink: true,
       cursorStyle: "bar",

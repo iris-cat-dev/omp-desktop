@@ -1,4 +1,8 @@
 import equal from "fast-deep-equal";
+import {
+  listAgentTerminalProcesses,
+  readAgentTerminalOutput,
+} from "../terminal/background-processes.js";
 import { v4 as uuidv4 } from "uuid";
 import { lstat, mkdir, mkdtemp, rename, rm, stat } from "node:fs/promises";
 import { basename, resolve, sep } from "path";
@@ -2194,6 +2198,9 @@ export class Session {
         return this.handleFetchAgentTimelineRequest(msg, source);
       case "agent.timeline.list_prompts.request":
         return this.handleAgentTimelineListPromptsRequest(msg, source);
+      case "agent.background_processes.list.request":
+      case "agent.background_processes.output.request":
+        return this.handleBackgroundProcessRequest(msg, source);
       case "agent.provider_subagents.list.request":
         return this.handleProviderSubagentListRequest(msg);
       case "agent.provider_subagents.timeline.get.request":
@@ -7419,6 +7426,73 @@ export class Session {
         },
         source,
       );
+    }
+  }
+
+  private async handleBackgroundProcessRequest(
+    msg: Extract<
+      SessionInboundMessage,
+      {
+        type:
+          | "agent.background_processes.list.request"
+          | "agent.background_processes.output.request";
+      }
+    >,
+    source?: object,
+  ): Promise<void> {
+    try {
+      await ensureUnarchivedAgentLoaded(msg.agentId, {
+        agentManager: this.agentManager,
+        agentStorage: this.agentStorage,
+        logger: this.sessionLogger,
+      });
+      if (msg.type === "agent.background_processes.list.request") {
+        const processes = await this.agentManager.listBackgroundProcesses(msg.agentId);
+        if (this.terminalManager)
+          processes.push(...listAgentTerminalProcesses(this.terminalManager, msg.agentId));
+        this.emitForSource(
+          {
+            type: "agent.background_processes.list.response",
+            payload: { requestId: msg.requestId, processes, error: null },
+          },
+          source,
+        );
+      } else {
+        const output =
+          msg.processId.startsWith("terminal:") && this.terminalManager
+            ? await readAgentTerminalOutput(this.terminalManager, msg.agentId, msg.processId)
+            : await this.agentManager.getBackgroundProcessOutput(
+                msg.agentId,
+                msg.processId,
+                msg.cursor,
+              );
+        this.emitForSource(
+          {
+            type: "agent.background_processes.output.response",
+            payload: { requestId: msg.requestId, output, error: null },
+          },
+          source,
+        );
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (msg.type === "agent.background_processes.list.request") {
+        this.emitForSource(
+          {
+            type: "agent.background_processes.list.response",
+            payload: { requestId: msg.requestId, processes: [], error: message },
+          },
+          source,
+        );
+      } else {
+        this.emitForSource(
+          {
+            type: "agent.background_processes.output.response",
+            payload: { requestId: msg.requestId, output: null, error: message },
+          },
+          source,
+        );
+      }
     }
   }
 

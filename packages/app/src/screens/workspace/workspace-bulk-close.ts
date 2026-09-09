@@ -61,6 +61,16 @@ export function classifyBulkClosableTabs(
   };
 
   for (const tab of tabs) {
+    if (
+      tab.target.kind === "terminal" &&
+      tab.state &&
+      typeof tab.state === "object" &&
+      !Array.isArray(tab.state) &&
+      tab.state.backgroundProcessOutput === true
+    ) {
+      groups.otherTabs.push({ tabId: tab.tabId, target: tab.target });
+      continue;
+    }
     if (tab.target.kind === "agent") {
       const agentTab = { tabId: tab.tabId, agentId: tab.target.agentId };
       if (resolveAgentCloseKind(tab.target.agentId) === "layout-only") {

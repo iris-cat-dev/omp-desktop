@@ -77,6 +77,7 @@ interface WorkerTerminalRecord {
   messageListeners: Set<(msg: ServerMessage) => void>;
   exitListeners: Set<(info: TerminalExitInfo) => void>;
   commandFinishedListeners: Set<(info: TerminalCommandFinishedInfo) => void>;
+  commandStartedListeners: Set<() => void>;
   titleChangeListeners: Set<(title?: string) => void>;
   activityChangeListeners: Set<(transition: TerminalActivityTransition) => void>;
   session: TerminalSession;
@@ -241,6 +242,7 @@ export function createWorkerTerminalManager(
       messageListeners: new Set(),
       exitListeners: new Set(),
       commandFinishedListeners: new Set(),
+      commandStartedListeners: new Set(),
       titleChangeListeners: new Set(),
       activityChangeListeners: new Set(),
       session: undefined as unknown as TerminalSession,
@@ -299,6 +301,12 @@ export function createWorkerTerminalManager(
         record.commandFinishedListeners.add(listener);
         return () => {
           record.commandFinishedListeners.delete(listener);
+        };
+      },
+      onCommandStarted(listener: () => void): () => void {
+        record.commandStartedListeners.add(listener);
+        return () => {
+          record.commandStartedListeners.delete(listener);
         };
       },
       onTitleChange(listener: (title?: string) => void): () => void {
@@ -571,6 +579,13 @@ export function createWorkerTerminalManager(
         return;
       }
 
+      case "terminalCommandStarted": {
+        for (const listener of Array.from(
+          recordsById.get(message.terminalId)?.commandStartedListeners ?? [],
+        ))
+          listener();
+        return;
+      }
       case "terminalCommandFinished": {
         handleTerminalCommandFinishedEvent(message);
         return;

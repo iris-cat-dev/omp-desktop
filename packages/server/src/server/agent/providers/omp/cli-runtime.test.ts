@@ -4,7 +4,7 @@ import { PassThrough } from "node:stream";
 import pino from "pino";
 import { describe, expect, test, vi } from "vitest";
 
-import { OmpCliRuntime } from "./cli-runtime.js";
+import { OmpCliRuntime, resolveOmpBackgroundJobsExtensionPath } from "./cli-runtime.js";
 import type { OmpRuntimeLaunch } from "./runtime.js";
 import type { ProviderRuntimeSettings } from "../../provider-launch-config.js";
 
@@ -100,6 +100,16 @@ function withoutRequestId(command: Record<string, unknown>): Record<string, unkn
 }
 
 describe("OMP CLI runtime", () => {
+  test("passes an unpacked extension path to an external packaged OMP process", () => {
+    const moduleUrl = new URL(
+      "file:///Applications/OMP%20Desktop.app/Contents/Resources/app.asar/node_modules/@omp-desktop/server/dist/server/server/agent/providers/omp/cli-runtime.js",
+    );
+
+    expect(resolveOmpBackgroundJobsExtensionPath(moduleUrl, () => true)).toBe(
+      "/Applications/OMP Desktop.app/Contents/Resources/app.asar.unpacked/node_modules/@omp-desktop/server/dist/server/server/agent/providers/omp/background-jobs-extension.js",
+    );
+  });
+
   test("passes the configured PI_PROXY to a new OMP process", async () => {
     const child = createOmpChild();
     const launches: OmpRuntimeLaunch[] = [];

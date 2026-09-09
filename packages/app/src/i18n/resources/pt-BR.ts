@@ -5,6 +5,7 @@ import { providerUsage } from "./provider-usage";
 
 export const ptBR: TranslationResources = {
   providerUsage: providerUsage["pt-BR"],
+  backgroundProcesses: en.backgroundProcesses,
   externalFilePreview: en.externalFilePreview,
   common: {
     back: "Voltar",
