@@ -631,7 +631,7 @@ export function replaceWithCanonicalStream(
       item.kind === "user_message" && item.clientMessageId !== undefined,
   );
   let nextHead = input.previousHead;
-  const nextTail: StreamItem[] = [];
+  let nextTail: StreamItem[] = [];
   const acknowledgedClientMessageIds = new Set<string>();
 
   for (const item of input.canonical) {
@@ -665,6 +665,44 @@ export function replaceWithCanonicalStream(
 
     nextTail.push(item);
   }
+
+  // A canonical page can lag the live timeline (empty pages, pages captured
+  // before a tool call landed). Any live-painted agent tool call from the
+  // previous tail that the canonical page does not carry must survive the
+  // replacement, or the only record of a created/edited/deleted file silently
+  // disappears. Re-merge them by timeline seq so ordering stays stable.
+  const canonicalCallIds = new Set(
+    input.canonical
+      .filter(isAgentToolCallItem)
+      .map((item) => item.payload.data.callId),
+  );
+  const survivingTailToolCalls = input.previousTail.filter(
+    (item): item is AgentToolCallItem =>
+      isAgentToolCallItem(item) && !canonicalCallIds.has(item.payload.data.callId),
+  );
+  let canonicalIndex = 0;
+  let survivorIndex = 0;
+  const mergedTail: StreamItem[] = [];
+  while (canonicalIndex < nextTail.length || survivorIndex < survivingTailToolCalls.length) {
+    const canonicalItem = nextTail[canonicalIndex];
+    const survivor = survivingTailToolCalls[survivorIndex];
+    const canonicalSeq = canonicalItem?.timelineCursor?.seq;
+    const survivorSeq = survivor?.timelineCursor?.seq;
+    if (survivor && survivorSeq !== undefined && (canonicalItem === undefined || canonicalSeq === undefined || survivorSeq < canonicalSeq)) {
+      mergedTail.push(survivor);
+      survivorIndex += 1;
+      continue;
+    }
+    if (canonicalItem !== undefined) {
+      mergedTail.push(canonicalItem);
+      canonicalIndex += 1;
+      continue;
+    }
+    // Survivor without a cursor (defensive): keep it after everything else.
+    mergedTail.push(survivor as AgentToolCallItem);
+    survivorIndex += 1;
+  }
+  nextTail = mergedTail;
 
   const retainedTailMessages: UserMessageItem[] = [];
   for (const local of unmatchedTailMessages) {

@@ -3,6 +3,7 @@ import type { AgentStreamEventPayload } from "@omp-desktop/protocol/messages";
 import {
   createUserMessage,
   hydrateStreamState,
+  isAgentToolCallItem,
   type AgentToolCallItem,
   type StreamItem,
 } from "@/types/stream";
@@ -45,6 +46,7 @@ function makeToolCallTimelineEntry(
   callId: string,
   status: "running" | "completed",
   detail: Record<string, unknown>,
+  name = "Read",
 ) {
   return {
     seqStart: seq,
@@ -53,7 +55,7 @@ function makeToolCallTimelineEntry(
     item: {
       type: "tool_call",
       callId,
-      name: "Read",
+      name,
       status,
       detail,
       error: null,
@@ -2839,6 +2841,61 @@ describe("processTimelineResponse", () => {
       (item) => item.kind === "tool_call" && item.payload.source === "agent",
     );
     expect(toolCalls).toHaveLength(1);
+  });
+  it("keeps live multi-file tool calls that a replacement page does not cover", () => {
+    // Regression (author-reported): multi-file turns lost every write except
+    // the first when a replacement page was applied — previousTail tool calls
+    // not present in the canonical page were silently dropped.
+    const writeCall = (callId: string, filePath: string, seq: number): StreamItem => ({
+      kind: "tool_call",
+      id: "agent_tool_" + callId,
+      timestamp: new Date(2000 + seq),
+      timelineCursor: { epoch: "epoch-1", seq },
+      payload: {
+        source: "agent",
+        data: {
+          provider: "omp",
+          callId,
+          name: "write",
+          status: "completed",
+          error: null,
+          detail: { type: "write", filePath },
+        },
+      },
+    }) as unknown as StreamItem;
+    const result = processTimelineResponse({
+      ...baseTimelineInput,
+      currentTail: [
+        { kind: "user_message", id: "u1", text: "create three files", timestamp: new Date(1000), timelineCursor: { epoch: "epoch-1", seq: 1 } } as StreamItem,
+        writeCall("w-a", "a.md", 2),
+        writeCall("w-b", "b.md", 3),
+        writeCall("w-c", "c.md", 4),
+      ],
+      currentHead: [],
+      currentCursor: { epoch: "epoch-1", startSeq: 1, endSeq: 4 },
+      sendingClientMessageIds: [],
+      payload: {
+        ...baseTimelineInput.payload,
+        direction: "tail",
+        mergeWindow: true,
+        epoch: "epoch-1",
+        startCursor: { seq: 1 },
+        endCursor: { seq: 4 },
+        hasOlder: false,
+        hasNewer: false,
+        entries: [makeTimelineEntry(1, "create three files", "user_message"), makeToolCallTimelineEntry(2, "w-a", "completed", { type: "write", filePath: "a.md" }, "write")],
+      },
+    });
+
+    const writePaths = result.tail
+      .filter(isAgentToolCallItem)
+      .filter((item) => item.payload.data.name === "write")
+      .map((item) => {
+        const detail = item.payload.data.detail;
+        return detail.type === "write" ? detail.filePath : "";
+      })
+      .sort();
+    expect(writePaths).toEqual(["a.md", "b.md", "c.md"]);
   });
   it("keeps live assistant blocks ordered when merging a disjoint prompt-jump window", () => {
     const live = processAgentStreamEvents({
