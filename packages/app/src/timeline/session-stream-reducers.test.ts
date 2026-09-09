@@ -2897,6 +2897,56 @@ describe("processTimelineResponse", () => {
       .sort();
     expect(writePaths).toEqual(["a.md", "b.md", "c.md"]);
   });
+  it("applies gap-seq tool calls instead of dropping them", () => {
+    // Regression (author-reported): with cursor endSeq=1, a write at seq=3
+    // (a reasoning row occupies seq 2) classified as "gap" and was dropped —
+    // multi-file turns only ever surfaced the first file. Tool calls must
+    // survive the gap; the catch-up page re-provides them idempotently.
+    const events = [
+      {
+        event: {
+          type: "timeline",
+          provider: "omp",
+          turnId: "t-1",
+          item: { type: "tool_call", callId: "w-a", name: "write", status: "completed", error: null, detail: { type: "write", filePath: "a.md" } },
+        } as AgentStreamEventPayload,
+        seq: 3,
+        epoch: "epoch-1",
+        timestamp: new Date(3000),
+      },
+      {
+        event: {
+          type: "timeline",
+          provider: "omp",
+          turnId: "t-1",
+          item: { type: "tool_call", callId: "w-b", name: "write", status: "completed", error: null, detail: { type: "write", filePath: "b.md" } },
+        } as AgentStreamEventPayload,
+        seq: 4,
+        epoch: "epoch-1",
+        timestamp: new Date(4000),
+      },
+    ];
+    const result = processAgentStreamEvents({
+      events,
+      currentTail: [
+        { kind: "user_message", id: "u1", text: "create files", timestamp: new Date(1000), timelineCursor: { epoch: "epoch-1", seq: 1 } },
+      ],
+      currentHead: [],
+      currentCursor: { epoch: "epoch-1", startSeq: 1, endSeq: 1 },
+      hasAuthoritativeBaseline: true,
+    });
+
+    const writePaths = result.tail
+      .filter(isAgentToolCallItem)
+      .filter((item) => item.payload.data.name === "write")
+      .map((item) => {
+        const detail = item.payload.data.detail;
+        return detail.type === "write" ? detail.filePath : "";
+      });
+    expect(writePaths).toEqual(["a.md", "b.md"]);
+    // Cursor must NOT advance past the unseen rows (2 was never delivered).
+    expect(result.cursor).toEqual({ epoch: "epoch-1", startSeq: 1, endSeq: 1 });
+  });
   it("keeps live assistant blocks ordered when merging a disjoint prompt-jump window", () => {
     const live = processAgentStreamEvents({
       events: [
