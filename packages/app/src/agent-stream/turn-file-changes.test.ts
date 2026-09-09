@@ -128,6 +128,85 @@ describe("collectTurnFileChanges", () => {
     ];
     expect(collectTurnFileChanges(items, 0)).toEqual([]);
   });
+  it("maps every target of a multi-file rm to its own chip", () => {
+    const items = [
+      toolCallItem({ name: "shell", detail: { type: "shell", command: "rm a.txt b.txt c.txt" } }),
+    ];
+    expect(collectTurnFileChanges(items, 0)).toEqual([
+      { path: "a.txt", kind: "deleted" },
+      { path: "b.txt", kind: "deleted" },
+      { path: "c.txt", kind: "deleted" },
+    ]);
+  });
+
+  it("detects touch-created files", () => {
+    const items = [
+      toolCallItem({
+        name: "bash",
+        detail: { type: "shell", command: "touch a.txt b.txt c.txt" },
+      }),
+    ];
+    expect(collectTurnFileChanges(items, 0)).toEqual([
+      { path: "a.txt", kind: "added" },
+      { path: "b.txt", kind: "added" },
+      { path: "c.txt", kind: "added" },
+    ]);
+  });
+
+  it("detects files created by a for-in touch loop (real a.txt~f.txt shape)", () => {
+    const items = [
+      toolCallItem({
+        name: "bash",
+        detail: {
+          type: "shell",
+          command: 'for f in a b c d e f; do touch "$f.txt"; done',
+        },
+      }),
+    ];
+    expect(collectTurnFileChanges(items, 0)).toEqual([
+      { path: "a.txt", kind: "added" },
+      { path: "b.txt", kind: "added" },
+      { path: "c.txt", kind: "added" },
+      { path: "d.txt", kind: "added" },
+      { path: "e.txt", kind: "added" },
+      { path: "f.txt", kind: "added" },
+    ]);
+  });
+
+  it("expands the loop variable only where bash would", () => {
+    const items = [
+      // Single quotes stay literal; unknown $vars reject the segment.
+      toolCallItem({
+        name: "bash",
+        detail: { type: "shell", command: "for f in a b; do touch '$f.txt'; done" },
+      }),
+      toolCallItem({
+        name: "bash",
+        detail: { type: "shell", command: "for f in a b; do touch \"$f$g.txt\"; done" },
+      }),
+      // Glob word lists select existing files; touching them adds nothing.
+      toolCallItem({
+        name: "bash",
+        detail: { type: "shell", command: "for f in *.txt; do touch \"$f\"; done" },
+      }),
+      toolCallItem({
+        name: "bash",
+        detail: { type: "shell", command: "for f in a b; do touch \"$(mktemp)\"; done" },
+      }),
+    ];
+    expect(collectTurnFileChanges(items, 0)).toEqual([]);
+  });
+  it("prefers added over modified when a path is touched then edited", () => {
+    const items = [
+      toolCallItem({ name: "bash", detail: { type: "shell", command: "touch notes.md" } }),
+      toolCallItem({
+        name: "edit",
+        detail: { type: "edit", filePath: "notes.md", oldString: "a", newString: "b" },
+      }),
+    ];
+    expect(collectTurnFileChanges(items, 0)).toEqual([{ path: "notes.md", kind: "added" }]);
+  });
+
 
   it("detects delete-named tools with unknown detail input", () => {
     const items = [
