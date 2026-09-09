@@ -172,6 +172,27 @@ describe("collectTurnFileChanges", () => {
       { path: "f.txt", kind: "added" },
     ]);
   });
+  it("detects the loop after a cd prefix (real bar-test shape)", () => {
+    const items = [
+      toolCallItem({
+        name: "shell",
+        detail: {
+          type: "shell",
+          command:
+            'cd /d/ai_projects/bar-test && for f in a b c d e f; do touch "$f.txt"; done && ls',
+        },
+      }),
+    ];
+    expect(collectTurnFileChanges(items, 0)).toEqual([
+      { path: "a.txt", kind: "added" },
+      { path: "b.txt", kind: "added" },
+      { path: "c.txt", kind: "added" },
+      { path: "d.txt", kind: "added" },
+      { path: "e.txt", kind: "added" },
+      { path: "f.txt", kind: "added" },
+    ]);
+  });
+
 
   it("expands the loop variable only where bash would", () => {
     const items = [

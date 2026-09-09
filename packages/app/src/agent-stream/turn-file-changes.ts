@@ -314,7 +314,8 @@ function extractShellCreatePaths(command: string): string[] {
   const loop = extractForLoop(segments);
   if (loop) {
     const paths: string[] = [];
-    for (const segment of segments.slice(1)) {
+    for (let index = loop.headerIndex + 1; index < segments.length; index += 1) {
+      const segment = segments[index] ?? "";
       const tokens = tokenizeShellLoopSegment(segment, loop.loopVar);
       const bodyTokens = tokens?.[0]?.toLowerCase() === "do" ? tokens.slice(1) : tokens;
       if (!bodyTokens || bodyTokens[0]?.toLowerCase() !== "touch") {
@@ -355,24 +356,28 @@ function extractShellCreatePaths(command: string): string[] {
 
 function extractForLoop(
   segments: string[],
-): { loopVar: string; words: string[] } | null {
-  const tokens = tokenizeShellSegment(segments[0] ?? "");
-  if (!tokens || tokens.length < 4) {
-    return null;
+): { loopVar: string; words: string[]; headerIndex: number } | null {
+  // The loop header may follow other commands: `cd dir && for f in ...`.
+  for (let headerIndex = 0; headerIndex < segments.length; headerIndex += 1) {
+    const tokens = tokenizeShellSegment(segments[headerIndex] ?? "");
+    if (!tokens || tokens.length < 4) {
+      continue;
+    }
+    if (tokens[0]?.toLowerCase() !== "for" || tokens[2]?.toLowerCase() !== "in") {
+      continue;
+    }
+    const loopVar = tokens[1] ?? "";
+    if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(loopVar)) {
+      return null;
+    }
+    const words = tokens.slice(3);
+    // Glob word lists select existing files; touching them adds nothing.
+    if (words.some((word) => /[*?[]/.test(word))) {
+      return null;
+    }
+    return { loopVar, words, headerIndex };
   }
-  if (tokens[0]?.toLowerCase() !== "for" || tokens[2]?.toLowerCase() !== "in") {
-    return null;
-  }
-  const loopVar = tokens[1] ?? "";
-  if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(loopVar)) {
-    return null;
-  }
-  const words = tokens.slice(3);
-  // Glob word lists select existing files; touching them adds nothing.
-  if (words.some((word) => /[*?[]/.test(word))) {
-    return null;
-  }
-  return { loopVar, words };
+  return null;
 }
 
 /**
