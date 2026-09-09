@@ -22,41 +22,60 @@ function makeRefAttacher(ref: unknown): (node: HTMLDivElement | null) => void {
 vi.mock("react-native-reanimated", () => {
   const CHIP_HEIGHT_MOCK = 20;
   const animatedStyle = (style: Record<string, unknown>) => style;
+  const CHIP_X_STEP_MOCK = 60;
   const AnimatedView = ({
     children,
     style,
     testID,
+    onLayout,
   }: {
     children?: React.ReactNode;
     style?: unknown;
     testID?: string;
-  }) => (
-    <div
-      data-test-tag="animated-view"
-      data-testid={testID}
-      style={Array.isArray(style) ? style[0] : style}
-    >
-      {children}
-    </div>
-  );
+    onLayout?: (event: { nativeEvent: { layout: { width: number; x?: number } } }) => void;
+  }) => {
+    React.useEffect(() => {
+      const slot = testID?.match(/^turn-file-changes-slot-(\d+)$/);
+      if (slot && onLayout) {
+        onLayout({
+          nativeEvent: { layout: { width: 50, x: Number(slot[1]) * CHIP_X_STEP_MOCK } },
+        });
+        return;
+      }
+      // The bar container reports a fixed 400px width in jsdom.
+      if (onLayout) {
+        onLayout({ nativeEvent: { layout: { width: 400 } } });
+      }
+    }, [testID, onLayout]);
+    return (
+      <div
+        data-test-tag="animated-view"
+        data-testid={testID}
+        style={
+          Array.isArray(style)
+            ? (Object.assign({}, ...(style as object[])) as React.CSSProperties)
+            : (style as React.CSSProperties | undefined)
+        }
+      >
+        {children}
+      </div>
+    );
+  };
   const AnimatedScrollView = ({
     children,
     ref,
     onContentSizeChange,
-    onLayout,
     ...rest
   }: {
     children?: React.ReactNode;
     ref?: unknown;
     onContentSizeChange?: (width: number, height: number) => void;
-    onLayout?: (event: { nativeEvent: { layout: { width: number } } }) => void;
   }) => {
     React.useEffect(() => {
       // jsdom reports zero client widths; a positive content size stands in
       // for "the row has content and may overflow", which gates the shades.
       onContentSizeChange?.(2000, CHIP_HEIGHT_MOCK);
-      onLayout?.({ nativeEvent: { layout: { width: 400 } } });
-    }, [onContentSizeChange, onLayout]);
+    }, [onContentSizeChange]);
     return (
       <div
         data-test-tag="animated-scroll-view"
@@ -77,6 +96,54 @@ vi.mock("react-native-reanimated", () => {
       return style;
     },
     useAnimatedProps: animatedStyle,
+  };
+});
+
+// RN's View renders through react-native-web in jsdom, where layout events
+// never fire; stub it with the same slot-aware layout trigger as the
+vi.mock("react-native", async (importOriginal) => {
+  const actual = await importOriginal<object>();
+  const CHIP_X_STEP_MOCK = 60;
+  const RNView = ({
+    children,
+    style,
+    testID,
+    onLayout,
+  }: {
+    children?: React.ReactNode;
+    style?: unknown;
+    testID?: string;
+    onLayout?: (event: { nativeEvent: { layout: { width: number; x?: number } } }) => void;
+  }) => {
+    React.useEffect(() => {
+      const slot = testID?.match(/^turn-file-changes-slot-(\d+)$/);
+      if (slot && onLayout) {
+        onLayout({
+          nativeEvent: { layout: { width: 50, x: Number(slot[1]) * CHIP_X_STEP_MOCK } },
+        });
+        return;
+      }
+      if (onLayout) {
+        onLayout({ nativeEvent: { layout: { width: 400 } } });
+      }
+    }, [testID, onLayout]);
+    return (
+      <div
+        data-test-tag="rn-view"
+        data-testid={testID}
+        style={
+          Array.isArray(style)
+            ? (Object.assign({}, ...(style as object[])) as React.CSSProperties)
+            : (style as React.CSSProperties | undefined)
+        }
+      >
+        {children}
+      </div>
+    );
+  };
+  return {
+    ...actual,
+    View: RNView,
   };
 });
 
@@ -109,6 +176,7 @@ vi.mock("@/components/message", () => ({
 import { TurnFileChangesBar } from "./turn-file-changes-bar";
 
 function toolCallItem(name: string, filePath: string, index: number): AgentToolCallItem {
+
   return {
     kind: "tool_call",
     id: `${name}-id-${index}`,
@@ -195,6 +263,31 @@ describe("TurnFileChangesBar scrolling collapse", () => {
     renderBar(items, startIndex);
     expect(chipCount()).toBe(5);
     expect(container?.querySelector('[data-test-tag="animated-scroll-view"]')).not.toBeNull();
+  });
+
+  it("pins the scroll viewport to exactly three chips wide", () => {
+    const { items, startIndex } = buildTurn(6);
+    renderBar(items, startIndex);
+    const viewport = container?.querySelector('[data-testid="turn-file-changes-viewport"]');
+    expect(viewport).not.toBeNull();
+    // Chip #3 (0-based) reports x = 3 * CHIP_X_STEP = 180; that x pins the
+    // viewport so exactly the first three chips are visible.
+    expect(viewport?.getAttribute("style")).toContain("180");
+  });
+
+  it("keeps the pinned width within the bar when the bar is narrower", () => {
+    const { items, startIndex } = buildTurn(6);
+    renderBar(items, startIndex);
+    const viewport = container?.querySelector('[data-testid="turn-file-changes-viewport"]');
+    // Container mock (scrollContainer onLayout) reports 400 in the mock below;
+    // clamping only kicks in under the pinned width, 180 < 400 keeps 180.
+    expect(viewport?.getAttribute("style")).toContain("180");
+  });
+
+  it("renders the plain row without a pinned viewport at three chips", () => {
+    const { items, startIndex } = buildTurn(3);
+    renderBar(items, startIndex);
+    expect(container?.querySelector('[data-testid="turn-file-changes-viewport"]')).toBeNull();
   });
   it("starts the left shade fully transparent at scroll offset zero", () => {
     const { items, startIndex } = buildTurn(6);

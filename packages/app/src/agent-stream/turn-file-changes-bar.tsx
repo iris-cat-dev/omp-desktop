@@ -18,7 +18,7 @@ import {
 } from "./turn-file-changes";
 import { confirmDialog } from "@/utils/confirm-dialog";
 
-/** More than this many chips collapses the bar into a single scrollable row. */
+/** The scrollable row pins its viewport to this many visible chips. */
 const MAX_VISIBLE_CHIPS = 3;
 const SCROLL_SHADE_WIDTH = 18;
 const SCROLL_EDGE_EPSILON = 1;
@@ -94,23 +94,37 @@ export const TurnFileChangesBar = memo(function TurnFileChangesBar({
   }
   return (
     <View style={stylesheet.bar} testID="turn-file-changes">
-      <ScrollableChipRow>{changes.map(renderChip)}</ScrollableChipRow>
+      <ScrollableChipRow
+        key={changes.map((change) => change.path).join("|")}
+        changes={changes}
+        renderChip={renderChip}
+      />
     </View>
   );
 });
 
 /**
  * Horizontally scrollable chip row used when there are too many chips to show
- * at once. Scrolling is exposed without a scrollbar; the mouse wheel scrolls
- * the row horizontally, and gradient shades fade out the chips clipped at each
- * scrolled-off edge.
+ * at once. The viewport is pinned to exactly MAX_VISIBLE_CHIPS chips (the x
+ * offset of the chip following the last visible one), so extra files stay
+ * reachable by scrolling instead of squeezing into the footer; scrolling is
+ * exposed without a scrollbar, the mouse wheel scrolls the row horizontally
+ * on web, and gradient shades fade out the chips clipped at each edge.
  */
-function ScrollableChipRow({ children }: { children: React.ReactNode }) {
+function ScrollableChipRow({
+  changes,
+  renderChip,
+}: {
+  changes: readonly TurnFileChange[];
+  renderChip: (change: TurnFileChange) => React.ReactNode;
+}) {
   const scrollOffset = useSharedValue(0);
   const viewportWidth = useSharedValue(0);
   const contentWidth = useSharedValue(0);
   const scrollableRef = useRef<React.ComponentRef<typeof Animated.ScrollView> | null>(null);
   const [scrollable, setScrollable] = useState(false);
+  const [pinnedWidth, setPinnedWidth] = useState<number | null>(null);
+  const [containerWidth, setContainerWidth] = useState<number | null>(null);
 
   const handleScroll = useAnimatedScrollHandler((event) => {
     scrollOffset.value = event.contentOffset.x;
@@ -124,11 +138,31 @@ function ScrollableChipRow({ children }: { children: React.ReactNode }) {
     },
     [contentWidth],
   );
-  const handleLayout = useCallback(
+  const handleContainerLayout = useCallback(
+    (event: { nativeEvent: { layout: { width: number } } }) => {
+      setContainerWidth(event.nativeEvent.layout.width);
+    },
+    [],
+  );
+  const handleViewportLayout = useCallback(
     (event: { nativeEvent: { layout: { width: number } } }) => {
       viewportWidth.value = event.nativeEvent.layout.width;
     },
     [viewportWidth],
+  );
+  // The x offset of the chip right after the last visible one equals the
+  // width of MAX_VISIBLE_CHIPS chips plus their gaps; clamp it to the bar.
+  const handleChipLayout = useCallback(
+    (index: number) => (event: { nativeEvent: { layout: { x: number } } }) => {
+      if (index !== MAX_VISIBLE_CHIPS) {
+        return;
+      }
+      const width = event.nativeEvent.layout.x;
+      if (width > 0) {
+        setPinnedWidth((prev) => (prev === null || width < prev ? width : prev));
+      }
+    },
+    [],
   );
 
   useWheelHorizontalScroll(scrollableRef);
@@ -142,41 +176,71 @@ function ScrollableChipRow({ children }: { children: React.ReactNode }) {
     ),
   }));
 
+  const clampedWidth = clampPinnedWidth(pinnedWidth, containerWidth);
+
   return (
-    <View style={stylesheet.scrollContainer} onLayout={handleLayout}>
-      <Animated.ScrollView
-        ref={scrollableRef}
-        horizontal
-        nestedScrollEnabled
-        showsHorizontalScrollIndicator={false}
-        showsVerticalScrollIndicator={false}
-        scrollEventThrottle={16}
-        onScroll={handleScroll}
-        onContentSizeChange={handleContentSizeChange}
-        contentContainerStyle={stylesheet.scrollContent}
+    <View style={stylesheet.scrollContainer} onLayout={handleContainerLayout}>
+      <View
+        testID="turn-file-changes-viewport"
+        onLayout={handleViewportLayout}
+        style={
+          clampedWidth === null
+            ? stylesheet.scrollViewport
+            : [stylesheet.scrollViewport, { width: clampedWidth }]
+        }
       >
-        {children}
-      </Animated.ScrollView>
-      {scrollable ? (
-        <>
-          <Animated.View
-            pointerEvents="none"
-            testID="turn-file-changes-shade-left"
-            style={[stylesheet.scrollShade, stylesheet.scrollShadeLeft, leftShadeStyle]}
-          >
-            <ThemedScrollShadeSvg side="left" />
-          </Animated.View>
-          <Animated.View
-            pointerEvents="none"
-            testID="turn-file-changes-shade-right"
-            style={[stylesheet.scrollShade, stylesheet.scrollShadeRight, rightShadeStyle]}
-          >
-            <ThemedScrollShadeSvg side="right" />
-          </Animated.View>
-        </>
-      ) : null}
+        <Animated.ScrollView
+          ref={scrollableRef}
+          horizontal
+          nestedScrollEnabled
+          showsHorizontalScrollIndicator={false}
+          showsVerticalScrollIndicator={false}
+          scrollEventThrottle={16}
+          onScroll={handleScroll}
+          onContentSizeChange={handleContentSizeChange}
+          contentContainerStyle={stylesheet.scrollContent}
+        >
+          {changes.map((change, index) => (
+            <View
+              key={change.path}
+              onLayout={handleChipLayout(index)}
+              testID={`turn-file-changes-slot-${index}`}
+            >
+              {renderChip(change)}
+            </View>
+          ))}
+        </Animated.ScrollView>
+        {scrollable ? (
+          <>
+            <Animated.View
+              pointerEvents="none"
+              testID="turn-file-changes-shade-left"
+              style={[stylesheet.scrollShade, stylesheet.scrollShadeLeft, leftShadeStyle]}
+            >
+              <ThemedScrollShadeSvg side="left" />
+            </Animated.View>
+            <Animated.View
+              pointerEvents="none"
+              testID="turn-file-changes-shade-right"
+              style={[stylesheet.scrollShade, stylesheet.scrollShadeRight, rightShadeStyle]}
+            >
+              <ThemedScrollShadeSvg side="right" />
+            </Animated.View>
+          </>
+        ) : null}
+      </View>
     </View>
   );
+}
+
+function clampPinnedWidth(pinned: number | null, container: number | null): number | null {
+  if (pinned === null) {
+    return null;
+  }
+  if (container === null) {
+    return pinned;
+  }
+  return Math.min(pinned, container);
 }
 
 /**
@@ -306,6 +370,10 @@ const stylesheet = StyleSheet.create((theme) => ({
     alignSelf: "stretch",
   },
   scrollContainer: {
+    width: "100%",
+  },
+  scrollViewport: {
+    position: "relative",
     width: "100%",
   },
   scrollContent: {
