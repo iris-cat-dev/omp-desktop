@@ -641,6 +641,13 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
       effectiveTurnPresentation.startedAt,
       historyWindowStart,
     ]);
+    // Un-grouped tail+head: the turn file changes bar scans this instead of the
+    // render history, whose activity/tool-call grouping collapses consecutive
+    // agent tool calls into one host entry (hiding all but one file change).
+    const rawStreamItems = useMemo(
+      () => [...projectedToolCalls.tail, ...projectedToolCalls.head],
+      [projectedToolCalls.tail, projectedToolCalls.head],
+    );
     const streamLayout = useMemo(
       () =>
         layoutStream({
@@ -648,6 +655,7 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
           isTurnActive,
           history: baseRenderModel.history,
           liveHead: baseRenderModel.segments.liveHead,
+          rawItems: rawStreamItems,
           timingByAssistantId: baseRenderModel.turnTiming.byAssistantId,
         }),
       [
@@ -655,6 +663,7 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
         baseRenderModel.segments.liveHead,
         baseRenderModel.turnTiming.byAssistantId,
         isTurnActive,
+        rawStreamItems,
         streamRenderStrategy,
       ],
     );
@@ -1769,8 +1778,10 @@ async function restoreDeletedFile(input: {
   toast: ToastApi | null | undefined;
   t: TFunction;
 }): Promise<void> {
-  const fileName = input.filePath.replace(/\\/g, "/").split("/").findLast(Boolean) ?? input.filePath;
-  const failed = () => input.toast?.error(input.t("agentStream.turnFileChanges.restoreFailed", { name: fileName }));
+  const fileName =
+    input.filePath.replace(/\\/g, "/").split("/").findLast(Boolean) ?? input.filePath;
+  const failed = () =>
+    input.toast?.error(input.t("agentStream.turnFileChanges.restoreFailed", { name: fileName }));
   try {
     const payload = await input.client.checkoutDiscardChanges(input.cwd, {
       paths: [toGitPathspec(input.filePath, input.cwd)],
@@ -1780,7 +1791,10 @@ async function restoreDeletedFile(input: {
         variant: "success",
       });
     } else {
-      input.toast?.error(payload.error?.message ?? input.t("agentStream.turnFileChanges.restoreFailed", { name: fileName }));
+      input.toast?.error(
+        payload.error?.message ??
+          input.t("agentStream.turnFileChanges.restoreFailed", { name: fileName }),
+      );
     }
   } catch {
     failed?.();

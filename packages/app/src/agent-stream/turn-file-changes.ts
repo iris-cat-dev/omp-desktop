@@ -1,8 +1,4 @@
-import {
-  isAgentToolCallItem,
-  type AgentToolCallData,
-  type StreamItem,
-} from "@/types/stream";
+import { isAgentToolCallItem, type AgentToolCallData, type StreamItem } from "@/types/stream";
 import { continuesTurn } from "./turn-membership";
 
 export type TurnFileChangeKind = "added" | "modified" | "deleted";
@@ -39,6 +35,9 @@ const OMP_PATCH_HEADER_PATTERN = /^\[(?<path>.+?)#[^\]\n]+]/m;
  * - `edit` tool calls count as modified.
  * - Deletions are best-effort: shell `rm`-style commands and delete-named
  *   tools with a path-shaped input.
+ * - Shell creation is best-effort: `touch` arguments, including
+ *   `for var in <literal words>; do touch "...$var..."; done` loops. Redirections,
+ *   echo and cp are not modeled: their shapes cannot be parsed conservatively.
  * - Failed/canceled tool calls are ignored; when one path receives several
  *   kinds the strongest one wins (deleted > added > modified).
  *
@@ -56,10 +55,7 @@ export function collectTurnFileChanges(
     return [];
   }
   let turnStart = startIndex;
-  while (
-    turnStart > 0 &&
-    continuesTurn(items[turnStart - 1] ?? null, items[turnStart] ?? null)
-  ) {
+  while (turnStart > 0 && continuesTurn(items[turnStart - 1] ?? null, items[turnStart] ?? null)) {
     turnStart -= 1;
   }
   const byPath = new Map<string, TurnFileChange>();
@@ -75,48 +71,83 @@ export function collectTurnFileChanges(
     if (data.status === "failed" || data.status === "canceled") {
       continue;
     }
-    const change = classifyToolCallChange(data);
-    if (!change) {
-      continue;
-    }
-    const normalized = normalizeChangePath(change.path);
-    if (!normalized) {
-      continue;
-    }
-    const existing = byPath.get(normalized);
-    if (!existing || KIND_PRIORITY[change.kind] > KIND_PRIORITY[existing.kind]) {
-      byPath.set(normalized, { path: normalized, kind: change.kind });
+    const changes = classifyToolCallChanges(data);
+    for (const change of changes) {
+      const normalized = normalizeChangePath(change.path);
+      if (!normalized) {
+        continue;
+      }
+      const existing = byPath.get(normalized);
+      if (!existing || KIND_PRIORITY[change.kind] > KIND_PRIORITY[existing.kind]) {
+        byPath.set(normalized, { path: normalized, kind: change.kind });
+      }
     }
   }
   return [...byPath.values()];
 }
 
 /**
- * Maps a single tool call to a file change, or null when the call does not
- * represent a file add/modify/delete this feature understands.
+ * Turn file changes for the footer bar. Render projections collapse
+ * consecutive agent tool calls into one host entry, so the bar scans the
+ * un-grouped `rawItems` when available, relocating the anchor assistant
+ * message by item id; collapsed arrays (tests, callers without raw items)
+ * keep the legacy behavior.
  */
-function classifyToolCallChange(data: AgentToolCallData): TurnFileChange | null {
+export function collectTurnFileChangesForBar(
+  items: readonly StreamItem[],
+  startIndex: number,
+  rawItems?: readonly StreamItem[] | null,
+): TurnFileChange[] {
+  if (!rawItems || rawItems === items) {
+    return collectTurnFileChanges(items, startIndex);
+  }
+  const anchor = items[startIndex];
+  if (!anchor) {
+    return [];
+  }
+  const rawAnchorIndex = rawItems.findIndex((item) => item.id === anchor.id);
+  if (rawAnchorIndex < 0) {
+    return collectTurnFileChanges(items, startIndex);
+  }
+  return collectTurnFileChanges(rawItems, rawAnchorIndex);
+}
+
+/**
+ * Maps a single tool call to every file change it represents (an `rm a b` or
+ * a `touch` loop covers several paths), or an empty array when the call does
+ * not represent file adds/modifies/deletes this feature understands.
+ */
+function classifyToolCallChanges(data: AgentToolCallData): TurnFileChange[] {
   const detail = data.detail;
   if (detail.type === "write") {
-    return detail.filePath ? { path: detail.filePath, kind: "added" } : null;
+    return detail.filePath ? [{ path: detail.filePath, kind: "added" }] : [];
   }
   if (detail.type === "edit") {
     if (!detail.filePath) {
-      return null;
+      return [];
     }
     // OMP REM-style deletions stream as edits whose result carries oldText
     // but no replacement text, while PUT/insert edits leave both unset.
     const removalShaped = detail.oldString !== undefined && detail.newString === undefined;
-    return { path: detail.filePath, kind: removalShaped ? "deleted" : "modified" };
+    return [{ path: detail.filePath, kind: removalShaped ? "deleted" : "modified" }];
   }
   if (detail.type === "shell") {
-    const path = extractShellDeletePath(detail.command);
-    return path ? { path, kind: "deleted" } : null;
+    const deletions = extractShellDeletePaths(detail.command).map(
+      (path): TurnFileChange => ({ path, kind: "deleted" }),
+    );
+    if (deletions.length > 0) {
+      return deletions;
+    }
+    return extractShellCreatePaths(detail.command).map(
+      (path): TurnFileChange => ({ path, kind: "added" }),
+    );
   }
   if (detail.type === "unknown") {
-    return extractUnknownChange(data.name, detail.input) ?? classifyUnknownEditPatch(data);
+    return [extractUnknownChange(data.name, detail.input) ?? classifyUnknownEditPatch(data)].filter(
+      (change): change is TurnFileChange => change !== null,
+    );
   }
-  return null;
+  return [];
 }
 
 /**
@@ -241,11 +272,12 @@ function tokenizeShellSegment(segment: string): string[] | null {
   return tokens;
 }
 
-function extractShellDeletePath(command: string): string | null {
+function extractShellDeletePaths(command: string): string[] {
   const segments = splitShellSegments(command);
   if (!segments) {
-    return null;
+    return [];
   }
+  const paths: string[] = [];
   for (const segment of segments) {
     const tokens = tokenizeShellSegment(segment);
     if (!tokens || tokens.length < 2 || !tokens[0]) {
@@ -254,15 +286,159 @@ function extractShellDeletePath(command: string): string | null {
     if (!SHELL_DELETE_COMMAND_PATTERN.test(tokens[0])) {
       continue;
     }
-    // The last non-flag token is the deletion target; flags like -rf are skipped.
-    for (let index = tokens.length - 1; index >= 1; index -= 1) {
-      const token = tokens[index];
+    // Non-flag tokens are the deletion targets; flags like -rf are skipped.
+    for (const token of tokens.slice(1)) {
       if (token && !token.startsWith("-")) {
-        return token;
+        paths.push(token);
       }
     }
   }
+  return paths;
+}
+
+const LOOP_PLACEHOLDER = "\u0000";
+
+/**
+ * Recovers file paths a shell command creates. Best-effort and conservative:
+ * - `touch <literal paths...>` adds each argument.
+ * - `for <var> in <literal words>; do touch "...$<var>..."; done` expands the
+ *   loop variable over the literal word list.
+ * Redirections, substitution and glob word lists reject the shapes they
+ * appear in; anything unparseable yields nothing.
+ */
+function extractShellCreatePaths(command: string): string[] {
+  const segments = splitShellSegments(command);
+  if (!segments) {
+    return [];
+  }
+  const loop = extractForLoop(segments);
+  if (loop) {
+    const paths: string[] = [];
+    for (let index = loop.headerIndex + 1; index < segments.length; index += 1) {
+      const segment = segments[index] ?? "";
+      const tokens = tokenizeShellLoopSegment(segment, loop.loopVar);
+      const bodyTokens = tokens?.[0]?.toLowerCase() === "do" ? tokens.slice(1) : tokens;
+      if (!bodyTokens || bodyTokens[0]?.toLowerCase() !== "touch") {
+        continue;
+      }
+      for (const token of bodyTokens.slice(1)) {
+        if (!token || token.startsWith("-") || token.includes("$")) {
+          continue;
+        }
+        if (token.includes(LOOP_PLACEHOLDER)) {
+          for (const word of loop.words) {
+            paths.push(token.split(LOOP_PLACEHOLDER).join(word));
+          }
+        } else {
+          paths.push(token);
+        }
+      }
+    }
+    if (paths.length > 0) {
+      return paths;
+    }
+  }
+  // Plain `touch` without a recognizable loop.
+  const paths: string[] = [];
+  for (const segment of segments) {
+    const tokens = tokenizeShellSegment(segment);
+    if (!tokens || tokens[0]?.toLowerCase() !== "touch") {
+      continue;
+    }
+    for (const token of tokens.slice(1)) {
+      if (token && !token.startsWith("-")) {
+        paths.push(token);
+      }
+    }
+  }
+  return paths;
+}
+
+function extractForLoop(
+  segments: string[],
+): { loopVar: string; words: string[]; headerIndex: number } | null {
+  // The loop header may follow other commands: `cd dir && for f in ...`.
+  for (let headerIndex = 0; headerIndex < segments.length; headerIndex += 1) {
+    const tokens = tokenizeShellSegment(segments[headerIndex] ?? "");
+    if (!tokens || tokens.length < 4) {
+      continue;
+    }
+    if (tokens[0]?.toLowerCase() !== "for" || tokens[2]?.toLowerCase() !== "in") {
+      continue;
+    }
+    const loopVar = tokens[1] ?? "";
+    if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(loopVar)) {
+      return null;
+    }
+    const words = tokens.slice(3);
+    // Glob word lists select existing files; touching them adds nothing.
+    if (words.some((word) => /[*?[]/.test(word))) {
+      return null;
+    }
+    return { loopVar, words, headerIndex };
+  }
   return null;
+}
+
+/**
+ * Tokenizes one `for`-loop body segment, rewriting bare `$<loopVar>` into a
+ * placeholder for later word expansion. Expands inside double quotes only
+ * (bash semantics); single-quoted `$<var>` stays literal. Substitution forms
+ * (`$(`, `${`, backticks) and any other `$` reject the segment.
+ */
+function tokenizeShellLoopSegment(segment: string, loopVar: string): string[] | null {
+  const tokens: string[] = [];
+  let current = "";
+  let quote: string | null = null;
+  const expandsAt = (index: number) =>
+    segment.startsWith(`$${loopVar}`, index) &&
+    /[\s"'.]|$/.test(segment[index + 1 + loopVar.length] ?? "");
+  for (let index = 0; index < segment.length; index += 1) {
+    const char = segment[index];
+    if (quote) {
+      if (char === quote) {
+        quote = null;
+        continue;
+      }
+      if (quote === '"' && char === "$" && expandsAt(index)) {
+        current += LOOP_PLACEHOLDER;
+        index += loopVar.length;
+        continue;
+      }
+      current += char;
+      continue;
+    }
+    if (char === '"' || char === "'") {
+      quote = char;
+      continue;
+    }
+    if (char === "$") {
+      if (expandsAt(index)) {
+        current += LOOP_PLACEHOLDER;
+        index += loopVar.length;
+        continue;
+      }
+      return null;
+    }
+    if (SHELL_OPERATOR_PATTERN.test(char) || char === "{" || char === "}") {
+      return null;
+    }
+    if (/\s/.test(char)) {
+      if (current) {
+        tokens.push(current);
+        current = "";
+      }
+      continue;
+    }
+    current += char;
+  }
+  if (quote !== null) {
+    return null;
+  }
+  if (current) {
+    tokens.push(current);
+  }
+  return tokens;
 }
 function extractUnknownChange(
   name: string,

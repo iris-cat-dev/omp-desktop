@@ -440,11 +440,36 @@ function mergeTimelineWindow(args: {
     epoch: payload.epoch,
     currentEndSeq: currentCursor.endSeq,
   });
+  // Items inside the window are expected to be re-provided by the page. When
+  // the page's entries omit a live-painted agent tool call (pages are captured
+  // server-side and can lag the stream), dropping it here would erase the only
+  // record of that file change — so out-of-window retention is extended to
+  // window-covering tool calls the page does not carry.
+  const pageCallIds = new Set(
+    timelineUnits
+      .filter(
+        (
+          unit,
+        ): unit is TimelineUnit & {
+          event: Extract<AgentStreamEventPayload, { type: "timeline" }>;
+        } => unit.event.type === "timeline" && unit.event.item.type === "tool_call",
+      )
+      .map((unit) => (unit.event.item as { callId: string }).callId),
+  );
   const retainedTail = projected.tail.filter((item) => {
     const cursor = item.timelineCursor;
-    return cursor?.epoch !== payload.epoch || cursor.seq < startSeq || cursor.seq > endSeq;
+    if (cursor?.epoch !== payload.epoch || cursor.seq < startSeq || cursor.seq > endSeq) {
+      return true;
+    }
+    return isAgentToolCallItem(item) && !pageCallIds.has(item.payload.data.callId);
   });
-  const retainedHead = projected.head;
+  const retainedHead = projected.head.filter((item) => {
+    const cursor = item.timelineCursor;
+    if (cursor?.epoch !== payload.epoch || cursor.seq < startSeq || cursor.seq > endSeq) {
+      return true;
+    }
+    return isAgentToolCallItem(item) && !pageCallIds.has(item.payload.data.callId);
+  });
   const reservedItemIds = new Set(
     [...retainedTail, ...retainedHead].flatMap((item) =>
       item.kind === "assistant_message" && item.blockGroupId
@@ -1583,9 +1608,17 @@ function processTimelineSequencingGate(input: {
     };
   }
   if (decision === "gap") {
+    // A seq gap means intermediate rows exist that this client has not seen.
+    // The catch_up fetch repairs the timeline, but it races the live stream:
+    // dropping a tool_call here loses the only record of a file change until
+    // (and unless) the catch-up page lands. Tool calls are safe to apply
+    // immediately — appendAgentToolCall merges by callId, and the catch-up
+    // page re-provides them through the same idempotent path — so gaps only
+    // gate the non-tool_call streamable kinds.
+    const isToolCall = event.type === "timeline" && event.item.type === "tool_call";
     return {
       ...base,
-      shouldApplyStreamEvent: false,
+      shouldApplyStreamEvent: isToolCall,
       sideEffects: currentCursor
         ? [
             {

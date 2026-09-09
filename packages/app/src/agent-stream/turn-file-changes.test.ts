@@ -2,7 +2,12 @@ import { describe, expect, it } from "vitest";
 import type { ToolCallDetail } from "@omp-desktop/protocol/agent-types";
 import type { AgentToolCallItem, StreamItem } from "@/types/stream";
 
-import { collectTurnFileChanges, normalizeChangePath, toGitPathspec } from "./turn-file-changes";
+import {
+  collectTurnFileChanges,
+  collectTurnFileChangesForBar,
+  normalizeChangePath,
+  toGitPathspec,
+} from "./turn-file-changes";
 
 function toolCallItem(input: {
   name: string;
@@ -74,21 +79,23 @@ describe("collectTurnFileChanges", () => {
         detail: { type: "shell", command: 'rm "D:/ai_projects/bar-test/i.md" && echo deleted' },
       }),
     ];
-    expect(collectTurnFileChanges(items, 0)).toEqual([{ path: "D:/ai_projects/bar-test/i.md", kind: "deleted" }]);
+    expect(collectTurnFileChanges(items, 0)).toEqual([
+      { path: "D:/ai_projects/bar-test/i.md", kind: "deleted" },
+    ]);
   });
 
   it("still rejects redirection and substitution segments", () => {
     const items = [
       toolCallItem({ name: "bash", detail: { type: "shell", command: "rm out.txt > log" } }),
       toolCallItem({ name: "bash", detail: { type: "shell", command: "rm $(cat list)" } }),
-      toolCallItem({ name: "bash", detail: { type: "shell", command: "rm \"unterminated" } }),
+      toolCallItem({ name: "bash", detail: { type: "shell", command: 'rm "unterminated' } }),
     ];
     expect(collectTurnFileChanges(items, 0)).toEqual([]);
   });
 
   it("detects quoted path deletions without operators", () => {
     const items = [
-      toolCallItem({ name: "bash", detail: { type: "shell", command: 'rm "D:/bar/i.md"'} }),
+      toolCallItem({ name: "bash", detail: { type: "shell", command: 'rm "D:/bar/i.md"' } }),
       toolCallItem({ name: "bash", detail: { type: "shell", command: "rm -f 'j.md'" } }),
     ];
     expect(collectTurnFileChanges(items, 0)).toEqual([
@@ -121,6 +128,106 @@ describe("collectTurnFileChanges", () => {
     ];
     expect(collectTurnFileChanges(items, 0)).toEqual([]);
   });
+  it("maps every target of a multi-file rm to its own chip", () => {
+    const items = [
+      toolCallItem({ name: "shell", detail: { type: "shell", command: "rm a.txt b.txt c.txt" } }),
+    ];
+    expect(collectTurnFileChanges(items, 0)).toEqual([
+      { path: "a.txt", kind: "deleted" },
+      { path: "b.txt", kind: "deleted" },
+      { path: "c.txt", kind: "deleted" },
+    ]);
+  });
+
+  it("detects touch-created files", () => {
+    const items = [
+      toolCallItem({
+        name: "bash",
+        detail: { type: "shell", command: "touch a.txt b.txt c.txt" },
+      }),
+    ];
+    expect(collectTurnFileChanges(items, 0)).toEqual([
+      { path: "a.txt", kind: "added" },
+      { path: "b.txt", kind: "added" },
+      { path: "c.txt", kind: "added" },
+    ]);
+  });
+
+  it("detects files created by a for-in touch loop (real a.txt~f.txt shape)", () => {
+    const items = [
+      toolCallItem({
+        name: "bash",
+        detail: {
+          type: "shell",
+          command: 'for f in a b c d e f; do touch "$f.txt"; done',
+        },
+      }),
+    ];
+    expect(collectTurnFileChanges(items, 0)).toEqual([
+      { path: "a.txt", kind: "added" },
+      { path: "b.txt", kind: "added" },
+      { path: "c.txt", kind: "added" },
+      { path: "d.txt", kind: "added" },
+      { path: "e.txt", kind: "added" },
+      { path: "f.txt", kind: "added" },
+    ]);
+  });
+  it("detects the loop after a cd prefix (real bar-test shape)", () => {
+    const items = [
+      toolCallItem({
+        name: "shell",
+        detail: {
+          type: "shell",
+          command:
+            'cd /d/ai_projects/bar-test && for f in a b c d e f; do touch "$f.txt"; done && ls',
+        },
+      }),
+    ];
+    expect(collectTurnFileChanges(items, 0)).toEqual([
+      { path: "a.txt", kind: "added" },
+      { path: "b.txt", kind: "added" },
+      { path: "c.txt", kind: "added" },
+      { path: "d.txt", kind: "added" },
+      { path: "e.txt", kind: "added" },
+      { path: "f.txt", kind: "added" },
+    ]);
+  });
+
+
+  it("expands the loop variable only where bash would", () => {
+    const items = [
+      // Single quotes stay literal; unknown $vars reject the segment.
+      toolCallItem({
+        name: "bash",
+        detail: { type: "shell", command: "for f in a b; do touch '$f.txt'; done" },
+      }),
+      toolCallItem({
+        name: "bash",
+        detail: { type: "shell", command: "for f in a b; do touch \"$f$g.txt\"; done" },
+      }),
+      // Glob word lists select existing files; touching them adds nothing.
+      toolCallItem({
+        name: "bash",
+        detail: { type: "shell", command: "for f in *.txt; do touch \"$f\"; done" },
+      }),
+      toolCallItem({
+        name: "bash",
+        detail: { type: "shell", command: "for f in a b; do touch \"$(mktemp)\"; done" },
+      }),
+    ];
+    expect(collectTurnFileChanges(items, 0)).toEqual([]);
+  });
+  it("prefers added over modified when a path is touched then edited", () => {
+    const items = [
+      toolCallItem({ name: "bash", detail: { type: "shell", command: "touch notes.md" } }),
+      toolCallItem({
+        name: "edit",
+        detail: { type: "edit", filePath: "notes.md", oldString: "a", newString: "b" },
+      }),
+    ];
+    expect(collectTurnFileChanges(items, 0)).toEqual([{ path: "notes.md", kind: "added" }]);
+  });
+
 
   it("detects delete-named tools with unknown detail input", () => {
     const items = [
@@ -183,8 +290,14 @@ describe("collectTurnFileChanges", () => {
       turnId: "turn-real",
       timestamp: new Date("2026-01-01T00:00:00Z"),
     } as unknown as StreamItem;
-    const globCall = { ...toolCallItem({ name: "glob", detail: { type: "search", query: "*" } }), ...noTurnId } as AgentToolCallItem;
-    const writeCall = { ...toolCallItem({ name: "write", detail: { type: "write", filePath: "test_doc.md" } }), ...noTurnId } as AgentToolCallItem;
+    const globCall = {
+      ...toolCallItem({ name: "glob", detail: { type: "search", query: "*" } }),
+      ...noTurnId,
+    } as AgentToolCallItem;
+    const writeCall = {
+      ...toolCallItem({ name: "write", detail: { type: "write", filePath: "test_doc.md" } }),
+      ...noTurnId,
+    } as AgentToolCallItem;
     const assistant = {
       kind: "assistant_message",
       id: "assistant-real",
@@ -265,6 +378,45 @@ describe("collectTurnFileChanges", () => {
       { path: "src/win.ts", kind: "added" },
       { path: "src/rel.ts", kind: "added" },
     ]);
+  });
+});
+
+describe("collectTurnFileChangesForBar", () => {
+  it("scans un-grouped rawItems so consecutive same-name tool calls all produce chips", () => {
+    // Regression: render projections collapse consecutive same-name agent tool
+    // calls into one host entry, so scanning the collapsed array hid all but
+    // the first write's chip. The bar must scan the raw (un-grouped) items.
+    const rawItems = [
+      toolCallItem({ name: "write", detail: { type: "write", filePath: "a.ts" } }),
+      toolCallItem({ name: "write", detail: { type: "write", filePath: "b.ts" } }),
+      toolCallItem({ name: "write", detail: { type: "write", filePath: "c.ts" } }),
+      messageItem,
+    ];
+    // Collapsed view: three tool calls become one host entry carrying only the
+    // first call's data, followed by the anchor assistant message.
+    const collapsed = [
+      toolCallItem({ name: "write", detail: { type: "write", filePath: "a.ts" } }),
+      messageItem,
+    ];
+    expect(collectTurnFileChangesForBar(collapsed, 1, rawItems)).toEqual([
+      { path: "a.ts", kind: "added" },
+      { path: "b.ts", kind: "added" },
+      { path: "c.ts", kind: "added" },
+    ]);
+  });
+
+  it("falls back to the collapsed scan when rawItems are absent", () => {
+    const items = [
+      toolCallItem({ name: "write", detail: { type: "write", filePath: "a.ts" } }),
+      messageItem,
+    ];
+    expect(collectTurnFileChangesForBar(items, 1)).toEqual([{ path: "a.ts", kind: "added" }]);
+  });
+
+  it("falls back to the collapsed scan when the anchor is missing from rawItems", () => {
+    const collapsed = [messageItem];
+    const rawItems = [messageItem];
+    expect(collectTurnFileChangesForBar(collapsed, 0, rawItems)).toEqual([]);
   });
 });
 
