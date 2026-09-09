@@ -106,6 +106,7 @@ function layoutFor(input: {
       strategy,
       streamHead: input.head ?? [],
     }),
+    rawItems: [...input.tail, ...(input.head ?? [])],
     timingByAssistantId: timingFor(...(input.timingIds ?? [])),
   });
 }
@@ -173,6 +174,7 @@ describe("layoutStream", () => {
       isTurnActive: true,
       history,
       liveHead,
+      rawItems: [...history, ...liveHead],
       timingByAssistantId: timingFor(priorAssistant.id),
     });
 
@@ -182,6 +184,7 @@ describe("layoutStream", () => {
       isTurnActive: true,
       history,
       liveHead,
+      rawItems: [...history, ...liveHead],
       timingByAssistantId: timingFor(priorAssistant.id),
     });
 

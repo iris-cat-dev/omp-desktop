@@ -1,8 +1,4 @@
-import {
-  isAgentToolCallItem,
-  type AgentToolCallData,
-  type StreamItem,
-} from "@/types/stream";
+import { isAgentToolCallItem, type AgentToolCallData, type StreamItem } from "@/types/stream";
 import { continuesTurn } from "./turn-membership";
 
 export type TurnFileChangeKind = "added" | "modified" | "deleted";
@@ -56,10 +52,7 @@ export function collectTurnFileChanges(
     return [];
   }
   let turnStart = startIndex;
-  while (
-    turnStart > 0 &&
-    continuesTurn(items[turnStart - 1] ?? null, items[turnStart] ?? null)
-  ) {
+  while (turnStart > 0 && continuesTurn(items[turnStart - 1] ?? null, items[turnStart] ?? null)) {
     turnStart -= 1;
   }
   const byPath = new Map<string, TurnFileChange>();
@@ -89,6 +82,32 @@ export function collectTurnFileChanges(
     }
   }
   return [...byPath.values()];
+}
+
+/**
+ * Turn file changes for the footer bar. Render projections collapse
+ * consecutive agent tool calls into one host entry, so the bar scans the
+ * un-grouped `rawItems` when available, relocating the anchor assistant
+ * message by item id; collapsed arrays (tests, callers without raw items)
+ * keep the legacy behavior.
+ */
+export function collectTurnFileChangesForBar(
+  items: readonly StreamItem[],
+  startIndex: number,
+  rawItems?: readonly StreamItem[] | null,
+): TurnFileChange[] {
+  if (!rawItems || rawItems === items) {
+    return collectTurnFileChanges(items, startIndex);
+  }
+  const anchor = items[startIndex];
+  if (!anchor) {
+    return [];
+  }
+  const rawAnchorIndex = rawItems.findIndex((item) => item.id === anchor.id);
+  if (rawAnchorIndex < 0) {
+    return collectTurnFileChanges(items, startIndex);
+  }
+  return collectTurnFileChanges(rawItems, rawAnchorIndex);
 }
 
 /**

@@ -3,13 +3,13 @@ import { Pressable, Text, View } from "react-native";
 import { useTranslation } from "react-i18next";
 import { StyleSheet } from "react-native-unistyles";
 import { STREAM_METADATA_FONT_SIZE } from "@/components/message";
-import type { StreamItem } from "@/types/stream";
-import { confirmDialog } from "@/utils/confirm-dialog";
+import { type StreamItem } from "@/types/stream";
 import {
-  collectTurnFileChanges,
+  collectTurnFileChangesForBar,
   type TurnFileChange,
   type TurnFileChangeKind,
 } from "./turn-file-changes";
+import { confirmDialog } from "@/utils/confirm-dialog";
 
 /**
  * Chip row shown above the completed-turn footer listing the files this turn
@@ -20,16 +20,22 @@ import {
 export const TurnFileChangesBar = memo(function TurnFileChangesBar({
   items,
   startIndex,
+  rawItems,
   onOpenFile,
   onRestoreFile,
 }: {
   items: readonly StreamItem[];
   startIndex: number;
+  /** Un-grouped items to scan; falls back to `items` when absent. */
+  rawItems?: readonly StreamItem[] | null;
   onOpenFile?: (path: string) => void;
   onRestoreFile?: (path: string) => void;
 }) {
   const { t } = useTranslation();
-  const changes = useMemo(() => collectTurnFileChanges(items, startIndex), [items, startIndex]);
+  const changes = useMemo(
+    () => collectTurnFileChangesForBar(items, startIndex, rawItems),
+    [items, startIndex, rawItems],
+  );
   const handlePress = useCallback(
     async (change: TurnFileChange) => {
       if (change.kind !== "deleted") {
@@ -50,9 +56,6 @@ export const TurnFileChangesBar = memo(function TurnFileChangesBar({
     },
     [onOpenFile, onRestoreFile, t],
   );
-  if (changes.length === 0) {
-    return null;
-  }
   return (
     <View style={stylesheet.bar} testID="turn-file-changes">
       {changes.map((change) => (

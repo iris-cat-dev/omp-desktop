@@ -448,8 +448,11 @@ function mergeTimelineWindow(args: {
   const pageCallIds = new Set(
     timelineUnits
       .filter(
-        (unit): unit is TimelineUnit & { event: Extract<AgentStreamEventPayload, { type: "timeline" }> } =>
-          unit.event.type === "timeline" && unit.event.item.type === "tool_call",
+        (
+          unit,
+        ): unit is TimelineUnit & {
+          event: Extract<AgentStreamEventPayload, { type: "timeline" }>;
+        } => unit.event.type === "timeline" && unit.event.item.type === "tool_call",
       )
       .map((unit) => (unit.event.item as { callId: string }).callId),
   );
@@ -458,18 +461,14 @@ function mergeTimelineWindow(args: {
     if (cursor?.epoch !== payload.epoch || cursor.seq < startSeq || cursor.seq > endSeq) {
       return true;
     }
-    return (
-      isAgentToolCallItem(item) && !pageCallIds.has(item.payload.data.callId)
-    );
+    return isAgentToolCallItem(item) && !pageCallIds.has(item.payload.data.callId);
   });
   const retainedHead = projected.head.filter((item) => {
     const cursor = item.timelineCursor;
     if (cursor?.epoch !== payload.epoch || cursor.seq < startSeq || cursor.seq > endSeq) {
       return true;
     }
-    return (
-      isAgentToolCallItem(item) && !pageCallIds.has(item.payload.data.callId)
-    );
+    return isAgentToolCallItem(item) && !pageCallIds.has(item.payload.data.callId);
   });
   const reservedItemIds = new Set(
     [...retainedTail, ...retainedHead].flatMap((item) =>
@@ -569,24 +568,6 @@ function applyTimelineReplacePath(args: {
     preserveContinuity,
     toHydratedEvents,
   } = args;
-  // TEMP DEBUG (do not commit)
-  {
-    const g = globalThis as Record<string, unknown>;
-    const log = (g.__p3 as string[] | undefined) ?? [];
-    const unitsDesc = timelineUnits.map((u) => {
-      const ev = u.event;
-      if (ev.type !== "timeline") return ev.type;
-      const it = ev.item;
-      if (it.type !== "tool_call") return it.type[0];
-      return "O:" + it.name + "/" + it.status + "/call=" + it.callId + "/seq=" + u.seqEnd;
-    }).join(",");
-    log.push("RP-UNITS [" + unitsDesc + "]");
-    const hydrated = hydrateStreamState(toHydratedEvents(timelineUnits), { source: "canonical" });
-    log.push("RP-HYD [" + hydrated.map((it) => (it.kind === "tool_call" && it.payload.source === "agent" ? "O:" + it.payload.data.name + "/" + it.payload.data.callId : it.kind[0])).join(",") + "]");
-    log.push("RP-PREV prevTail=" + JSON.stringify(args.currentTail.map((it) => (it.kind === "tool_call" && it.payload.source === "agent" ? "O:" + it.payload.data.name + "/" + it.payload.data.status + "@seq" + it.timelineCursor?.seq : it.kind[0]))));
-    if (log.length > 40) log.splice(0, log.length - 40);
-    g.__p3 = log;
-  }
   const hydratedTail = hydrateStreamState(toHydratedEvents(timelineUnits), { source: "canonical" });
   const { tail, head, acknowledgedClientMessageIds } = replaceWithCanonicalStream({
     canonical: hydratedTail,
@@ -1634,8 +1615,7 @@ function processTimelineSequencingGate(input: {
     // immediately — appendAgentToolCall merges by callId, and the catch-up
     // page re-provides them through the same idempotent path — so gaps only
     // gate the non-tool_call streamable kinds.
-    const isToolCall =
-      event.type === "timeline" && event.item.type === "tool_call";
+    const isToolCall = event.type === "timeline" && event.item.type === "tool_call";
     return {
       ...base,
       shouldApplyStreamEvent: isToolCall,

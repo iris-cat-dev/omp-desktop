@@ -11,6 +11,13 @@ export interface TurnFooterHost {
   items: StreamItem[];
   timing?: TurnTiming;
   startIndex: number;
+  /**
+   * Un-grouped stream items for this footer's data source. Render projections
+   * collapse consecutive agent tool calls into one host entry, which hides
+   * every file change but the first from the turn file changes bar; the bar
+   * scans this array instead. Anchored via the host assistant item id.
+   */
+  rawItems: StreamItem[] | null;
 }
 
 export interface StreamLayoutItem {
@@ -41,12 +48,15 @@ export interface StreamLayoutInput {
   isTurnActive: boolean;
   history: StreamItem[];
   liveHead: StreamItem[];
+  /** Un-grouped tail+head the footers scan for turn file changes. */
+  rawItems: StreamItem[];
   timingByAssistantId: Map<string, TurnTiming>;
 }
 
 interface LayoutSegmentInput {
   strategy: StreamStrategy;
   items: StreamItem[];
+  rawItems: StreamItem[];
   timingByAssistantId: Map<string, TurnTiming>;
   auxiliaryTurnFooter: TurnFooterHost | null;
   hasAuxiliaryFooter: boolean;
@@ -69,6 +79,7 @@ function createTurnFooterHost(input: {
   item: StreamItem;
   items: StreamItem[];
   index: number;
+  rawItems: StreamItem[];
   timingByAssistantId: Map<string, TurnTiming>;
 }): TurnFooterHost {
   return {
@@ -76,6 +87,7 @@ function createTurnFooterHost(input: {
     items: input.items,
     timing: input.timingByAssistantId.get(input.item.id),
     startIndex: input.index,
+    rawItems: input.rawItems,
   };
 }
 
@@ -146,6 +158,7 @@ function resolveAuxiliaryTurnFooter(input: StreamLayoutInput): TurnFooterHost | 
     item: assistant.item,
     items: assistant.items,
     index: assistant.index,
+    rawItems: input.rawItems,
     timingByAssistantId: input.timingByAssistantId,
   });
 }
@@ -156,6 +169,7 @@ function resolveCompletedFooter(input: {
   index: number;
   item: StreamItem;
   belowItem: StreamItem | null;
+  rawItems: StreamItem[];
   timingByAssistantId: Map<string, TurnTiming>;
   auxiliaryTurnFooter: TurnFooterHost | null;
   boundaryAboveItems: StreamItem[] | null;
@@ -179,6 +193,7 @@ function resolveCompletedFooter(input: {
     item: assistant.item,
     items: assistant.items,
     index: assistant.index,
+    rawItems: input.rawItems,
     timingByAssistantId: input.timingByAssistantId,
   });
 }
@@ -256,6 +271,7 @@ function layoutSegment(input: LayoutSegmentInput): StreamLayoutItem[] {
       index,
       item,
       belowItem,
+      rawItems: input.rawItems,
       timingByAssistantId: input.timingByAssistantId,
       auxiliaryTurnFooter: input.auxiliaryTurnFooter,
       boundaryAboveItems: input.boundaryAboveItems,
@@ -330,6 +346,7 @@ export function layoutStream(input: StreamLayoutInput): StreamLayout {
       history = layoutSegment({
         strategy: input.strategy,
         items: input.history,
+        rawItems: input.rawItems,
         timingByAssistantId: input.timingByAssistantId,
         auxiliaryTurnFooter,
         hasAuxiliaryFooter,
@@ -350,6 +367,7 @@ export function layoutStream(input: StreamLayoutInput): StreamLayout {
   const liveHead = layoutSegment({
     strategy: input.strategy,
     items: input.liveHead,
+    rawItems: input.rawItems,
     timingByAssistantId: input.timingByAssistantId,
     auxiliaryTurnFooter,
     hasAuxiliaryFooter,

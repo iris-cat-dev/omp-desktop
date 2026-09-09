@@ -83,6 +83,7 @@ function layoutFor(input: { platform: "web" | "native"; isTurnActive: boolean })
       isTurnActive: input.isTurnActive,
       history: strategy.orderTail([userMessage("user"), assistant]),
       liveHead: [],
+      rawItems: [],
       timingByAssistantId: timingFor(assistant.id),
     }),
   };
@@ -127,6 +128,7 @@ describe("turn footer spacing", () => {
         isTurnActive,
         history: strategy.orderTail([userMessage("user"), first]),
         liveHead: strategy.orderHead([last]),
+        rawItems: [],
         timingByAssistantId: timingFor(last.id),
       });
       const firstLayout = layout.history.find((item) => item.item.id === first.id);

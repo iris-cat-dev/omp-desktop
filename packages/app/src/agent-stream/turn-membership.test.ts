@@ -53,6 +53,7 @@ function layoutFor(items: StreamItem[], isTurnActive: boolean) {
       isTurnActive,
       history: model.segments.historyMounted,
       liveHead: model.segments.liveHead,
+      rawItems: items,
       timingByAssistantId: model.turnTiming.byAssistantId,
     }),
   };

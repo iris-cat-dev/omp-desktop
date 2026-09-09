@@ -89,6 +89,7 @@ export const TurnFooter = memo(function TurnFooter({
     <CompletedTurnFooterRow
       strategy={strategy}
       items={host.items}
+      rawItems={host.rawItems}
       timing={host.timing}
       startIndex={host.startIndex}
       supportsTimelineCursor={supportsTimelineCursor}
@@ -103,6 +104,7 @@ export const TurnFooter = memo(function TurnFooter({
 export const CompletedTurnFooterRow = memo(function CompletedTurnFooterRow({
   strategy,
   items,
+  rawItems,
   timing,
   startIndex,
   supportsTimelineCursor,
@@ -113,6 +115,7 @@ export const CompletedTurnFooterRow = memo(function CompletedTurnFooterRow({
 }: {
   strategy: TurnContentStrategy;
   items: StreamItem[];
+  rawItems?: StreamItem[] | null;
   timing?: TurnTiming;
   startIndex: number;
   supportsTimelineCursor: boolean;
@@ -126,6 +129,7 @@ export const CompletedTurnFooterRow = memo(function CompletedTurnFooterRow({
       <View style={stylesheet.completedTurnFooterSlot}>
         <TurnFileChangesBar
           items={items}
+          rawItems={rawItems}
           startIndex={startIndex}
           onOpenFile={onOpenFile}
           onRestoreFile={onRestoreFile}
