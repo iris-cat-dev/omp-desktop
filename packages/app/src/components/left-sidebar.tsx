@@ -804,7 +804,10 @@ function useSidebarProviderModel(controls: AgentControlCommandCenterSource) {
     selectedModelId,
   );
   const isOmpProviderSelected =
-    selectedProviderId.startsWith("omp:") || controls.provider === "omp";
+    selectedProviderId.startsWith("omp:") ||
+    controls.provider === "omp" ||
+    controls.provider === "pi" ||
+    controls.provider === "codex";
   const selectedProvider = providers.find((provider) => provider.id === selectedProviderId) ?? null;
   const rememberedModelByProviderRef = useRef(new Map<string, string>());
   const providerOptions = useMemo<ComboboxOption[]>(

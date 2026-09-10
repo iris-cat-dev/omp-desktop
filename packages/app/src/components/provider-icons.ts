@@ -14,11 +14,13 @@ const OMP_ICON = OmpIcon as unknown as ProviderIconComponent;
 
 const PROVIDER_MONOGRAMS: Record<string, string> = {
   anthropic: "A",
+  codex: "CX",
   cursor: "C",
   google: "G",
   groq: "GQ",
   openai: "AI",
   openrouter: "OR",
+  pi: "π",
   xai: "xAI",
 };
 const monogramIcons = new Map<string, ProviderIconComponent>();

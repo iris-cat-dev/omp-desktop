@@ -37,6 +37,8 @@ import type {
 import { ToolPolicyUnsupportedError, validateProviderOptions } from "./provider-options.js";
 import { OmpAgentClient } from "./providers/omp/agent.js";
 import type { OmpRuntime } from "./providers/omp/runtime.js";
+import { CodexImportClientFacade } from "./providers/external-import/codex-provider.js";
+import { PiImportClientFacade } from "./providers/external-import/pi-provider.js";
 import {
   AGENT_PROVIDER_DEFINITIONS,
   DEV_AGENT_PROVIDER_DEFINITIONS,
@@ -139,7 +141,36 @@ const PROVIDER_CLIENT_FACTORIES: Record<string, ProviderClientFactory> = {
       providerParams: options?.providerParams,
       runtime: options?.ompRuntime,
     }),
+  // Import-only providers wrap the same OMP client: sessions run on the OMP
+  // binary, while listing/import read external transcripts (pi / Codex).
+  pi: (logger, runtimeSettings, options) => {
+    const ompClient = new OmpAgentClient({
+      logger,
+      runtimeSettings,
+      providerParams: options?.providerParams,
+      runtime: options?.ompRuntime,
+    });
+    return new PiImportClientFacade(ompClient, logger);
+  },
+  codex: (logger, runtimeSettings, options) => {
+    const ompClient = new OmpAgentClient({
+      logger,
+      runtimeSettings,
+      providerParams: options?.providerParams,
+      runtime: options?.ompRuntime,
+    });
+    return new CodexImportClientFacade(ompClient, logger);
+  },
 };
+
+/**
+ * Providers that can create brand-new sessions. Import-only providers
+ * (pi/codex) have no creation modes and are surfaced through the
+ * import-sessions sheet instead.
+ */
+export function isCreateCapableProvider(provider: string): boolean {
+  return provider === "omp";
+}
 
 function getProviderClientFactory(provider: string): ProviderClientFactory {
   const factory = PROVIDER_CLIENT_FACTORIES[provider];
