@@ -31,6 +31,13 @@ type BrowserTerminal = TerminalSize & {
   input: (data: string, wasUserInput?: boolean) => void;
   refresh: (start: number, end: number) => void;
   reset: () => void;
+  buffer: {
+    active: {
+      baseY: number;
+      length: number;
+      getLine: (index: number) => { translateToString(trimRight?: boolean): string } | undefined;
+    };
+  };
 };
 
 interface MountedTerminal {
@@ -55,6 +62,14 @@ function nextFrame(): Promise<void> {
 
 function terminalOutput(text: string): Uint8Array {
   return encodeTerminalOutput(text);
+}
+
+function createSnapshotGrid(prompt: string): TerminalState["grid"] {
+  return Array.from({ length: 5 }, (_rowValue, row) =>
+    Array.from({ length: 80 }, (_columnValue, col) => ({
+      char: row === 0 ? (prompt[col] ?? " ") : " ",
+    })),
+  );
 }
 
 async function waitFor(input: { predicate: () => boolean; timeoutMs?: number }): Promise<void> {
@@ -314,11 +329,7 @@ describe("terminal emulator runtime in a real browser", () => {
     const state: TerminalState = {
       rows: 5,
       cols: 80,
-      grid: Array.from({ length: 5 }, (_, row) =>
-        Array.from({ length: 80 }, (_, col) => ({
-          char: row === 0 ? (prompt[col] ?? " ") : " ",
-        })),
-      ),
+      grid: createSnapshotGrid(prompt),
       scrollback: [],
       cursor: { row: 0, col: prompt.length },
       promptMarkers: [{ row: 0, executed: false }],
@@ -470,6 +481,24 @@ describe("terminal emulator runtime in a real browser", () => {
 
     await waitFor({ predicate: () => mounted.inputs.length > 0 });
     expect(mounted.inputs).toEqual(["legacy renderer paste"]);
+  });
+
+  it("clears visible output and scrollback from the live terminal", async () => {
+    await page.viewport(900, 600);
+    const mounted = createTerminalHost({ width: 720, height: 180 });
+    const terminal = getBrowserTerminal();
+    const output = Array.from({ length: 40 }, (_, index) => `clear-target-${index}\r\n`).join("");
+
+    mounted.runtime.write({ data: terminalOutput(output) });
+    await waitFor({ predicate: () => terminal.buffer.active.baseY > 0 });
+
+    mounted.runtime.clearDisplay();
+    await waitFor({ predicate: () => terminal.buffer.active.baseY === 0 });
+
+    const remainingText = Array.from({ length: terminal.buffer.active.length }, (_, index) =>
+      terminal.buffer.active.getLine(index)?.translateToString(true),
+    ).join("\n");
+    expect(remainingText).not.toContain("clear-target-");
   });
 
   it("refreshes visible rows on a forced same-size resize", async () => {

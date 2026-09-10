@@ -1051,6 +1051,7 @@ export function TerminalPane({
             testId="terminal-surface"
             xtermTheme={xtermTheme}
             scrollbackLines={settings.terminalScrollbackLines}
+            contextMenuClearLabel={t("workspace.terminal.clear")}
             fontFamily={terminalFontFamily}
             fontSize={settings.codeFontSize}
             keyboardInset={keyboardInset}

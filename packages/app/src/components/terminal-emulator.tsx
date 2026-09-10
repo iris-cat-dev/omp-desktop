@@ -103,6 +103,7 @@ interface TerminalEmulatorProps {
   testId?: string;
   xtermTheme?: ITheme;
   scrollbackLines: number;
+  contextMenuClearLabel?: string;
   fontFamily?: string;
   fontSize?: number;
   keyboardInset?: number;
@@ -166,6 +167,7 @@ export default function TerminalEmulator({
     cursor: "#e6e6e6",
   },
   scrollbackLines,
+  contextMenuClearLabel = "Clear",
   fontFamily,
   fontSize,
   swipeGesturesEnabled = false,
@@ -543,8 +545,14 @@ export default function TerminalEmulator({
     void showContextMenu({
       kind: "terminal",
       hasSelection,
+      clearLabel: contextMenuClearLabel,
+    }).then((action) => {
+      if (action === "clear") {
+        runtimeRef.current?.clearDisplay();
+      }
+      return undefined;
     });
-  }, []);
+  }, [contextMenuClearLabel]);
 
   const handleRootPointerDown = useCallback(() => {
     onFocus?.();

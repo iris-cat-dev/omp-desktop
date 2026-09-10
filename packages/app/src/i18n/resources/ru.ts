@@ -686,6 +686,7 @@ export const ru: TranslationResources = {
       },
     },
     terminal: {
+      clear: "Очистить",
       hostDisconnected: "Хост не подключён",
       updateHost: "Обновите хост, чтобы использовать нативный рендерер терминала.",
       unableToSubscribe: "Не удалось подключиться к терминалу",

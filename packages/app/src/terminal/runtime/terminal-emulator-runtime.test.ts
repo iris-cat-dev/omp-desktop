@@ -87,6 +87,7 @@ import {
 interface StubTerminal {
   write: (data: string | Uint8Array, callback?: () => void) => void;
   reset: () => void;
+  clear: () => void;
   resize?: (cols: number, rows: number) => void;
   focus: () => void;
   refresh?: (start: number, end: number) => void;
@@ -107,6 +108,7 @@ function createRuntimeWithTerminal(): {
   runtime: TerminalEmulatorRuntime;
   terminal: StubTerminal & {
     resetCalls: number;
+    clearCalls: number;
   };
   writeCallbacks: Array<() => void>;
   writeTexts: string[];
@@ -123,6 +125,7 @@ function createRuntimeWithTerminal(): {
 function attachStubTerminal(runtime: TerminalEmulatorRuntime): {
   terminal: StubTerminal & {
     resetCalls: number;
+    clearCalls: number;
   };
   writeCallbacks: Array<() => void>;
   writeTexts: string[];
@@ -130,8 +133,9 @@ function attachStubTerminal(runtime: TerminalEmulatorRuntime): {
   const writeCallbacks: Array<() => void> = [];
   const writeTexts: string[] = [];
   let resetCalls = 0;
+  let clearCalls = 0;
 
-  const terminal: StubTerminal & { resetCalls: number } = {
+  const terminal: StubTerminal & { resetCalls: number; clearCalls: number } = {
     write: (data: string | Uint8Array, callback?: () => void) => {
       const text = decodeTerminalOutput(data);
       // The runtime submits a zero-length sentinel write to gate barrier ops behind the
@@ -148,6 +152,10 @@ function attachStubTerminal(runtime: TerminalEmulatorRuntime): {
       resetCalls += 1;
       terminal.resetCalls = resetCalls;
     },
+    clear: () => {
+      clearCalls += 1;
+      terminal.clearCalls = clearCalls;
+    },
     resize: () => {},
     focus: () => {},
     refresh: () => {},
@@ -155,6 +163,7 @@ function attachStubTerminal(runtime: TerminalEmulatorRuntime): {
     rows: 0,
     cols: 0,
     resetCalls,
+    clearCalls,
   };
 
   (runtime as unknown as { terminal: StubTerminal }).terminal = terminal;
@@ -241,6 +250,15 @@ describe("terminal-emulator-runtime", () => {
     // "third" still commits through its own write callback.
     writeCallbacks[3]?.();
     expect(committed).toEqual(["first", "second", "clear", "third"]);
+  });
+
+  it("clears displayed output without resetting the live terminal", () => {
+    const { runtime, terminal } = createRuntimeWithTerminal();
+
+    runtime.clearDisplay();
+
+    expect(terminal.clearCalls).toBe(1);
+    expect(terminal.resetCalls).toBe(0);
   });
 
   it("falls back to timeout commit for a barrier op when the gate sentinel never fires", () => {
@@ -495,6 +513,7 @@ describe("terminal-emulator-runtime", () => {
     const terminal: StubTerminal = {
       write: () => {},
       reset: () => {},
+      clear: () => {},
       focus: () => {},
       refresh,
       options: { theme: { background: "before" } },
@@ -518,6 +537,7 @@ describe("terminal-emulator-runtime", () => {
     const terminal: StubTerminal = {
       write: () => {},
       reset: () => {},
+      clear: () => {},
       focus: () => {},
       refresh,
       options: { scrollback: 10_000 },
@@ -538,6 +558,7 @@ describe("terminal-emulator-runtime", () => {
     const fitAndEmitResize = vi.fn();
     const terminal: StubTerminal = {
       write: () => {},
+      clear: () => {},
       reset: () => {},
       focus: () => {},
       refresh,

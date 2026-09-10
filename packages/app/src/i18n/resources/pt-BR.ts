@@ -675,6 +675,7 @@ export const ptBR: TranslationResources = {
       },
     },
     terminal: {
+      clear: "Limpar",
       hostDisconnected: "Host não está conectado",
       updateHost: "Atualize o host para usar o renderizador de terminal nativo.",
       unableToSubscribe: "Não foi possível assinar o terminal",

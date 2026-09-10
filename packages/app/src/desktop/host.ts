@@ -87,8 +87,14 @@ export interface DesktopWebUtilsBridge {
   getPathForFile?: (file: File) => string;
 }
 
+export type DesktopTerminalContextMenuAction = "clear";
+
 export interface DesktopMenuBridge {
-  showContextMenu?: (input?: { kind?: "terminal"; hasSelection?: boolean }) => Promise<void>;
+  showContextMenu?: (input?: {
+    kind?: "terminal";
+    hasSelection?: boolean;
+    clearLabel?: string;
+  }) => Promise<DesktopTerminalContextMenuAction | null>;
   setCapturingShortcut?: (capturing: boolean) => Promise<void>;
 }
 

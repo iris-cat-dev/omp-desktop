@@ -1,4 +1,5 @@
-import { createElement, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   Modal,
   Pressable,
@@ -19,6 +20,7 @@ import { HostStatusDotSlot } from "@/components/hosts/host-picker";
 import { isWeb } from "@/constants/platform";
 import { useLocalDaemonServerId } from "@/hooks/use-is-local-daemon";
 import {
+  getOverlayRoot,
   OverlayLayerProvider,
   useGlobalWebOverlayLayer,
   useWebOverlayRegistration,
@@ -241,11 +243,18 @@ export function HostChooserModal() {
 
   if (!request) return null;
 
-  const modal = (
-    <Modal visible transparent animationType="fade" onRequestClose={close} testID="host-chooser">
-      <View style={styles.overlay}>
+  const overlay = (
+    <OverlayLayerProvider layer={isWeb ? modalLayer : 0}>
+      <View
+        style={[
+          styles.overlay,
+          isWeb ? styles.overlayWeb : null,
+          isWeb ? { zIndex: modalLayer } : null,
+        ]}
+        testID="host-chooser"
+      >
         <Pressable style={styles.backdrop} onPress={close} />
-        <View ref={setWebOverlayScope} style={styles.panel}>
+        <View ref={setWebOverlayScope} style={styles.panel} role="dialog" aria-modal tabIndex={-1}>
           <View style={styles.header}>
             <Text style={styles.title}>{request.title}</Text>
             <TextInput
@@ -278,10 +287,18 @@ export function HostChooserModal() {
           </ScrollView>
         </View>
       </View>
-    </Modal>
+    </OverlayLayerProvider>
   );
 
-  return createElement(OverlayLayerProvider, { layer: isWeb ? modalLayer : 0 }, modal);
+  if (isWeb && typeof document !== "undefined") {
+    return createPortal(overlay, getOverlayRoot());
+  }
+
+  return (
+    <Modal visible transparent animationType="fade" onRequestClose={close}>
+      {overlay}
+    </Modal>
+  );
 }
 
 const styles = StyleSheet.create((theme) => ({
@@ -294,6 +311,10 @@ const styles = StyleSheet.create((theme) => ({
   backdrop: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: "rgba(0, 0, 0, 0.5)",
+  },
+  overlayWeb: {
+    ...StyleSheet.absoluteFillObject,
+    pointerEvents: "auto" as const,
   },
   panel: {
     width: 640,

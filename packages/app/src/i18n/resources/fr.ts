@@ -675,6 +675,7 @@ export const fr: TranslationResources = {
       },
     },
     terminal: {
+      clear: "Effacer",
       hostDisconnected: "Hostn'est pas connecté",
       updateHost: "Mettez à jour l’hôte pour utiliser le terminal natif.",
       unableToSubscribe: "Impossible de s'abonner au terminal",

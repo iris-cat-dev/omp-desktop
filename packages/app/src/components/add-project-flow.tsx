@@ -1,6 +1,7 @@
 import { router } from "expo-router";
 import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
+import { createPortal } from "react-dom";
 import type { WorkspaceProjectDescriptorPayload } from "@omp-desktop/protocol/messages";
 import {
   ArrowLeft,
@@ -81,6 +82,7 @@ import { getOpenProjectFailureReason, registerProjectDescriptor } from "@/hooks/
 import { useIsLocalDaemon, useLocalDaemonServerId } from "@/hooks/use-is-local-daemon";
 import { useCloneGithubProject, useOpenProject } from "@/hooks/use-open-project";
 import {
+  getOverlayRoot,
   OverlayLayerProvider,
   useGlobalWebOverlayLayer,
   useWebOverlayRegistration,
@@ -863,15 +865,25 @@ export function AddProjectFlow({ request, onClose }: AddProjectFlowProps) {
       ? joinDirectoryPath(page.parentPath, page.name.trim())
       : null;
 
-  const modal = (
-    <Modal visible transparent animationType="fade" onRequestClose={isWeb ? undefined : handleBack}>
-      <View style={styles.overlay} testID="add-project-flow">
+  const overlay = (
+    <OverlayLayerProvider layer={isWeb ? modalLayer : 0}>
+      <View
+        style={[
+          styles.overlay,
+          isWeb ? styles.overlayWeb : null,
+          isWeb ? { zIndex: modalLayer } : null,
+        ]}
+        testID="add-project-flow"
+      >
         <Pressable style={styles.backdrop} onPress={onClose} testID="add-project-flow-backdrop" />
         <View
           ref={setWebOverlayScope}
           style={styles.panel}
           testID={`add-project-flow-page-${page.kind}`}
           accessibilityLabel={`${t("addProjectFlow.title")}: ${page.kind}`}
+          role="dialog"
+          aria-modal
+          tabIndex={-1}
         >
           <View style={styles.header}>
             <View style={styles.titleRow}>
@@ -992,10 +1004,18 @@ export function AddProjectFlow({ request, onClose }: AddProjectFlowProps) {
           </View>
         </View>
       </View>
-    </Modal>
+    </OverlayLayerProvider>
   );
 
-  return createElement(OverlayLayerProvider, { layer: isWeb ? modalLayer : 0 }, modal);
+  if (isWeb && typeof document !== "undefined") {
+    return createPortal(overlay, getOverlayRoot());
+  }
+
+  return createElement(
+    Modal,
+    { visible: true, transparent: true, animationType: "fade", onRequestClose: handleBack },
+    overlay,
+  );
 }
 
 const styles = StyleSheet.create((theme) => ({
@@ -1004,6 +1024,10 @@ const styles = StyleSheet.create((theme) => ({
     justifyContent: "flex-start",
     alignItems: "center",
     paddingTop: theme.spacing[12],
+  },
+  overlayWeb: {
+    ...StyleSheet.absoluteFillObject,
+    pointerEvents: "auto" as const,
   },
   backdrop: {
     ...StyleSheet.absoluteFillObject,

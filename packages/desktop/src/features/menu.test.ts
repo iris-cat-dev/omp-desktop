@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import { reloadActiveBrowserOrWindow } from "./menu.js";
+import { describe, expect, it, vi } from "vitest";
+import { buildTerminalContextMenuTemplate, reloadActiveBrowserOrWindow } from "./menu.js";
 
 class FakeWebContents {
   public readonly reloads: string[] = [];
@@ -66,5 +66,20 @@ describe("reloadActiveBrowserOrWindow", () => {
     expect(browserReloads.firstBrowser.reloads).toEqual([]);
     expect(browserReloads.secondBrowser.reloads).toEqual(["force-reload"]);
     expect(browserReloads.secondWindow.webContents.reloads).toEqual([]);
+  });
+});
+
+describe("terminal context menu", () => {
+  it("offers the localized Clear action and reports its selection", () => {
+    const onAction = vi.fn();
+    const template = buildTerminalContextMenuTemplate(
+      { hasSelection: false, clearLabel: "清空" },
+      onAction,
+    );
+    const clearItem = template.find((item) => item.label === "清空");
+
+    expect(clearItem).toBeDefined();
+    clearItem?.click?.(null as never, undefined, null as never);
+    expect(onAction).toHaveBeenCalledWith("clear");
   });
 });

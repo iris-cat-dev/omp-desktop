@@ -4,6 +4,40 @@ import { getActivePaseoBrowserWebContentsForHostWindow } from "./browser-webview
 interface ShowContextMenuInput {
   kind?: "terminal";
   hasSelection?: boolean;
+  clearLabel?: string;
+}
+
+export type TerminalContextMenuAction = "clear";
+
+export function buildTerminalContextMenuTemplate(
+  input: ShowContextMenuInput,
+  onAction: (action: TerminalContextMenuAction) => void,
+): Electron.MenuItemConstructorOptions[] {
+  return [
+    {
+      label: "Copy",
+      role: "copy",
+      enabled: input.hasSelection === true,
+    },
+    {
+      label: "Paste",
+      role: "paste",
+    },
+    {
+      type: "separator",
+    },
+    {
+      label: "Select All",
+      role: "selectAll",
+    },
+    {
+      type: "separator",
+    },
+    {
+      label: input.clearLabel?.trim() || "Clear",
+      click: () => onAction("clear"),
+    },
+  ];
 }
 
 interface ApplicationMenuOptions {
@@ -196,37 +230,35 @@ export function setupApplicationMenu(options: ApplicationMenuOptions): void {
   applicationMenuOptions = options;
   rebuildApplicationMenu();
 
-  ipcMain.handle("paseo:menu:showContextMenu", (event, input?: ShowContextMenuInput) => {
-    const win = BrowserWindow.fromWebContents(event.sender);
-    if (!win) {
-      return;
-    }
+  ipcMain.handle(
+    "paseo:menu:showContextMenu",
+    (
+      event,
+      input?: ShowContextMenuInput,
+    ): Promise<TerminalContextMenuAction | null> | undefined => {
+      const win = BrowserWindow.fromWebContents(event.sender);
+      if (!win) {
+        return;
+      }
 
-    if (input?.kind !== "terminal") {
-      return;
-    }
+      if (input?.kind !== "terminal") {
+        return;
+      }
 
-    const contextMenu = Menu.buildFromTemplate([
-      {
-        label: "Copy",
-        role: "copy",
-        enabled: input.hasSelection === true,
-      },
-      {
-        label: "Paste",
-        role: "paste",
-      },
-      {
-        type: "separator",
-      },
-      {
-        label: "Select All",
-        role: "selectAll",
-      },
-    ]);
-
-    contextMenu.popup({ window: win });
-  });
+      let selectedAction: TerminalContextMenuAction | null = null;
+      const contextMenu = Menu.buildFromTemplate(
+        buildTerminalContextMenuTemplate(input, (action) => {
+          selectedAction = action;
+        }),
+      );
+      return new Promise((resolve) => {
+        contextMenu.popup({
+          window: win,
+          callback: () => resolve(selectedAction),
+        });
+      });
+    },
+  );
 
   // Disable the zoom accelerators while capturing a shortcut so combos like
   // Cmd+- / Cmd+= reach the renderer instead of zooming the window.

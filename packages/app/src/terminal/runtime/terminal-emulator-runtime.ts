@@ -110,7 +110,7 @@ interface TerminalEmulatorRuntimeDisposables {
 }
 
 interface TerminalOutputOperation {
-  type: "write" | "clear" | "snapshot";
+  type: "write" | "clear" | "clearDisplay" | "snapshot";
   data: TerminalOutputData;
   rows?: number;
   cols?: number;
@@ -263,7 +263,7 @@ function registerTerminalPromptDecorations(terminal: Terminal): TerminalPromptDe
 
   const clearDecorations = (): void => {
     currentPrompt = null;
-    for (const decoration of [...decorations]) {
+    for (const decoration of decorations) {
       decoration.dispose();
     }
     decorations.clear();
@@ -816,6 +816,15 @@ export class TerminalEmulatorRuntime {
     this.processOutputQueue();
   }
 
+  clearDisplay(): void {
+    this.outputOperations.push({
+      type: "clearDisplay",
+      data: EMPTY_TERMINAL_OUTPUT,
+      suppressInput: false,
+    });
+    this.processOutputQueue();
+  }
+
   paste(text: string): void {
     this.terminal?.paste(text);
   }
@@ -1112,6 +1121,12 @@ export class TerminalEmulatorRuntime {
       expectedOperation.onCommitted?.();
       this.processOutputQueue();
     };
+
+    if (operation.type === "clearDisplay") {
+      terminal.clear();
+      finalizeOperation(operation);
+      return;
+    }
 
     if (operation.type === "clear") {
       this.inputModeDecoder.decode();
