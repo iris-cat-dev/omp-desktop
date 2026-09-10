@@ -4,6 +4,7 @@ import { useMutation } from "@tanstack/react-query";
 import { useToast } from "@/contexts/toast-context";
 import type { DaemonClient } from "@omp-desktop/client/internal/daemon-client";
 import type { RewindMode } from "./use-rewind-capabilities";
+import type { UserMessageImageAttachment } from "@/types/stream";
 import { useRewindComposerRestore } from "./composer-restore";
 import { useSessionStore } from "@/stores/session-store";
 import { shouldRestoreComposerForRewindMode } from "./rewind-mode";
@@ -19,6 +20,7 @@ interface UseRewindAgentMutationInput {
 interface RewindAgentInput {
   mode: RewindMode;
   rewoundText: string;
+  rewoundImages: readonly UserMessageImageAttachment[];
 }
 
 export function useRewindAgentMutation(input: UseRewindAgentMutationInput): {
@@ -29,11 +31,19 @@ export function useRewindAgentMutation(input: UseRewindAgentMutationInput): {
   const { t } = useTranslation();
   const composerRestore = useRewindComposerRestore();
   const { isPending, mutateAsync } = useMutation({
-    mutationFn: async ({ mode }: RewindAgentInput) => {
+    mutationFn: async ({ mode, rewoundText, rewoundImages }: RewindAgentInput) => {
       if (!input.client || !input.agentId || !input.messageId) {
         throw new Error(t("common.errors.daemonClientUnavailable"));
       }
       await input.client.rewindAgent(input.agentId, input.messageId, mode);
+
+      if (shouldRestoreComposerForRewindMode(mode)) {
+        composerRestore?.restoreIfComposerEmpty({
+          text: rewoundText,
+          images: rewoundImages,
+        });
+      }
+
       if (mode !== "files") {
         const cursor = input.serverId
           ? useSessionStore
@@ -47,12 +57,6 @@ export function useRewindAgentMutation(input: UseRewindAgentMutationInput): {
           ...(cursor ? { cursor: { epoch: cursor.epoch, seq: cursor.endSeq } } : {}),
         });
       }
-    },
-    onSuccess: (_data, variables) => {
-      if (!shouldRestoreComposerForRewindMode(variables.mode)) {
-        return;
-      }
-      composerRestore?.restoreTextIfComposerEmpty(variables.rewoundText);
     },
     onError: (error) => {
       toast.error(error instanceof Error ? error.message : t("rewind.errors.failed"));

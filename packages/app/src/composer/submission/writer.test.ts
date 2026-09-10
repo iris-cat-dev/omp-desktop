@@ -22,7 +22,7 @@ function initializeSession(serverId: string, features: Record<string, boolean>):
   store.updateSessionServerInfo(serverId, {
     serverId,
     hostname: null,
-    version: "0.2.6",
+    version: "0.2.7",
     features,
   });
 }

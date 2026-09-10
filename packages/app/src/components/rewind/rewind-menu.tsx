@@ -13,13 +13,19 @@ import {
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { type RewindMode, useRewindCapabilities } from "./use-rewind-capabilities";
 import type { AgentCapabilityFlags } from "@omp-desktop/protocol/agent-types";
+import type { UserMessageImageAttachment } from "@/types/stream";
 
 export type { RewindMode };
 
 interface RewindMenuProps {
   capabilities: AgentCapabilityFlags;
   rewoundText: string;
-  onRewind: (input: { mode: RewindMode; rewoundText: string }) => Promise<void> | void;
+  rewoundImages: readonly UserMessageImageAttachment[];
+  onRewind: (input: {
+    mode: RewindMode;
+    rewoundText: string;
+    rewoundImages: readonly UserMessageImageAttachment[];
+  }) => Promise<void> | void;
   isPending?: boolean;
   testID?: string;
 }
@@ -38,6 +44,7 @@ function getIcon(mode: RewindMode, color: string): ReactElement {
 export const RewindMenu = memo(function RewindMenu({
   capabilities,
   rewoundText,
+  rewoundImages,
   onRewind,
   isPending: isPendingProp = false,
   testID = "rewind-menu",
@@ -70,7 +77,7 @@ export const RewindMenu = memo(function RewindMenu({
       if (isLocked) return;
       setPendingMode(mode);
       try {
-        await onRewind({ mode, rewoundText });
+        await onRewind({ mode, rewoundText, rewoundImages });
       } catch {
         // useRewindAgentMutation owns the toast; the menu only owns flow state.
       } finally {
@@ -78,7 +85,7 @@ export const RewindMenu = memo(function RewindMenu({
         setIsOpen(false);
       }
     },
-    [isLocked, onRewind, rewoundText],
+    [isLocked, onRewind, rewoundImages, rewoundText],
   );
 
   const triggerStyle = useCallback(

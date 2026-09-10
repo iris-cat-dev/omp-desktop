@@ -109,6 +109,17 @@ export function useExplorerEntryDrag({
       setIsDropTarget(false);
     }
 
+    function handleBlockedDescendant(event: DragEvent) {
+      if (
+        !target ||
+        !includesExplorerEntry(event.dataTransfer) ||
+        !isBlockedTarget(event, target)
+      ) {
+        return;
+      }
+      setIsDropTarget(false);
+    }
+
     function handleDragEnter(event: DragEvent) {
       if (!target || isBlockedTarget(event, target) || !includesExplorerEntry(event.dataTransfer)) {
         return;
@@ -166,6 +177,8 @@ export function useExplorerEntryDrag({
       target.onMove(request);
     }
 
+    element.addEventListener("dragenter", handleBlockedDescendant, true);
+    element.addEventListener("dragover", handleBlockedDescendant, true);
     element.addEventListener("dragstart", handleDragStart);
     element.addEventListener("dragend", clearDragState);
     element.addEventListener("dragenter", handleDragEnter);
@@ -174,6 +187,8 @@ export function useExplorerEntryDrag({
     element.addEventListener("drop", handleDrop);
     return () => {
       element.draggable = false;
+      element.removeEventListener("dragenter", handleBlockedDescendant, true);
+      element.removeEventListener("dragover", handleBlockedDescendant, true);
       element.removeEventListener("dragstart", handleDragStart);
       element.removeEventListener("dragend", clearDragState);
       element.removeEventListener("dragenter", handleDragEnter);

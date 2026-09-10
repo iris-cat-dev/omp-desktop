@@ -193,7 +193,6 @@ describe("collectTurnFileChanges", () => {
     ]);
   });
 
-
   it("expands the loop variable only where bash would", () => {
     const items = [
       // Single quotes stay literal; unknown $vars reject the segment.
@@ -203,16 +202,16 @@ describe("collectTurnFileChanges", () => {
       }),
       toolCallItem({
         name: "bash",
-        detail: { type: "shell", command: "for f in a b; do touch \"$f$g.txt\"; done" },
+        detail: { type: "shell", command: 'for f in a b; do touch "$f$g.txt"; done' },
       }),
       // Glob word lists select existing files; touching them adds nothing.
       toolCallItem({
         name: "bash",
-        detail: { type: "shell", command: "for f in *.txt; do touch \"$f\"; done" },
+        detail: { type: "shell", command: 'for f in *.txt; do touch "$f"; done' },
       }),
       toolCallItem({
         name: "bash",
-        detail: { type: "shell", command: "for f in a b; do touch \"$(mktemp)\"; done" },
+        detail: { type: "shell", command: 'for f in a b; do touch "$(mktemp)"; done' },
       }),
     ];
     expect(collectTurnFileChanges(items, 0)).toEqual([]);
@@ -227,7 +226,6 @@ describe("collectTurnFileChanges", () => {
     ];
     expect(collectTurnFileChanges(items, 0)).toEqual([{ path: "notes.md", kind: "added" }]);
   });
-
 
   it("detects delete-named tools with unknown detail input", () => {
     const items = [
@@ -307,6 +305,18 @@ describe("collectTurnFileChanges", () => {
     expect(collectTurnFileChanges([user, globCall, writeCall, assistant], 3)).toEqual([
       { path: "test_doc.md", kind: "added" },
     ]);
+  });
+
+  it("excludes tool-device and MCP resource writes from file changes", () => {
+    const items = [
+      toolCallItem({ name: "write", detail: { type: "write", filePath: "xd://lsp" } }),
+      toolCallItem({
+        name: "write",
+        detail: { type: "write", filePath: "mcp://automation/workflow" },
+      }),
+      toolCallItem({ name: "write", detail: { type: "write", filePath: "src/real-file.ts" } }),
+    ];
+    expect(collectTurnFileChanges(items, 0)).toEqual([{ path: "src/real-file.ts", kind: "added" }]);
   });
 
   it("classifies live OMP REM deletions (edit with oldText but no newText)", () => {

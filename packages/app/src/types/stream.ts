@@ -554,10 +554,9 @@ function preserveReplacementHead(
       )
     : currentHead.filter(
         (item) =>
-          (item.kind === "user_message" &&
-            item.clientMessageId !== undefined &&
-            sendingClientMessageIds.has(item.clientMessageId)) ||
-          isAgentToolCallItem(item),
+          item.kind === "user_message" &&
+          item.clientMessageId !== undefined &&
+          sendingClientMessageIds.has(item.clientMessageId),
       );
   const { tail: reconciledTail, head: unreconciledHead } = reconcileReplacementHeadAgainstTail(
     tail,
@@ -672,14 +671,14 @@ export function replaceWithCanonicalStream(
   // replacement, or the only record of a created/edited/deleted file silently
   // disappears. Re-merge them by timeline seq so ordering stays stable.
   const canonicalCallIds = new Set(
-    input.canonical
-      .filter(isAgentToolCallItem)
-      .map((item) => item.payload.data.callId),
+    input.canonical.filter(isAgentToolCallItem).map((item) => item.payload.data.callId),
   );
-  const survivingTailToolCalls = input.previousTail.filter(
-    (item): item is AgentToolCallItem =>
-      isAgentToolCallItem(item) && !canonicalCallIds.has(item.payload.data.callId),
-  );
+  const survivingTailToolCalls = input.preserveContinuity
+    ? input.previousTail.filter(
+        (item): item is AgentToolCallItem =>
+          isAgentToolCallItem(item) && !canonicalCallIds.has(item.payload.data.callId),
+      )
+    : [];
   let canonicalIndex = 0;
   let survivorIndex = 0;
   const mergedTail: StreamItem[] = [];
@@ -688,7 +687,11 @@ export function replaceWithCanonicalStream(
     const survivor = survivingTailToolCalls[survivorIndex];
     const canonicalSeq = canonicalItem?.timelineCursor?.seq;
     const survivorSeq = survivor?.timelineCursor?.seq;
-    if (survivor && survivorSeq !== undefined && (canonicalItem === undefined || canonicalSeq === undefined || survivorSeq < canonicalSeq)) {
+    if (
+      survivor &&
+      survivorSeq !== undefined &&
+      (canonicalItem === undefined || canonicalSeq === undefined || survivorSeq < canonicalSeq)
+    ) {
       mergedTail.push(survivor);
       survivorIndex += 1;
       continue;

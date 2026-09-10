@@ -22,6 +22,7 @@ const SHELL_DELETE_COMMAND_PATTERN = /^(rm|rmdir|unlink|del|remove-item)$/i;
 const SHELL_OPERATOR_PATTERN = /[<>`$()]/;
 const DELETE_TOOL_NAME_PATTERN = /(delete|remove|unlink|trash|\brm\b)/i;
 const UNKNOWN_PATH_KEYS = ["file_path", "filePath", "path", "target"] as const;
+const URI_SCHEME_PATTERN = /^[a-z][a-z0-9+.-]*:\/\//i;
 // OMP edit calls stream a patch-DSL input ("[<path>#<hash>]\nPUT/REM..."). On
 // hydrated timelines their detail stays "unknown" (the schema expects the
 // structured {path, edits} shape, which only the live path provides), so the
@@ -459,7 +460,9 @@ function extractUnknownChange(
 
 export function normalizeChangePath(path: string): string | null {
   const unified = path.replace(/\\/g, "/").trim();
-  if (!unified) {
+  // Tool devices and MCP/internal resources can travel through the write tool
+  // but are not workspace files and must never become file-change chips.
+  if (!unified || URI_SCHEME_PATTERN.test(unified)) {
     return null;
   }
   return unified.startsWith("./") ? unified.slice(2) : unified;

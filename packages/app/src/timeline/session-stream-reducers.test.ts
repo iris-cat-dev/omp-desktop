@@ -457,6 +457,38 @@ describe("processTimelineResponse", () => {
     expect(result.cursor).toEqual({ epoch: "epoch-2", startSeq: 1, endSeq: 1 });
   });
 
+  it("drops stale tool activity when a rewind replaces the timeline epoch", () => {
+    const staleToolActivity = hydrateStreamState(
+      [
+        {
+          event: makeToolCallTimelineEvent("stale-tool-call"),
+          timestamp: new Date(1040),
+          timelineCursor: { epoch: "epoch-1", seq: 40 },
+        },
+      ],
+      { source: "canonical" },
+    );
+
+    const result = processTimelineResponse({
+      ...baseTimelineInput,
+      currentTail: staleToolActivity,
+      currentCursor: { epoch: "epoch-1", startSeq: 1, endSeq: 40 },
+      payload: {
+        ...baseTimelineInput.payload,
+        direction: "tail",
+        reset: true,
+        epoch: "epoch-2",
+        window: { minSeq: 1, maxSeq: 1, nextSeq: 2 },
+        startCursor: { seq: 1 },
+        endCursor: { seq: 1 },
+        entries: [makeTimelineEntry(1, "history before rewind")],
+      },
+    });
+
+    expect(getAssistantTexts(result.tail)).toEqual(["history before rewind"]);
+    expect(getAgentToolCalls([...result.tail, ...result.head])).toEqual([]);
+  });
+
   it("replaces destructively when the same epoch rewinds behind the local cursor", () => {
     const result = processTimelineResponse({
       ...baseTimelineInput,
@@ -2846,27 +2878,34 @@ describe("processTimelineResponse", () => {
     // Regression (author-reported): multi-file turns lost every write except
     // the first when a replacement page was applied — previousTail tool calls
     // not present in the canonical page were silently dropped.
-    const writeCall = (callId: string, filePath: string, seq: number): StreamItem => ({
-      kind: "tool_call",
-      id: "agent_tool_" + callId,
-      timestamp: new Date(2000 + seq),
-      timelineCursor: { epoch: "epoch-1", seq },
-      payload: {
-        source: "agent",
-        data: {
-          provider: "omp",
-          callId,
-          name: "write",
-          status: "completed",
-          error: null,
-          detail: { type: "write", filePath },
+    const writeCall = (callId: string, filePath: string, seq: number): StreamItem =>
+      ({
+        kind: "tool_call",
+        id: "agent_tool_" + callId,
+        timestamp: new Date(2000 + seq),
+        timelineCursor: { epoch: "epoch-1", seq },
+        payload: {
+          source: "agent",
+          data: {
+            provider: "omp",
+            callId,
+            name: "write",
+            status: "completed",
+            error: null,
+            detail: { type: "write", filePath },
+          },
         },
-      },
-    }) as unknown as StreamItem;
+      }) as unknown as StreamItem;
     const result = processTimelineResponse({
       ...baseTimelineInput,
       currentTail: [
-        { kind: "user_message", id: "u1", text: "create three files", timestamp: new Date(1000), timelineCursor: { epoch: "epoch-1", seq: 1 } } as StreamItem,
+        {
+          kind: "user_message",
+          id: "u1",
+          text: "create three files",
+          timestamp: new Date(1000),
+          timelineCursor: { epoch: "epoch-1", seq: 1 },
+        } as StreamItem,
         writeCall("w-a", "a.md", 2),
         writeCall("w-b", "b.md", 3),
         writeCall("w-c", "c.md", 4),
@@ -2883,7 +2922,16 @@ describe("processTimelineResponse", () => {
         endCursor: { seq: 4 },
         hasOlder: false,
         hasNewer: false,
-        entries: [makeTimelineEntry(1, "create three files", "user_message"), makeToolCallTimelineEntry(2, "w-a", "completed", { type: "write", filePath: "a.md" }, "write")],
+        entries: [
+          makeTimelineEntry(1, "create three files", "user_message"),
+          makeToolCallTimelineEntry(
+            2,
+            "w-a",
+            "completed",
+            { type: "write", filePath: "a.md" },
+            "write",
+          ),
+        ],
       },
     });
 
@@ -2908,7 +2956,14 @@ describe("processTimelineResponse", () => {
           type: "timeline",
           provider: "omp",
           turnId: "t-1",
-          item: { type: "tool_call", callId: "w-a", name: "write", status: "completed", error: null, detail: { type: "write", filePath: "a.md" } },
+          item: {
+            type: "tool_call",
+            callId: "w-a",
+            name: "write",
+            status: "completed",
+            error: null,
+            detail: { type: "write", filePath: "a.md" },
+          },
         } as AgentStreamEventPayload,
         seq: 3,
         epoch: "epoch-1",
@@ -2919,7 +2974,14 @@ describe("processTimelineResponse", () => {
           type: "timeline",
           provider: "omp",
           turnId: "t-1",
-          item: { type: "tool_call", callId: "w-b", name: "write", status: "completed", error: null, detail: { type: "write", filePath: "b.md" } },
+          item: {
+            type: "tool_call",
+            callId: "w-b",
+            name: "write",
+            status: "completed",
+            error: null,
+            detail: { type: "write", filePath: "b.md" },
+          },
         } as AgentStreamEventPayload,
         seq: 4,
         epoch: "epoch-1",
@@ -2929,7 +2991,13 @@ describe("processTimelineResponse", () => {
     const result = processAgentStreamEvents({
       events,
       currentTail: [
-        { kind: "user_message", id: "u1", text: "create files", timestamp: new Date(1000), timelineCursor: { epoch: "epoch-1", seq: 1 } },
+        {
+          kind: "user_message",
+          id: "u1",
+          text: "create files",
+          timestamp: new Date(1000),
+          timelineCursor: { epoch: "epoch-1", seq: 1 },
+        },
       ],
       currentHead: [],
       currentCursor: { epoch: "epoch-1", startSeq: 1, endSeq: 1 },

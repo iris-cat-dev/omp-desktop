@@ -96,3 +96,4 @@ pnpm-lock.yaml
 bin/omp-windows-x64.exe
 bin/omp-darwin-arm64
 bin/omp-windows-arm64.exe
+packages/app/.vitest-attachments/*

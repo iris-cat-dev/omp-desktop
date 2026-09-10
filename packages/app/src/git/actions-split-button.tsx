@@ -132,7 +132,7 @@ export function GitActionsSplitButton({
   const menuOnlyActions = useMemo(
     () => [
       ...(gitActions.primary ? [gitActions.primary] : []),
-      ...gitActions.secondary,
+      ...gitActions.secondary.filter((action) => action.id !== gitActions.primary?.id),
       ...gitActions.menu,
     ],
     [gitActions.menu, gitActions.primary, gitActions.secondary],

@@ -637,12 +637,12 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
       effectiveTurnPresentation.startedAt,
       historyWindowStart,
     ]);
-    // Un-grouped tail+head: the turn file changes bar scans this instead of the
-    // render history, whose activity/tool-call grouping collapses consecutive
-    // agent tool calls into one host entry (hiding all but one file change).
+    // Footers need the actual, un-grouped timeline. Overview projection
+    // intentionally folds consecutive tools into one host and therefore cannot
+    // be the source of truth for the complete changed-file list.
     const rawStreamItems = useMemo(
-      () => [...projectedToolCalls.tail, ...projectedToolCalls.head],
-      [projectedToolCalls.tail, projectedToolCalls.head],
+      () => [...effectiveStreamItems, ...(effectiveStreamHead ?? EMPTY_STREAM_HEAD)],
+      [effectiveStreamHead, effectiveStreamItems],
     );
     const streamLayout = useMemo(
       () =>

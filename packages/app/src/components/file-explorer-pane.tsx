@@ -73,7 +73,7 @@ import { useFileExplorerActions } from "@/hooks/use-file-explorer-actions";
 import { buildWorkspaceExplorerStateKey } from "@/hooks/use-file-explorer-actions";
 import { usePanelStore, type ExpandedPathsUpdate, type SortOption } from "@/stores/panel-store";
 import { formatTimeAgo } from "@/utils/time";
-import { buildAbsoluteExplorerPath } from "@/utils/explorer-paths";
+import { buildAbsoluteExplorerPath, parentExplorerPath } from "@/utils/explorer-paths";
 import { isHiddenExplorerPath } from "@/file-explorer/visibility";
 import {
   flattenExplorerTree,
@@ -91,6 +91,7 @@ import type { ExplorerEntryMoveRequest } from "@/file-explorer/entry-drag";
 import { useExplorerEntryDrag } from "@/file-explorer/use-entry-drag";
 
 const FILE_EXPLORER_ROW_SELECTOR = '[data-testid^="file-explorer-row-"]';
+const FILE_EXPLORER_ROOT_DROP_BLOCKED_SELECTOR = '[data-testid="file-explorer-root-drop-blocker"]';
 
 const SORT_OPTIONS: { value: SortOption }[] = [
   { value: "name" },
@@ -287,6 +288,7 @@ function TreeRowItem({
   const showNameHover = useCallback(() => setIsHovered(true), []);
   const hideNameHover = useCallback(() => setIsHovered(false), []);
   const isDirectory = entry.kind === "directory";
+  const blocksRootDrop = isDirectory || parentExplorerPath(entry.path) !== ".";
   const canAddToChat = isDirectory ? Boolean(onAddDirectoryToChat) : Boolean(onAddToChat);
   const dragSource = useMemo(
     () =>
@@ -430,7 +432,11 @@ function TreeRowItem({
         aria-selected={isSelected}
         testID={testID}
       >
-        <View ref={entryDragRef} style={styles.entryInfo}>
+        <View
+          ref={entryDragRef}
+          style={styles.entryInfo}
+          testID={isWeb && blocksRootDrop ? "file-explorer-root-drop-blocker" : undefined}
+        >
           <View style={styles.entryIcon}>
             {isDirectory ? (
               <DirectoryChevronIcon loading={loading} expanded={isExpanded} />
@@ -893,7 +899,7 @@ export function FileExplorerPane({
             serverId,
             workspaceId,
             parentPath: ".",
-            blockedDescendantSelector: FILE_EXPLORER_ROW_SELECTOR,
+            blockedDescendantSelector: FILE_EXPLORER_ROOT_DROP_BLOCKED_SELECTOR,
             onMove: handleMoveEntry,
           }
         : undefined,
@@ -1234,13 +1240,9 @@ function isFileExplorerRowTarget(target: unknown): boolean {
 function RootCreationContextTarget({
   children,
   enabled,
-  dropTargetRef,
-  isDropTarget,
 }: {
   children: ReactNode;
   enabled: boolean;
-  dropTargetRef?: RefCallback<View>;
-  isDropTarget: boolean;
 }) {
   const contextMenu = useContextMenu();
   const handleContextMenu = useCallback(
@@ -1263,9 +1265,8 @@ function RootCreationContextTarget({
 
   return (
     <View
-      ref={dropTargetRef}
       {...{ onContextMenu: handleContextMenu }}
-      style={[styles.rootContextTarget, isDropTarget && styles.rootDropTarget]}
+      style={styles.rootContextTarget}
       testID="files-empty-area"
     >
       {children}
@@ -1419,7 +1420,10 @@ function FileExplorerPaneContent(props: FileExplorerPaneContentProps) {
   }
 
   return (
-    <View style={[styles.treePane, styles.treePaneFill]}>
+    <View
+      ref={rootDropTargetRef}
+      style={[styles.treePane, styles.treePaneFill, isRootDropTarget && styles.rootDropTarget]}
+    >
       <PaneContentToolbar style={styles.paneHeader} testID="files-pane-header">
         <Pressable
           onPress={handleSortCycle}
@@ -1530,11 +1534,7 @@ function FileExplorerPaneContent(props: FileExplorerPaneContentProps) {
         </View>
       </PaneContentToolbar>
       <ContextMenu>
-        <RootCreationContextTarget
-          enabled={Boolean(onNewEntryAtRoot)}
-          dropTargetRef={rootDropTargetRef}
-          isDropTarget={isRootDropTarget}
-        >
+        <RootCreationContextTarget enabled={Boolean(onNewEntryAtRoot)}>
           {listRows.length === 0 ? (
             <View style={styles.centerState}>
               <Text style={styles.emptyText}>{emptyLabel}</Text>
@@ -1939,6 +1939,10 @@ const styles = StyleSheet.create((theme) => ({
   },
   rootDropTarget: {
     backgroundColor: theme.colors.surfaceSidebarHover,
+    outlineColor: theme.colors.accent,
+    outlineOffset: -2,
+    outlineStyle: "solid",
+    outlineWidth: 2,
   },
   centerState: {
     flex: 1,

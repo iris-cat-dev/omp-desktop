@@ -454,7 +454,11 @@ export const UserMessage = memo(function UserMessage({
   const handlePointerLeave = useCallback(() => setIsHovered(false), []);
   const getMessageContent = useCallback(() => message, [message]);
   const handleRewind = useCallback(
-    (input: { mode: RewindMode; rewoundText: string }) => {
+    (input: {
+      mode: RewindMode;
+      rewoundText: string;
+      rewoundImages: readonly UserMessageImageAttachment[];
+    }) => {
       return rewindMutation.rewindAgent(input);
     },
     [rewindMutation],
@@ -553,6 +557,7 @@ export const UserMessage = memo(function UserMessage({
                 capabilities={capabilities}
                 isPending={rewindMutation.isPending}
                 rewoundText={message}
+                rewoundImages={images}
                 onRewind={handleRewind}
               />
             ) : null}

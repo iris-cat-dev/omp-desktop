@@ -340,8 +340,8 @@ function SubagentActionButton({
 }
 
 const styles = StyleSheet.create((theme) => ({
-  // `flexBasis: "auto"` rather than `flex: 1`: a zero-basis label contributes nothing to the row's
-  // intrinsic width, so the panel measures itself at its floor and truncates every label at once.
+  // The task name owns the flexible space. It may be arbitrarily long, so it truncates before
+  // the model metadata on the trailing edge is allowed to disappear.
   rowLabel: {
     flexGrow: 1,
     flexShrink: 1,
@@ -350,11 +350,12 @@ const styles = StyleSheet.create((theme) => ({
     fontSize: theme.fontSize.base,
     color: theme.colors.foreground,
   },
-  // Trailing metadata — provider context on a subagent row, progress on the archive row. No width
-  // cap: the panel's own ceiling bounds it. It shrinks twice as fast as the label, so a wordy
-  // provider subtitle gives way first instead of squeezing the thing that names the row.
+  // Reserve up to half the row for model/provider metadata. Inside that bound the text keeps its
+  // intrinsic width, forcing a long task name to yield first; exceptionally long metadata still
+  // ellipsizes rather than crowding the task out completely. Also used by short archive progress.
   rowTrailing: {
-    flexShrink: 2,
+    flexShrink: 0,
+    maxWidth: "50%",
     minWidth: 0,
     fontSize: theme.fontSize.sm,
     color: theme.colors.foregroundMuted,
