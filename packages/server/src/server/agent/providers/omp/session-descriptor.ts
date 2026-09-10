@@ -255,7 +255,9 @@ async function readOmpImportableSession(
   };
 }
 
-async function readOmpSessionDescriptor(filePath: string): Promise<OmpSessionDescriptor | null> {
+export async function readOmpSessionDescriptor(
+  filePath: string,
+): Promise<OmpSessionDescriptor | null> {
   // OMP may emit title/session_info lines before the session header.
   const headChunk = await readHeadChunkStrict(filePath).catch(() => null);
   if (!headChunk) return null;
@@ -285,7 +287,6 @@ async function readOmpSessionDescriptor(filePath: string): Promise<OmpSessionDes
     thinkingOptionId,
   };
 }
-
 function toOmpImportSessionConfig(descriptor: OmpSessionDescriptor): OmpImportSessionConfig {
   return {
     ...(descriptor.model ? { model: descriptor.model } : {}),

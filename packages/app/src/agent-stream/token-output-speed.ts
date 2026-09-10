@@ -36,7 +36,8 @@ export function useOutputTokenSpeed(
   const [tokensPerSecond, setTokensPerSecond] = useState<number | null>(null);
 
   useEffect(() => {
-    const isRunning = provider === "omp" && status === "running";
+    const isRunning =
+      (provider === "omp" || provider === "pi" || provider === "codex") && status === "running";
     const hasOutputTokens = outputTokens !== null && Number.isFinite(outputTokens);
 
     if (isRunning && !wasRunningRef.current) {

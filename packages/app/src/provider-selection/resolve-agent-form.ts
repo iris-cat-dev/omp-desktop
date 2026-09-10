@@ -268,7 +268,14 @@ export function buildProviderDefinitionMapForStatuses(args: {
 
   const matchingProviders = new Set(
     args.snapshotEntries
-      .filter((entry) => args.statuses.has(entry.status) && entry.enabled)
+      .filter(
+        (entry) =>
+          args.statuses.has(entry.status) &&
+          entry.enabled &&
+          // Import-only providers (pi/codex) expose no creation modes; they
+          // are not valid targets for brand-new agent creation.
+          (entry.provider === "omp" || (entry.modes?.length ?? 0) > 0),
+      )
       .map((entry) => entry.provider),
   );
 

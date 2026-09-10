@@ -69,6 +69,25 @@ export const AGENT_PROVIDER_DEFINITIONS: AgentProviderDefinition[] = [
     defaultModeId: "ask",
     modes: OMP_MODES,
   },
+  // Import-only providers: they run sessions on the OMP runtime but list and
+  // import external transcripts (pi / Codex). No creation modes — the UI
+  // surfaces them through the import-sessions sheet only.
+  {
+    id: "pi",
+    label: "pi",
+    description: "Import existing pi coding-agent sessions (runs on OMP)",
+    enabledByDefault: true,
+    defaultModeId: null,
+    modes: [],
+  },
+  {
+    id: "codex",
+    label: "Codex",
+    description: "Import existing Codex rollout sessions (runs on OMP)",
+    enabledByDefault: true,
+    defaultModeId: null,
+    modes: [],
+  },
 ];
 
 export const DEV_AGENT_PROVIDER_DEFINITIONS: AgentProviderDefinition[] = [];

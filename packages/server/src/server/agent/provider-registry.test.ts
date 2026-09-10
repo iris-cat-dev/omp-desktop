@@ -6,16 +6,24 @@ import { FakeOmp } from "./providers/omp/test-utils/fake-omp.js";
 const logger = createTestLogger();
 
 describe("OMP provider registry", () => {
-  test("registers only an enabled OMP provider", () => {
+  test("registers the OMP provider plus import-only external providers", () => {
     const registry = buildProviderRegistry(logger);
 
-    expect(Object.keys(registry)).toEqual(["omp"]);
+    expect(Object.keys(registry)).toEqual(["omp", "pi", "codex"]);
     expect(registry.omp).toMatchObject({
       id: "omp",
       label: "Oh My Pi",
       enabled: true,
       defaultModeId: "ask",
       derivedFromProviderId: null,
+    });
+    // Import-only providers expose no creation modes.
+    expect(registry.pi).toMatchObject({ id: "pi", enabled: true, defaultModeId: null, modes: [] });
+    expect(registry.codex).toMatchObject({
+      id: "codex",
+      enabled: true,
+      defaultModeId: null,
+      modes: [],
     });
   });
 
@@ -49,20 +57,26 @@ describe("OMP provider registry", () => {
     expect(registry.omp.description).toBe("Local OMP runtime");
   });
 
-  test("rejects custom and derived providers", () => {
+  test("rejects unknown custom providers", () => {
     expect(() =>
       buildProviderRegistry(logger, {
         providerOverrides: {
-          codex: { enabled: true },
+          claude: { enabled: true },
         },
       }),
-    ).toThrow("OMP Desktop supports only the built-in 'omp' provider; received 'codex'");
+    ).toThrow("OMP Desktop supports only the built-in 'omp' provider; received 'claude'");
   });
 
-  test("creates only the OMP client", () => {
+  test("creates the OMP client plus import facades", () => {
     const clients = createAllClients(logger, { ompRuntime: new FakeOmp() });
 
-    expect(Object.keys(clients)).toEqual(["omp"]);
+    expect(Object.keys(clients)).toEqual(["omp", "pi", "codex"]);
     expect(clients.omp.provider).toBe("omp");
+    expect(clients.pi.provider).toBe("pi");
+    expect(clients.pi.capabilities.supportsSessionListing).toBe(true);
+    expect(typeof clients.pi.listImportableSessions).toBe("function");
+    expect(typeof clients.pi.importSession).toBe("function");
+    expect(clients.codex.provider).toBe("codex");
+    expect(clients.codex.capabilities.supportsSessionListing).toBe(true);
   });
 });

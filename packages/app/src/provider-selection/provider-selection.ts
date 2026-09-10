@@ -151,7 +151,13 @@ export function buildSelectableProviderSelectorProviders(
   entries: ProviderSnapshotEntry[] | undefined,
 ): ProviderSelectorProvider[] {
   return (entries ?? [])
-    .filter((entry) => entry.enabled)
+    .filter(
+      (entry) =>
+        entry.enabled &&
+        // Import-only providers (pi/codex) list no modes: they exist for the
+        // import-sessions sheet, not for brand-new agent creation.
+        (entry.provider === "omp" || (entry.modes?.length ?? 0) > 0),
+    )
     .map((entry) => {
       const label = entry.label ?? entry.provider;
       return {

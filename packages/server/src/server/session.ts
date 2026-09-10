@@ -1809,7 +1809,10 @@ export class Session {
   }
 
   private isProviderVisibleToClient(provider: string): boolean {
-    return provider === "omp";
+    // Import-only providers (pi/codex) are registered clients: their imported
+    // agents must be listed and their transcripts surfaced in the import
+    // sheet, same as native OMP agents.
+    return provider === "omp" || this.providerSnapshotManager.hasProvider(provider);
   }
 
   private async buildProjectPlacementForWorkspace(
