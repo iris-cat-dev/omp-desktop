@@ -582,6 +582,7 @@ export const es: TranslationResources = {
         failedToListDirectory: "No se pudo listar el directorio",
         createFailed: "No se pudo crear la entrada",
         renameFailed: "No se pudo renombrar la entrada",
+        moveFailed: "No se pudo mover la entrada",
         duplicateFailed: "No se pudo duplicar la entrada",
         revealFailed: "No se pudo mostrar la entrada",
         deleteFailed: "No se pudo eliminar la entrada",

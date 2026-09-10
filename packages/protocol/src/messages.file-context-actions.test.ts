@@ -8,6 +8,8 @@ import {
   FileEntryDeleteResponseSchema,
   FileEntryDuplicateRequestSchema,
   FileEntryDuplicateResponseSchema,
+  FileEntryMoveRequestSchema,
+  FileEntryMoveResponseSchema,
   FileEntryRenameRequestSchema,
   FileEntryRenameResponseSchema,
   ServerInfoStatusPayloadSchema,
@@ -21,6 +23,7 @@ describe("file context action messages", () => {
       features: {},
     });
     expect(legacy.features?.fsEntryOps).toBeUndefined();
+    expect(legacy.features?.fsEntryMove).toBeUndefined();
     expect(legacy.features?.fsEntryDuplicate).toBeUndefined();
     expect(legacy.features?.checkoutDiscardChanges).toBeUndefined();
     expect(legacy.features?.checkoutDiscardUnstagedChanges).toBeUndefined();
@@ -30,6 +33,7 @@ describe("file context action messages", () => {
       serverId: "server-1",
       features: {
         fsEntryOps: true,
+        fsEntryMove: true,
         fsEntryDuplicate: true,
         checkoutDiscardChanges: true,
         checkoutDiscardUnstagedChanges: true,
@@ -37,6 +41,7 @@ describe("file context action messages", () => {
     });
     expect(current.features).toMatchObject({
       fsEntryOps: true,
+      fsEntryMove: true,
       fsEntryDuplicate: true,
       checkoutDiscardChanges: true,
       checkoutDiscardUnstagedChanges: true,
@@ -101,6 +106,30 @@ describe("file context action messages", () => {
       },
     };
     expect(FileEntryRenameResponseSchema.parse(response)).toEqual(response);
+  });
+  test("round-trips file entry move requests and responses", () => {
+    const request = {
+      type: "fs.entry.move.request",
+      cwd: "/workspace",
+      path: "src/old.ts",
+      parentPath: "archive",
+      requestId: "move-1",
+    };
+    expect(FileEntryMoveRequestSchema.parse(request)).toEqual(request);
+
+    const response = {
+      type: "fs.entry.move.response",
+      payload: {
+        cwd: "/workspace",
+        path: "src/old.ts",
+        parentPath: "archive",
+        movedPath: "archive/old.ts",
+        success: true,
+        error: null,
+        requestId: "move-1",
+      },
+    };
+    expect(FileEntryMoveResponseSchema.parse(response)).toEqual(response);
   });
 
   test("round-trips file entry duplicate requests and responses", () => {

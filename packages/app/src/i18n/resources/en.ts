@@ -603,6 +603,7 @@ export const en = {
         failedToListDirectory: "Failed to list directory",
         createFailed: "Failed to create entry",
         renameFailed: "Failed to rename entry",
+        moveFailed: "Failed to move entry",
         duplicateFailed: "Failed to duplicate entry",
         revealFailed: "Failed to reveal entry",
         deleteFailed: "Failed to delete entry",

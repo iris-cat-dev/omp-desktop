@@ -10,6 +10,7 @@ import type {
   FileEntryCreateRequest,
   FileEntryDeleteRequest,
   FileEntryDuplicateRequest,
+  FileEntryMoveRequest,
   FileEntryRenameRequest,
   FileExplorerRequest,
   FileUploadRequest,
@@ -27,6 +28,7 @@ import {
   duplicateExplorerEntry,
   getDownloadableFileInfo,
   listDirectoryEntries,
+  moveExplorerEntry,
   readExplorerFile,
   renameExplorerEntry,
   streamExplorerFile,
@@ -171,6 +173,25 @@ export class WorkspaceFilesSession {
         cwd: request.cwd,
         path: request.path,
         renamedPath: result.status === "ok" ? result.path : null,
+        success: result.status === "ok",
+        error: result.status === "ok" ? null : result.error,
+        requestId: request.requestId,
+      },
+    });
+  }
+  async handleFileEntryMoveRequest(request: FileEntryMoveRequest): Promise<void> {
+    const result = await moveExplorerEntry({
+      root: request.cwd,
+      relativePath: request.path,
+      parentPath: request.parentPath,
+    });
+    this.host.emit({
+      type: "fs.entry.move.response",
+      payload: {
+        cwd: request.cwd,
+        path: request.path,
+        parentPath: request.parentPath,
+        movedPath: result.status === "ok" ? result.path : null,
         success: result.status === "ok",
         error: result.status === "ok" ? null : result.error,
         requestId: request.requestId,

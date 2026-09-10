@@ -4723,6 +4723,15 @@ export class DaemonClient {
       message: { type: "fs.entry.rename.request", ...input },
     });
   }
+  async moveFileEntry(input: {
+    cwd: string;
+    path: string;
+    parentPath: string;
+  }): Promise<CorrelatedResponsePayload<"fs.entry.move.response">> {
+    return this.sendNamespacedCorrelatedSessionRequest<"fs.entry.move.response">({
+      message: { type: "fs.entry.move.request", ...input },
+    });
+  }
 
   async duplicateFileEntry(input: {
     cwd: string;

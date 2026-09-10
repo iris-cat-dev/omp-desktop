@@ -582,6 +582,7 @@ export const ja: TranslationResources = {
         failedToListDirectory: "ディレクトリの一覧取得に失敗しました",
         createFailed: "エントリの作成に失敗しました",
         renameFailed: "エントリの名前変更に失敗しました",
+        moveFailed: "エントリの移動に失敗しました",
         duplicateFailed: "エントリの複製に失敗しました",
         revealFailed: "エントリの表示に失敗しました",
         deleteFailed: "エントリの削除に失敗しました",

@@ -292,6 +292,34 @@ export function useFileExplorerActions(params: { serverId: string } & FileExplor
     },
     [client, normalizedWorkspaceRoot, requestDirectoryListing],
   );
+  const moveEntry = useCallback(
+    async (input: { path: string; parentPath: string }) => {
+      if (!client || !normalizedWorkspaceRoot) {
+        return null;
+      }
+      const payload = await client.moveFileEntry({
+        cwd: normalizedWorkspaceRoot,
+        ...input,
+      });
+      if (payload.success) {
+        const previousParentPath = parentExplorerPath(input.path);
+        const changedParentPaths =
+          previousParentPath === input.parentPath
+            ? [previousParentPath]
+            : [previousParentPath, input.parentPath];
+        await Promise.all(
+          changedParentPaths.map((path) =>
+            requestDirectoryListing(path, {
+              recordHistory: false,
+              setCurrentPath: false,
+            }),
+          ),
+        );
+      }
+      return payload;
+    },
+    [client, normalizedWorkspaceRoot, requestDirectoryListing],
+  );
 
   const duplicateEntry = useCallback(
     async (path: string) => {
@@ -344,6 +372,7 @@ export function useFileExplorerActions(params: { serverId: string } & FileExplor
     requestFileDownloadToken,
     createEntry,
     renameEntry,
+    moveEntry,
     duplicateEntry,
     deleteEntry,
     selectExplorerEntry,

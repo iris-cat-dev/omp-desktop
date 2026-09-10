@@ -18,6 +18,7 @@ import {
   deleteExplorerEntry,
   duplicateExplorerEntry,
   getExplorerFileVersion,
+  moveExplorerEntry,
   readExplorerFile,
   renameExplorerEntry,
   streamExplorerFile,
@@ -557,6 +558,59 @@ describe("file explorer service", () => {
       await expect(
         renameExplorerEntry({ root, relativePath: ".", name: "renamed-root" }),
       ).resolves.toEqual({ status: "error", error: "Cannot rename the workspace root" });
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+  it("moves tracked files and untracked folders into another directory", async () => {
+    const root = await createTempDir("paseo-entry-move-");
+    try {
+      await runGitCommand(["init"], { cwd: root });
+      await mkdir(path.join(root, "src"));
+      await mkdir(path.join(root, "archive"));
+      await mkdir(path.join(root, "drafts"));
+      await writeFile(path.join(root, "src", "tracked.txt"), "tracked", "utf8");
+      await writeFile(path.join(root, "drafts", "note.txt"), "draft", "utf8");
+      await runGitCommand(["add", "src/tracked.txt"], { cwd: root });
+      await runGitCommand(
+        ["-c", "user.name=Paseo Test", "-c", "user.email=test@paseo.local", "commit", "-m", "base"],
+        { cwd: root },
+      );
+
+      await expect(
+        moveExplorerEntry({ root, relativePath: "src/tracked.txt", parentPath: "archive" }),
+      ).resolves.toEqual({ status: "ok", path: "archive/tracked.txt" });
+      expect(await readFile(path.join(root, "archive", "tracked.txt"), "utf8")).toBe("tracked");
+      expect((await runGitCommand(["status", "--short"], { cwd: root })).stdout).toContain(
+        "R  src/tracked.txt -> archive/tracked.txt",
+      );
+
+      await expect(
+        moveExplorerEntry({ root, relativePath: "drafts", parentPath: "archive" }),
+      ).resolves.toEqual({ status: "ok", path: "archive/drafts" });
+      expect(await readFile(path.join(root, "archive", "drafts", "note.txt"), "utf8")).toBe(
+        "draft",
+      );
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("refuses move collisions, descendant targets, and the workspace root", async () => {
+    const root = await createTempDir("paseo-entry-move-errors-");
+    try {
+      await mkdir(path.join(root, "source", "child"), { recursive: true });
+      await mkdir(path.join(root, "destination", "source"), { recursive: true });
+
+      await expect(
+        moveExplorerEntry({ root, relativePath: "source", parentPath: "source/child" }),
+      ).resolves.toEqual({ status: "error", error: "Cannot move a folder into itself" });
+      await expect(
+        moveExplorerEntry({ root, relativePath: "source", parentPath: "destination" }),
+      ).resolves.toEqual({ status: "error", error: '"source" already exists' });
+      await expect(
+        moveExplorerEntry({ root, relativePath: ".", parentPath: "destination" }),
+      ).resolves.toEqual({ status: "error", error: "Cannot move the workspace root" });
     } finally {
       await rm(root, { recursive: true, force: true });
     }

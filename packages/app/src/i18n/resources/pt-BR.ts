@@ -582,6 +582,7 @@ export const ptBR: TranslationResources = {
         failedToListDirectory: "Falha ao listar diretório",
         createFailed: "Falha ao criar entrada",
         renameFailed: "Falha ao renomear entrada",
+        moveFailed: "Falha ao mover entrada",
         duplicateFailed: "Falha ao duplicar entrada",
         revealFailed: "Falha ao mostrar entrada",
         deleteFailed: "Falha ao excluir entrada",

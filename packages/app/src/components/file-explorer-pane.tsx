@@ -7,6 +7,7 @@ import {
   type ReactElement,
   type ReactNode,
   type RefObject,
+  type RefCallback,
 } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
@@ -82,11 +83,14 @@ import {
   showHiddenFilesAndRestoreExpandedDirectories,
   type ExplorerTreeRow,
 } from "@/file-explorer/tree";
-import { useWorkspaceFileDragSource } from "@/attachments/use-workspace-file-drag-source";
 import { confirmDialog } from "@/utils/confirm-dialog";
 import { useToast } from "@/contexts/toast-context";
 import { openDesktopTarget, useDesktopOpenTargets } from "@/workspace/desktop-open-targets";
 import type { WorkspaceFileLocation } from "@/workspace/file-open";
+import type { ExplorerEntryMoveRequest } from "@/file-explorer/entry-drag";
+import { useExplorerEntryDrag } from "@/file-explorer/use-entry-drag";
+
+const FILE_EXPLORER_ROW_SELECTOR = '[data-testid^="file-explorer-row-"]';
 
 const SORT_OPTIONS: { value: SortOption }[] = [
   { value: "name" },
@@ -143,6 +147,7 @@ interface TreeRowItemProps {
   onRenameEntry?: (entry: ExplorerEntry) => void;
   onDuplicateEntry?: (entry: ExplorerEntry) => void;
   onDeleteEntry?: (entry: ExplorerEntry) => void;
+  onMoveEntry?: (request: ExplorerEntryMoveRequest) => void;
   testID?: string;
 }
 
@@ -274,6 +279,7 @@ function TreeRowItem({
   onRenameEntry,
   onDuplicateEntry,
   onDeleteEntry,
+  onMoveEntry,
   testID,
 }: TreeRowItemProps) {
   const { t } = useTranslation();
@@ -282,11 +288,38 @@ function TreeRowItem({
   const hideNameHover = useCallback(() => setIsHovered(false), []);
   const isDirectory = entry.kind === "directory";
   const canAddToChat = isDirectory ? Boolean(onAddDirectoryToChat) : Boolean(onAddToChat);
-  const dragSourceRef = useWorkspaceFileDragSource({
-    enabled: !isDirectory,
-    serverId,
-    workspaceId,
-    path: entry.path,
+  const dragSource = useMemo(
+    () =>
+      workspaceId
+        ? {
+            payload: {
+              version: 1 as const,
+              serverId,
+              workspaceId,
+              path: entry.path,
+              kind: entry.kind,
+            },
+            includeChatAttachment: !isDirectory,
+            moveEnabled: Boolean(onMoveEntry),
+          }
+        : undefined,
+    [entry.kind, entry.path, isDirectory, onMoveEntry, serverId, workspaceId],
+  );
+  const dragTarget = useMemo(
+    () =>
+      workspaceId && isDirectory && onMoveEntry
+        ? {
+            serverId,
+            workspaceId,
+            parentPath: entry.path,
+            onMove: onMoveEntry,
+          }
+        : undefined,
+    [entry.path, isDirectory, onMoveEntry, serverId, workspaceId],
+  );
+  const { ref: entryDragRef, isDropTarget } = useExplorerEntryDrag({
+    source: dragSource,
+    target: dragTarget,
   });
 
   const handlePress = useCallback(() => {
@@ -307,8 +340,9 @@ function TreeRowItem({
       workspaceTreeRowStyles.row,
       { paddingLeft: treeRowPaddingLeft(depth) },
       (Boolean(hovered) || pressed || isSelected) && workspaceTreeRowStyles.active,
+      isDropTarget && styles.entryDropTarget,
     ],
-    [depth, isSelected],
+    [depth, isDropTarget, isSelected],
   );
 
   const handleCopy = useCallback(() => {
@@ -396,7 +430,7 @@ function TreeRowItem({
         aria-selected={isSelected}
         testID={testID}
       >
-        <View ref={dragSourceRef} style={styles.entryInfo}>
+        <View ref={entryDragRef} style={styles.entryInfo}>
           <View style={styles.entryIcon}>
             {isDirectory ? (
               <DirectoryChevronIcon loading={loading} expanded={isExpanded} />
@@ -480,6 +514,7 @@ export function FileExplorerPane({
     renameEntry,
     duplicateEntry,
     deleteEntry,
+    moveEntry,
     selectExplorerEntry,
   } = useFileExplorerActions({
     serverId,
@@ -495,6 +530,10 @@ export function FileExplorerPane({
   // COMPAT(fsEntryOps): added in v0.3.0, remove gate after 2027-02-08.
   const fsEntryOpsEnabled = useSessionStore(
     (state) => state.sessions[serverId]?.serverInfo?.features?.fsEntryOps === true,
+  );
+  // COMPAT(fsEntryMove): added in v0.3.2, remove gate after 2027-03-10.
+  const fsEntryMoveEnabled = useSessionStore(
+    (state) => state.sessions[serverId]?.serverInfo?.features?.fsEntryMove === true,
   );
   // COMPAT(fsEntryDuplicate): added in v0.3.0, remove gate after 2027-02-09.
   const fsEntryDuplicateEnabled = useSessionStore(
@@ -751,6 +790,53 @@ export function FileExplorerPane({
     [createEntry, onOpenFile, pendingEdit, selectExplorerEntry, t, toast],
   );
 
+  const reconcileRelocatedEntry = useCallback(
+    async (entry: Pick<ExplorerEntry, "path" | "kind">, relocatedPath: string): Promise<void> => {
+      if (workspaceStateKey && entry.kind === "directory") {
+        const expandedRelocatedPaths = Array.from(expandedPaths)
+          .filter((expandedPath) => isExplorerPathWithin(expandedPath, entry.path))
+          .map((expandedPath) =>
+            replaceExplorerPathPrefix(expandedPath, entry.path, relocatedPath),
+          );
+        setExpandedPathsForWorkspace(workspaceStateKey, (currentPaths) =>
+          currentPaths.map((currentPath) =>
+            isExplorerPathWithin(currentPath, entry.path)
+              ? replaceExplorerPathPrefix(currentPath, entry.path, relocatedPath)
+              : currentPath,
+          ),
+        );
+        await Promise.all(
+          expandedRelocatedPaths.map((expandedPath) =>
+            requestDirectoryListing(expandedPath, {
+              recordHistory: false,
+              setCurrentPath: false,
+            }),
+          ),
+        );
+      }
+      if (selectedEntryPath && isExplorerPathWithin(selectedEntryPath, entry.path)) {
+        const relocatedSelection = replaceExplorerPathPrefix(
+          selectedEntryPath,
+          entry.path,
+          relocatedPath,
+        );
+        selectExplorerEntry(relocatedSelection);
+        if (entry.kind === "file") {
+          onOpenFile?.({ path: relocatedSelection });
+        }
+      }
+    },
+    [
+      expandedPaths,
+      onOpenFile,
+      requestDirectoryListing,
+      selectExplorerEntry,
+      selectedEntryPath,
+      setExpandedPathsForWorkspace,
+      workspaceStateKey,
+    ],
+  );
+
   const handleRenameCommit = useCallback(
     async (name: string) => {
       const edit = pendingEdit;
@@ -772,58 +858,48 @@ export function FileExplorerPane({
           return;
         }
 
-        const renamedPath = payload.renamedPath;
-        if (workspaceStateKey && entry.kind === "directory") {
-          const expandedRenamedPaths = Array.from(expandedPaths)
-            .filter((expandedPath) => isExplorerPathWithin(expandedPath, entry.path))
-            .map((expandedPath) =>
-              replaceExplorerPathPrefix(expandedPath, entry.path, renamedPath),
-            );
-          setExpandedPathsForWorkspace(workspaceStateKey, (currentPaths) =>
-            currentPaths.map((currentPath) =>
-              isExplorerPathWithin(currentPath, entry.path)
-                ? replaceExplorerPathPrefix(currentPath, entry.path, renamedPath)
-                : currentPath,
-            ),
-          );
-          await Promise.all(
-            expandedRenamedPaths.map((expandedPath) =>
-              requestDirectoryListing(expandedPath, {
-                recordHistory: false,
-                setCurrentPath: false,
-              }),
-            ),
-          );
-        }
-        if (selectedEntryPath && isExplorerPathWithin(selectedEntryPath, entry.path)) {
-          const renamedSelection = replaceExplorerPathPrefix(
-            selectedEntryPath,
-            entry.path,
-            renamedPath,
-          );
-          selectExplorerEntry(renamedSelection);
-          if (entry.kind === "file") {
-            onOpenFile?.({ path: renamedSelection });
-          }
-        }
+        await reconcileRelocatedEntry(entry, payload.renamedPath);
       } catch (cause) {
         toast.error(cause instanceof Error ? cause.message : String(cause));
       }
     },
-    [
-      expandedPaths,
-      onOpenFile,
-      pendingEdit,
-      requestDirectoryListing,
-      renameEntry,
-      selectExplorerEntry,
-      selectedEntryPath,
-      setExpandedPathsForWorkspace,
-      t,
-      toast,
-      workspaceStateKey,
-    ],
+    [pendingEdit, reconcileRelocatedEntry, renameEntry, t, toast],
   );
+  const handleMoveEntry = useCallback(
+    async (request: ExplorerEntryMoveRequest) => {
+      try {
+        const payload = await moveEntry({
+          path: request.path,
+          parentPath: request.parentPath,
+        });
+        if (!payload) {
+          return;
+        }
+        if (!payload.success || !payload.movedPath) {
+          toast.error(payload.error ?? t("workspace.fileExplorer.errors.moveFailed"));
+          return;
+        }
+        await reconcileRelocatedEntry(request, payload.movedPath);
+      } catch (cause) {
+        toast.error(cause instanceof Error ? cause.message : String(cause));
+      }
+    },
+    [moveEntry, reconcileRelocatedEntry, t, toast],
+  );
+  const rootDropTarget = useMemo(
+    () =>
+      fsEntryMoveEnabled && workspaceId
+        ? {
+            serverId,
+            workspaceId,
+            parentPath: ".",
+            blockedDescendantSelector: FILE_EXPLORER_ROW_SELECTOR,
+            onMove: handleMoveEntry,
+          }
+        : undefined,
+    [fsEntryMoveEnabled, handleMoveEntry, serverId, workspaceId],
+  );
+  const rootDrag = useExplorerEntryDrag({ target: rootDropTarget });
 
   const handleDuplicateEntry = useCallback(
     async (entry: ExplorerEntry) => {
@@ -1036,6 +1112,7 @@ export function FileExplorerPane({
           onNewEntry={fsEntryOpsEnabled ? handleNewEntry : undefined}
           onCollapseDirectory={handleCollapseDirectory}
           onRenameEntry={fsEntryOpsEnabled ? handleRenameEntry : undefined}
+          onMoveEntry={fsEntryMoveEnabled ? handleMoveEntry : undefined}
           onDuplicateEntry={fsEntryDuplicateEnabled ? handleDuplicateEntry : undefined}
           onDeleteEntry={fsEntryOpsEnabled ? handleDeleteEntry : undefined}
         />
@@ -1044,6 +1121,7 @@ export function FileExplorerPane({
     [
       expandedPaths,
       fsEntryDuplicateEnabled,
+      fsEntryMoveEnabled,
       fsEntryOpsEnabled,
       handleCollapseDirectory,
       handleCopyPath,
@@ -1057,6 +1135,7 @@ export function FileExplorerPane({
       handleEntryPress,
       handleNewEntry,
       handleRenameCommit,
+      handleMoveEntry,
       handleRenameEntry,
       handleRevealEntry,
       handleSelectEntry,
@@ -1119,6 +1198,8 @@ export function FileExplorerPane({
         showBackFromError={showBackFromError}
         listRows={listRows}
         onNewEntryAtRoot={fsEntryOpsEnabled ? handleNewEntry : undefined}
+        rootDropTargetRef={rootDrag.ref}
+        isRootDropTarget={rootDrag.isDropTarget}
         currentSortLabel={currentSortLabel}
         isRefreshFetching={isRefreshFetching}
         treeListRef={treeListRef}
@@ -1147,15 +1228,19 @@ function isFileExplorerRowTarget(target: unknown): boolean {
   if (!isWeb || typeof Element === "undefined" || !(target instanceof Element)) {
     return false;
   }
-  return target.closest('[data-testid^="file-explorer-row-"]') !== null;
+  return target.closest(FILE_EXPLORER_ROW_SELECTOR) !== null;
 }
 
 function RootCreationContextTarget({
   children,
   enabled,
+  dropTargetRef,
+  isDropTarget,
 }: {
   children: ReactNode;
   enabled: boolean;
+  dropTargetRef?: RefCallback<View>;
+  isDropTarget: boolean;
 }) {
   const contextMenu = useContextMenu();
   const handleContextMenu = useCallback(
@@ -1178,8 +1263,9 @@ function RootCreationContextTarget({
 
   return (
     <View
+      ref={dropTargetRef}
       {...{ onContextMenu: handleContextMenu }}
-      style={styles.rootContextTarget}
+      style={[styles.rootContextTarget, isDropTarget && styles.rootDropTarget]}
       testID="files-empty-area"
     >
       {children}
@@ -1198,6 +1284,8 @@ interface FileExplorerPaneContentProps {
   showBackFromError: boolean;
   listRows: ExplorerListRow[];
   onNewEntryAtRoot?: (parentPath: string, kind: "file" | "directory") => void;
+  rootDropTargetRef?: RefCallback<View>;
+  isRootDropTarget: boolean;
   currentSortLabel: string;
   isRefreshFetching: boolean;
   treeListRef: RefObject<FlatList<ExplorerListRow> | null>;
@@ -1226,6 +1314,8 @@ function FileExplorerPaneContent(props: FileExplorerPaneContentProps) {
     showBackFromError,
     listRows,
     onNewEntryAtRoot,
+    rootDropTargetRef,
+    isRootDropTarget,
     currentSortLabel,
     isRefreshFetching,
     treeListRef,
@@ -1440,7 +1530,11 @@ function FileExplorerPaneContent(props: FileExplorerPaneContentProps) {
         </View>
       </PaneContentToolbar>
       <ContextMenu>
-        <RootCreationContextTarget enabled={Boolean(onNewEntryAtRoot)}>
+        <RootCreationContextTarget
+          enabled={Boolean(onNewEntryAtRoot)}
+          dropTargetRef={rootDropTargetRef}
+          isDropTarget={isRootDropTarget}
+        >
           {listRows.length === 0 ? (
             <View style={styles.centerState}>
               <Text style={styles.emptyText}>{emptyLabel}</Text>
@@ -1587,6 +1681,7 @@ function TreeRowDispatcher({
   onRenameEntry,
   onDuplicateEntry,
   onDeleteEntry,
+  onMoveEntry,
 }: {
   serverId: string;
   workspaceId?: string | null;
@@ -1609,6 +1704,7 @@ function TreeRowDispatcher({
   onRenameEntry?: (entry: ExplorerEntry) => void;
   onDuplicateEntry?: (entry: ExplorerEntry) => void;
   onDeleteEntry?: (entry: ExplorerEntry) => void;
+  onMoveEntry?: (request: ExplorerEntryMoveRequest) => void;
 }) {
   const entry = row.entry;
   const depth = row.depth;
@@ -1640,6 +1736,7 @@ function TreeRowDispatcher({
       onRenameEntry={onRenameEntry}
       onDuplicateEntry={onDuplicateEntry}
       onDeleteEntry={onDeleteEntry}
+      onMoveEntry={onMoveEntry}
       testID={`file-explorer-row-${index}`}
     />
   );
@@ -1840,6 +1937,9 @@ const styles = StyleSheet.create((theme) => ({
     flex: 1,
     minHeight: 0,
   },
+  rootDropTarget: {
+    backgroundColor: theme.colors.surfaceSidebarHover,
+  },
   centerState: {
     flex: 1,
     alignItems: "center",
@@ -1901,6 +2001,9 @@ const styles = StyleSheet.create((theme) => ({
     color: theme.colors.foreground,
     fontSize: theme.fontSize.base,
     userSelect: "none",
+  },
+  entryDropTarget: {
+    backgroundColor: theme.colors.surface2,
   },
   draftInput: {
     flex: 1,

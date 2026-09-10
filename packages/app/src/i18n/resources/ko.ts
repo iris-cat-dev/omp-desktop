@@ -579,6 +579,7 @@ export const ko: TranslationResources = {
         failedToListDirectory: "디렉터리 목록을 불러오지 못했습니다",
         createFailed: "항목을 만들지 못했습니다",
         renameFailed: "항목 이름을 바꾸지 못했습니다",
+        moveFailed: "항목을 이동하지 못했습니다",
         duplicateFailed: "항목을 복제하지 못했습니다",
         revealFailed: "항목을 표시하지 못했습니다",
         deleteFailed: "항목을 삭제하지 못했습니다",

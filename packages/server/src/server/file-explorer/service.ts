@@ -585,6 +585,9 @@ export interface ExplorerRenameEntryParams {
   relativePath: string;
   name: string;
 }
+export interface ExplorerMoveEntryParams extends ReadFileParams {
+  parentPath: string;
+}
 
 export type ExplorerEntryMutationResult =
   | { status: "ok"; path: string }
@@ -692,15 +695,64 @@ export async function renameExplorerEntry({
     return { status: "error", error: "Name cannot contain path separators" };
   }
 
+  return relocateExplorerEntry({
+    root,
+    relativePath,
+    parentPath: path.dirname(relativePath),
+    name: trimmedName,
+    rootError: "Cannot rename the workspace root",
+  });
+}
+
+export async function moveExplorerEntry({
+  root,
+  relativePath,
+  parentPath,
+}: ExplorerMoveEntryParams): Promise<ExplorerEntryMutationResult> {
+  return relocateExplorerEntry({
+    root,
+    relativePath,
+    parentPath,
+    name: path.basename(relativePath),
+    rootError: "Cannot move the workspace root",
+  });
+}
+
+interface ExplorerRelocateEntryParams extends ExplorerMoveEntryParams {
+  name: string;
+  rootError: string;
+}
+
+async function relocateExplorerEntry({
+  root,
+  relativePath,
+  parentPath,
+  name,
+  rootError,
+}: ExplorerRelocateEntryParams): Promise<ExplorerEntryMutationResult> {
   try {
     const source = await resolveScopedPath({ root, relativePath });
     const realRoot = await fs.realpath(expandUserPath(root));
     if (source.resolvedPath === realRoot) {
-      return { status: "error", error: "Cannot rename the workspace root" };
+      return { status: "error", error: rootError };
     }
 
-    const targetPath = path.join(path.dirname(source.requestedPath), trimmedName);
+    const parent = await resolveScopedPath({ root, relativePath: parentPath });
+    const parentStats = await fs.stat(parent.resolvedPath);
+    if (!parentStats.isDirectory()) {
+      return { status: "error", error: "Destination path is not a directory" };
+    }
+
     const sourceStats = await fs.lstat(source.requestedPath);
+    const relativeDestination = path.relative(source.resolvedPath, parent.resolvedPath);
+    const destinationIsWithinSource =
+      relativeDestination === "" ||
+      (!relativeDestination.startsWith("..") && !path.isAbsolute(relativeDestination));
+    if (sourceStats.isDirectory() && destinationIsWithinSource) {
+      return { status: "error", error: "Cannot move a folder into itself" };
+    }
+
+    const targetPath = path.join(parent.requestedPath, name);
     const targetStats = await fs.lstat(targetPath).catch((error: unknown) => {
       if (isMissingEntryError(error)) {
         return null;
@@ -711,13 +763,13 @@ export async function renameExplorerEntry({
       targetStats &&
       (targetStats.dev !== sourceStats.dev || targetStats.ino !== sourceStats.ino)
     ) {
-      return { status: "error", error: `"${trimmedName}" already exists` };
+      return { status: "error", error: `"${name}" already exists` };
     }
 
     const sourcePath = normalizeRelativePath({ root, targetPath: source.requestedPath });
-    const renamedPath = normalizeRelativePath({ root, targetPath });
-    if (sourcePath === renamedPath) {
-      return { status: "ok", path: renamedPath };
+    const movedPath = normalizeRelativePath({ root, targetPath });
+    if (sourcePath === movedPath) {
+      return { status: "ok", path: movedPath };
     }
     const repository = await runGitCommand(["rev-parse", "--is-inside-work-tree"], {
       cwd: realRoot,
@@ -728,14 +780,14 @@ export async function renameExplorerEntry({
         ? await runGitCommand(["ls-files", "-z", "--", sourcePath], { cwd: realRoot })
         : null;
     if (tracked?.stdout) {
-      await runGitCommand(["mv", "--", sourcePath, renamedPath], { cwd: realRoot });
+      await runGitCommand(["mv", "--", sourcePath, movedPath], { cwd: realRoot });
     } else {
       await fs.rename(source.requestedPath, targetPath);
     }
-    return { status: "ok", path: renamedPath };
+    return { status: "ok", path: movedPath };
   } catch (error) {
     if (isEntryExistsError(error)) {
-      return { status: "error", error: `"${trimmedName}" already exists` };
+      return { status: "error", error: `"${name}" already exists` };
     }
     if (isMissingEntryError(error)) {
       return { status: "error", error: "File or folder no longer exists" };

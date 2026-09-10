@@ -582,6 +582,7 @@ export const fr: TranslationResources = {
         failedToListDirectory: "Échec de la liste du répertoire",
         createFailed: "Échec de la création de l'entrée",
         renameFailed: "Échec du renommage de l'entrée",
+        moveFailed: "Échec du déplacement de l'entrée",
         duplicateFailed: "Échec de la duplication de l'entrée",
         revealFailed: "Échec de l'affichage de l'entrée",
         deleteFailed: "Échec de la suppression de l'entrée",

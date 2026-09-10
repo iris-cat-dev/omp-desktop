@@ -578,6 +578,7 @@ export const ar: TranslationResources = {
         failedToListDirectory: "فشل في سرد ​​الدليل",
         createFailed: "فشل إنشاء العنصر",
         renameFailed: "فشل إعادة تسمية العنصر",
+        moveFailed: "فشل نقل العنصر",
         duplicateFailed: "فشل تكرار العنصر",
         revealFailed: "فشل إظهار العنصر",
         deleteFailed: "فشل حذف العنصر",

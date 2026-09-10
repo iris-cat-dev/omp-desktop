@@ -1352,6 +1352,7 @@ function InjectPaseoToolsCard({ serverId }: { serverId: string }) {
 
 function OmpProxyCard({ serverId }: { serverId: string }) {
   const { t } = useTranslation();
+  const { theme } = useUnistyles();
   const isConnected = useHostRuntimeIsConnected(serverId);
   const { config, patchConfig } = useDaemonConfig(serverId);
   const persistedProxy = config?.providers.omp?.env?.PI_PROXY ?? "";
@@ -1389,34 +1390,47 @@ function OmpProxyCard({ serverId }: { serverId: string }) {
 
   return (
     <View style={settingsStyles.card} testID="host-page-omp-proxy-card">
-      <Text style={settingsStyles.rowTitle}>{t("settings.host.orchestration.proxy.title")}</Text>
-      <Text style={settingsStyles.rowHint}>{t("settings.host.orchestration.proxy.hint")}</Text>
-      <Field label="PI_PROXY" testID="host-page-omp-proxy-field">
-        <FormTextInput
-          initialValue={persistedProxy}
-          resetKey={persistedProxy}
-          onChangeText={setDraft}
-          onSubmitEditing={handleSave}
-          placeholder={t("settings.host.orchestration.proxy.placeholder")}
-          accessibilityLabel={t("settings.host.orchestration.proxy.accessibilityLabel")}
-          autoCapitalize="none"
-          autoCorrect={false}
-          editable={!isSaving}
-          testID="host-page-omp-proxy-input"
-        />
-      </Field>
-      <View style={styles.proxyActions}>
-        <Button
-          variant="default"
-          size="sm"
-          onPress={handleSave}
-          disabled={!hasChanges || isSaving}
-          testID="host-page-omp-proxy-save"
-        >
-          {isSaving
-            ? t("settings.host.orchestration.proxy.saving")
-            : t("settings.host.orchestration.proxy.save")}
-        </Button>
+      <View style={styles.proxyHeader}>
+        <View style={styles.proxyIcon}>
+          <Globe size={theme.iconSize.md} color={theme.colors.accent} />
+        </View>
+        <View style={styles.proxyHeaderContent}>
+          <Text style={styles.proxyTitle}>{t("settings.host.orchestration.proxy.title")}</Text>
+          <Text style={styles.proxyHint}>{t("settings.host.orchestration.proxy.hint")}</Text>
+        </View>
+      </View>
+      <View style={styles.proxyForm}>
+        <Field label="PI_PROXY" testID="host-page-omp-proxy-field">
+          <View style={styles.proxyControlRow}>
+            <View style={styles.proxyInput}>
+              <FormTextInput
+                initialValue={persistedProxy}
+                resetKey={persistedProxy}
+                onChangeText={setDraft}
+                onSubmitEditing={handleSave}
+                placeholder={t("settings.host.orchestration.proxy.placeholder")}
+                accessibilityLabel={t("settings.host.orchestration.proxy.accessibilityLabel")}
+                autoCapitalize="none"
+                autoCorrect={false}
+                editable={!isSaving}
+                testID="host-page-omp-proxy-input"
+              />
+            </View>
+            <Button
+              variant="default"
+              size="md"
+              style={styles.proxySaveButton}
+              onPress={handleSave}
+              disabled={!hasChanges || isSaving}
+              loading={isSaving}
+              testID="host-page-omp-proxy-save"
+            >
+              {isSaving
+                ? t("settings.host.orchestration.proxy.saving")
+                : t("settings.host.orchestration.proxy.save")}
+            </Button>
+          </View>
+        </Field>
       </View>
     </View>
   );
@@ -2181,9 +2195,56 @@ const styles = StyleSheet.create((theme) => ({
     gap: theme.spacing[2],
     marginTop: theme.spacing[4],
   },
-  proxyActions: {
+  proxyHeader: {
     flexDirection: "row",
-    justifyContent: "flex-end",
+    alignItems: "flex-start",
+    gap: theme.spacing[3],
+    paddingHorizontal: theme.spacing[4],
+    paddingVertical: theme.spacing[4],
+  },
+  proxyIcon: {
+    alignItems: "center",
+    justifyContent: "center",
+    width: 40,
+    height: 40,
+    borderRadius: theme.borderRadius.lg,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    backgroundColor: theme.colors.surface3,
+  },
+  proxyHeaderContent: {
+    flex: 1,
+    paddingTop: 1,
+  },
+  proxyTitle: {
+    color: theme.colors.foreground,
+    fontSize: theme.fontSize.base,
+    fontWeight: theme.fontWeight.medium,
+  },
+  proxyHint: {
+    color: theme.colors.foregroundMuted,
+    fontSize: theme.fontSize.sm,
+    lineHeight: Math.round(theme.fontSize.sm * 1.5),
+    marginTop: theme.spacing[1],
+  },
+  proxyForm: {
+    paddingHorizontal: theme.spacing[4],
+    paddingVertical: theme.spacing[4],
+    borderTopWidth: 1,
+    borderTopColor: theme.colors.border,
+    backgroundColor: theme.colors.surface2,
+  },
+  proxyControlRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: theme.spacing[2],
+  },
+  proxyInput: {
+    flex: 1,
+    minWidth: 0,
+  },
+  proxySaveButton: {
+    minWidth: 88,
   },
   appendPromptActions: {
     flexDirection: "row",

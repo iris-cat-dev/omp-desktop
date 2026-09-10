@@ -2528,6 +2528,8 @@ export class Session {
         return this.workspaceFilesSession.handleFileEntryCreateRequest(msg);
       case "fs.entry.rename.request":
         return this.workspaceFilesSession.handleFileEntryRenameRequest(msg);
+      case "fs.entry.move.request":
+        return this.workspaceFilesSession.handleFileEntryMoveRequest(msg);
       case "fs.entry.duplicate.request":
         return this.workspaceFilesSession.handleFileEntryDuplicateRequest(msg);
       case "fs.entry.delete.request":

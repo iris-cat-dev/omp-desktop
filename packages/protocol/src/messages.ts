@@ -2903,6 +2903,13 @@ export const FileEntryRenameRequestSchema = z.object({
   name: z.string(),
   requestId: z.string(),
 });
+export const FileEntryMoveRequestSchema = z.object({
+  type: z.literal("fs.entry.move.request"),
+  cwd: z.string(),
+  path: z.string(),
+  parentPath: z.string(),
+  requestId: z.string(),
+});
 
 export const FileEntryDuplicateRequestSchema = z.object({
   type: z.literal("fs.entry.duplicate.request"),
@@ -3392,6 +3399,7 @@ export const SessionInboundMessageSchema = z.discriminatedUnion("type", [
   FileWriteRequestSchema,
   FileEntryCreateRequestSchema,
   FileEntryRenameRequestSchema,
+  FileEntryMoveRequestSchema,
   FileEntryDuplicateRequestSchema,
   FileEntryDeleteRequestSchema,
   ProjectIconRequestSchema,
@@ -3742,6 +3750,8 @@ export const ServerInfoStatusPayloadSchema = z
         projectCustomIcon: z.boolean().optional(),
         // COMPAT(fsEntryOps): added in v0.3.0, remove gate after 2027-02-08.
         fsEntryOps: z.boolean().optional(),
+        // COMPAT(fsEntryMove): added in v0.3.2, remove gate after 2027-03-10.
+        fsEntryMove: z.boolean().optional(),
         // COMPAT(fsEntryDuplicate): added in v0.3.0, remove gate after 2027-02-09.
         fsEntryDuplicate: z.boolean().optional(),
         // COMPAT(checkoutDiscardChanges): added in v0.3.0, remove gate after 2027-02-08.
@@ -5999,6 +6009,18 @@ export const FileEntryRenameResponseSchema = z.object({
     requestId: z.string(),
   }),
 });
+export const FileEntryMoveResponseSchema = z.object({
+  type: z.literal("fs.entry.move.response"),
+  payload: z.object({
+    cwd: z.string(),
+    path: z.string(),
+    parentPath: z.string(),
+    movedPath: z.string().nullable(),
+    success: z.boolean(),
+    error: z.string().nullable(),
+    requestId: z.string(),
+  }),
+});
 
 export const FileEntryDuplicateResponseSchema = z.object({
   type: z.literal("fs.entry.duplicate.response"),
@@ -6952,6 +6974,7 @@ export const SessionOutboundMessageSchema = z.discriminatedUnion("type", [
   FileWriteResponseSchema,
   FileEntryCreateResponseSchema,
   FileEntryRenameResponseSchema,
+  FileEntryMoveResponseSchema,
   FileEntryDuplicateResponseSchema,
   FileEntryDeleteResponseSchema,
   FileUpdateSchema,
@@ -7493,6 +7516,8 @@ export type FileEntryCreateRequest = z.infer<typeof FileEntryCreateRequestSchema
 export type FileEntryCreateResponse = z.infer<typeof FileEntryCreateResponseSchema>;
 export type FileEntryRenameRequest = z.infer<typeof FileEntryRenameRequestSchema>;
 export type FileEntryRenameResponse = z.infer<typeof FileEntryRenameResponseSchema>;
+export type FileEntryMoveRequest = z.infer<typeof FileEntryMoveRequestSchema>;
+export type FileEntryMoveResponse = z.infer<typeof FileEntryMoveResponseSchema>;
 export type FileEntryDuplicateRequest = z.infer<typeof FileEntryDuplicateRequestSchema>;
 export type FileEntryDuplicateResponse = z.infer<typeof FileEntryDuplicateResponseSchema>;
 export type FileEntryDeleteRequest = z.infer<typeof FileEntryDeleteRequestSchema>;

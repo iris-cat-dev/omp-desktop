@@ -603,6 +603,7 @@ export const zhCN: TranslationResources = {
         failedToListDirectory: "列出目录失败",
         createFailed: "创建条目失败",
         renameFailed: "重命名条目失败",
+        moveFailed: "移动条目失败",
         duplicateFailed: "复制条目失败",
         revealFailed: "显示条目失败",
         deleteFailed: "删除条目失败",

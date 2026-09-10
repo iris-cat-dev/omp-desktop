@@ -591,6 +591,7 @@ export const ru: TranslationResources = {
         failedToListDirectory: "Не удалось получить содержимое каталога",
         createFailed: "Не удалось создать элемент",
         renameFailed: "Не удалось переименовать элемент",
+        moveFailed: "Не удалось переместить элемент",
         duplicateFailed: "Не удалось создать копию элемента",
         revealFailed: "Не удалось показать расположение элемента",
         deleteFailed: "Не удалось удалить элемент",

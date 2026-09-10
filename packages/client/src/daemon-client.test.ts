@@ -1953,6 +1953,37 @@ test("file context action RPCs correlate success and error responses", async () 
     success: false,
     error: '"existing.ts" already exists',
   });
+  const movePromise = client.moveFileEntry({
+    cwd: "/tmp/project",
+    path: "src/new.ts",
+    parentPath: "archive",
+  });
+  const moveRequest = parseSentFrame(mock.sent.at(-1));
+  expect(moveRequest).toMatchObject({
+    type: "fs.entry.move.request",
+    cwd: "/tmp/project",
+    path: "src/new.ts",
+    parentPath: "archive",
+  });
+  mock.triggerMessage(
+    wrapSessionMessage({
+      type: "fs.entry.move.response",
+      payload: {
+        cwd: "/tmp/project",
+        path: "src/new.ts",
+        parentPath: "archive",
+        movedPath: "archive/new.ts",
+        success: true,
+        error: null,
+        requestId: moveRequest.requestId,
+      },
+    }),
+  );
+  await expect(movePromise).resolves.toMatchObject({
+    movedPath: "archive/new.ts",
+    success: true,
+    error: null,
+  });
 
   const duplicatePromise = client.duplicateFileEntry({
     cwd: "/tmp/project",

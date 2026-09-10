@@ -2,6 +2,7 @@ import {
   existsSync,
   mkdtempSync,
   readFileSync,
+  mkdirSync,
   realpathSync,
   rmSync,
   writeFileSync,
@@ -191,6 +192,38 @@ describe("WorkspaceFilesSession", () => {
           success: false,
           error: "File or folder no longer exists",
           requestId: "req-rename-error",
+        },
+      },
+    ]);
+  });
+  test("moves an entry and emits the resulting path", async () => {
+    const cwd = makeDir("workspace-files-move-");
+    writeFileSync(join(cwd, "notes.txt"), "move me");
+    const destination = join(cwd, "archive");
+    mkdirSync(destination);
+    const { subsystem, emitted } = makeSubsystem();
+
+    await subsystem.handleFileEntryMoveRequest({
+      type: "fs.entry.move.request",
+      cwd,
+      path: "notes.txt",
+      parentPath: "archive",
+      requestId: "req-move",
+    });
+
+    expect(existsSync(join(cwd, "notes.txt"))).toBe(false);
+    expect(existsSync(join(destination, "notes.txt"))).toBe(true);
+    expect(emitted).toEqual([
+      {
+        type: "fs.entry.move.response",
+        payload: {
+          cwd,
+          path: "notes.txt",
+          parentPath: "archive",
+          movedPath: "archive/notes.txt",
+          success: true,
+          error: null,
+          requestId: "req-move",
         },
       },
     ]);
