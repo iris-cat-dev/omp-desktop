@@ -1236,7 +1236,7 @@ export function createWorkspaceLayoutWithSidePanel(): WorkspaceLayout {
           hidden: true,
         }),
       ],
-      sizes: [0.5, 0.5],
+      sizes: [0.75, 0.25],
     }),
     focusedPaneId: DEFAULT_PANE_ID,
   };

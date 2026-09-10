@@ -90,11 +90,12 @@ export interface BuildProviderRegistryOptions {
   managedProcesses?: ManagedProcessRegistry;
   isDev?: boolean;
   ompRuntime?: OmpRuntime;
+  desktopConfigDir?: string;
 }
 
 interface ProviderClientFactoryOptions extends Pick<
   BuildProviderRegistryOptions,
-  "workspaceGitService" | "managedProcesses" | "ompRuntime"
+  "workspaceGitService" | "managedProcesses" | "ompRuntime" | "desktopConfigDir"
 > {
   providerParams?: unknown;
 }
@@ -139,6 +140,7 @@ const PROVIDER_CLIENT_FACTORIES: Record<string, ProviderClientFactory> = {
       logger,
       runtimeSettings,
       providerParams: options?.providerParams,
+      desktopConfigDir: options?.desktopConfigDir,
       runtime: options?.ompRuntime,
     }),
   // Import-only providers wrap the same OMP client: sessions run on the OMP
@@ -148,6 +150,7 @@ const PROVIDER_CLIENT_FACTORIES: Record<string, ProviderClientFactory> = {
       logger,
       runtimeSettings,
       providerParams: options?.providerParams,
+      desktopConfigDir: options?.desktopConfigDir,
       runtime: options?.ompRuntime,
     });
     return new PiImportClientFacade(ompClient, logger);
@@ -157,6 +160,7 @@ const PROVIDER_CLIENT_FACTORIES: Record<string, ProviderClientFactory> = {
       logger,
       runtimeSettings,
       providerParams: options?.providerParams,
+      desktopConfigDir: options?.desktopConfigDir,
       runtime: options?.ompRuntime,
     });
     return new CodexImportClientFacade(ompClient, logger);
@@ -382,6 +386,23 @@ export function wrapSessionProvider(provider: AgentProvider, inner: AgentSession
   };
 }
 
+function bindOmpClientMethods(inner: AgentClient): Partial<AgentClient> {
+  return {
+    getOmpProviderManagement: inner.getOmpProviderManagement?.bind(inner),
+    saveOmpProviderConfig: inner.saveOmpProviderConfig?.bind(inner),
+    updateOmpModelContextWindowOverrides: inner.updateOmpModelContextWindowOverrides?.bind(inner),
+    reorderOmpProviderAccounts: inner.reorderOmpProviderAccounts?.bind(inner),
+    addOmpProvider: inner.addOmpProvider?.bind(inner),
+    removeOmpProvider: inner.removeOmpProvider?.bind(inner),
+    getOmpInstallationStatus: inner.getOmpInstallationStatus?.bind(inner),
+    installOmp: inner.installOmp?.bind(inner),
+    startOmpProviderLogin: inner.startOmpProviderLogin?.bind(inner),
+    finishOmpProviderLogin: inner.finishOmpProviderLogin?.bind(inner),
+    cancelOmpProviderLogin: inner.cancelOmpProviderLogin?.bind(inner),
+    logoutOmpProvider: inner.logoutOmpProvider?.bind(inner),
+  };
+}
+
 function wrapClientProvider(
   provider: AgentProvider,
   inner: AgentClient,
@@ -482,18 +503,7 @@ function wrapClientProvider(
       : undefined,
     isAvailable: (signal) => inner.isAvailable(signal),
     getDiagnostic: inner.getDiagnostic?.bind(inner),
-    getOmpProviderManagement: inner.getOmpProviderManagement?.bind(inner),
-    saveOmpProviderConfig: inner.saveOmpProviderConfig?.bind(inner),
-    updateOmpModelContextWindowOverrides: inner.updateOmpModelContextWindowOverrides?.bind(inner),
-    reorderOmpProviderAccounts: inner.reorderOmpProviderAccounts?.bind(inner),
-    addOmpProvider: inner.addOmpProvider?.bind(inner),
-    removeOmpProvider: inner.removeOmpProvider?.bind(inner),
-    getOmpInstallationStatus: inner.getOmpInstallationStatus?.bind(inner),
-    installOmp: inner.installOmp?.bind(inner),
-    startOmpProviderLogin: inner.startOmpProviderLogin?.bind(inner),
-    finishOmpProviderLogin: inner.finishOmpProviderLogin?.bind(inner),
-    cancelOmpProviderLogin: inner.cancelOmpProviderLogin?.bind(inner),
-    logoutOmpProvider: inner.logoutOmpProvider?.bind(inner),
+    ...bindOmpClientMethods(inner),
   };
 }
 
@@ -629,7 +639,7 @@ function buildResolvedBuiltinProviders(
   runtimeSettings: AgentProviderRuntimeSettingsMap | undefined,
   options: Pick<
     BuildProviderRegistryOptions,
-    "workspaceGitService" | "managedProcesses" | "ompRuntime"
+    "workspaceGitService" | "managedProcesses" | "ompRuntime" | "desktopConfigDir"
   >,
   isDev: boolean,
 ): Map<string, ResolvedProvider> {
@@ -661,6 +671,7 @@ function buildResolvedBuiltinProviders(
           workspaceGitService: options.workspaceGitService,
           managedProcesses: options.managedProcesses,
           ompRuntime: options.ompRuntime,
+          desktopConfigDir: options.desktopConfigDir,
           providerParams: override?.params,
         }),
       contract: PROVIDER_CONTRACTS[definition.id] ?? UNSUPPORTED_PROVIDER_CONTRACT,
@@ -696,6 +707,7 @@ export function buildProviderRegistry(
       workspaceGitService: options?.workspaceGitService,
       managedProcesses: options?.managedProcesses,
       ompRuntime: options?.ompRuntime,
+      desktopConfigDir: options?.desktopConfigDir,
     },
     options?.isDev === true,
   );

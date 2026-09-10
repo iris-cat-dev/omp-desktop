@@ -82,6 +82,7 @@ import {
   type OmpModelRoleParams,
   type OmpRuntimeProviderParams,
 } from "./provider-config.js";
+import { prepareOmpAgentShellEnv } from "./shell-config.js";
 export { formatOmpVersionSupport, resolveOmpDiagnosticPaths } from "./provider-config.js";
 import { OmpSubagentCardTracker, type OmpSubagentCardScheduler } from "./subagent-card-tracker.js";
 import { shouldDisplayOmpCustomMessage } from "./custom-message.js";
@@ -145,6 +146,14 @@ const QUESTION_COMMENT_HEADER = "Comment";
 const OMP_ASK_USER_FREEFORM_SENTINEL = "✏️ Type custom response...";
 const OMP_ASK_FREEFORM_SENTINEL = "Other (type your own)";
 const COMBINED_ASK_USER_METADATA = "ask_user_select_optional_comment";
+const OMP_WINDOWS_BASH_SYSTEM_PROMPT =
+  "Windows environment: the bash tool uses POSIX/Bash syntax. Do not use PowerShell cmdlets or cmd.exe syntax unless you explicitly invoke powershell.exe or cmd.exe.";
+
+export function getOmpPlatformSystemPrompt(
+  platform: NodeJS.Platform = process.platform,
+): string | undefined {
+  return platform === "win32" ? OMP_WINDOWS_BASH_SYSTEM_PROMPT : undefined;
+}
 interface NodeSqliteStatement {
   all(...params: unknown[]): Array<Record<string, unknown>>;
   run(...params: unknown[]): { changes: number | bigint };
@@ -465,6 +474,7 @@ export interface OmpAgentClientOptions {
   logger: Logger;
   runtimeSettings?: ProviderRuntimeSettings;
   providerParams?: unknown;
+  desktopConfigDir?: string;
   runtime?: OmpRuntime;
   subagentCardScheduler?: OmpSubagentCardScheduler;
   providerIdleScheduler?: OmpProviderIdleScheduler;
@@ -962,6 +972,7 @@ function buildResumeStartInput(input: {
     systemPrompt: composeSystemPromptParts(
       input.resumeConfig.config.systemPrompt,
       input.resumeConfig.config.daemonAppendSystemPrompt,
+      getOmpPlatformSystemPrompt(),
     ),
   };
 }
@@ -3635,6 +3646,7 @@ export class OmpAgentClient implements AgentClient {
   private readonly logger: Logger;
   private readonly runtimeSettings?: ProviderRuntimeSettings;
   private readonly providerParams: OmpRuntimeProviderParams;
+  private readonly desktopConfigDir?: string;
   private readonly modelRoleParams: OmpModelRoleParams;
   private readonly subagentCardScheduler?: OmpSubagentCardScheduler;
   private readonly providerIdleScheduler?: OmpProviderIdleScheduler;
@@ -3668,6 +3680,7 @@ export class OmpAgentClient implements AgentClient {
     this.logger = options.logger;
     this.runtimeSettings = runtimeSettings;
     this.providerParams = runtimeProviderParams;
+    this.desktopConfigDir = options.desktopConfigDir;
     this.modelRoleParams = modelRoleParams;
     this.subagentCardScheduler = options.subagentCardScheduler;
     this.providerIdleScheduler = options.providerIdleScheduler;
@@ -3798,14 +3811,21 @@ export class OmpAgentClient implements AgentClient {
   }
 
   private async startOmpRuntimeSession(input: OmpStartSessionInput): Promise<OmpRuntimeSession> {
+    const env = this.desktopConfigDir
+      ? await prepareOmpAgentShellEnv({
+          config: this.providerParams.agentShell,
+          configDir: this.desktopConfigDir,
+          env: { ...this.runtimeSettings?.env, ...input.env },
+        })
+      : input.env;
     try {
-      return await this.runtime.startSession(input);
+      return await this.runtime.startSession({ ...input, env });
     } catch (error) {
       if (!isOmpRpcMissingModelError(error)) throw error;
       const injected = await this.ensureRpcBootstrapModel();
       if (!injected) throw error;
       this.logger.debug({}, "Retrying OMP RPC after adding a keyless bootstrap model");
-      return await this.runtime.startSession(input);
+      return await this.runtime.startSession({ ...input, env });
     }
   }
 
@@ -3842,7 +3862,11 @@ export class OmpAgentClient implements AgentClient {
       noSession: config.internal === true,
       modeId: launchMode.modeId,
       extraArgs: launchMode.extraArgs,
-      systemPrompt: composeSystemPromptParts(config.systemPrompt, config.daemonAppendSystemPrompt),
+      systemPrompt: composeSystemPromptParts(
+        config.systemPrompt,
+        config.daemonAppendSystemPrompt,
+        getOmpPlatformSystemPrompt(),
+      ),
       env: launchContext?.env,
     });
     try {

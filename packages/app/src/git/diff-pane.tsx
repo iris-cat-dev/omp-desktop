@@ -32,7 +32,6 @@ import {
   ListChevronsDownUp,
   ListChevronsUpDown,
   Maximize2,
-  MoreHorizontal,
   Minus,
   Pilcrow,
   RotateCw,
@@ -56,13 +55,7 @@ import { DiffFolderRow } from "@/git/diff-folder-row";
 import { useCheckoutPrStatusQuery } from "@/git/use-pr-status-query";
 import { CommitsSection } from "@/git/commits-section/commits-section";
 import { useAppSettings } from "@/hooks/use-settings";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import { DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import * as Clipboard from "expo-clipboard";
 import { useFileDownload } from "@/hooks/use-file-download";
 import { useIsLocalDaemon } from "@/hooks/use-is-local-daemon";
@@ -86,7 +79,6 @@ import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { Button } from "@/components/ui/button";
 import {
   PaneContentToolbar,
-  paneContentToolbarIconSize,
   paneContentToolbarIconButtonStyle,
 } from "@/components/ui/pane-content-toolbar";
 import { FOCUSED_PANE_PLACEMENT, useWorkspaceLayoutStore } from "@/stores/workspace-layout-store";
@@ -226,7 +218,6 @@ const ThemedMaximize2 = withUnistyles(Maximize2);
 const noopStateChange = () => {};
 const ThemedChevronDown = withUnistyles(ChevronDown);
 const ThemedChevronLeft = withUnistyles(ChevronLeft);
-const ThemedMoreHorizontal = withUnistyles(MoreHorizontal);
 const ThemedMinus = withUnistyles(Minus);
 const ThemedPlus = withUnistyles(Plus);
 const ThemedUndo2 = withUnistyles(Undo2);
@@ -325,7 +316,6 @@ interface ChangesToolbarProps {
   isMobile: boolean;
   isRefreshing: boolean;
   layout: "unified" | "split";
-  overflowToggleStyle: PressableStyleFn;
   refreshSupported: boolean;
   serverId: string;
   workspaceId?: string | null;
@@ -340,8 +330,8 @@ interface ChangesToolbarProps {
   onToggleWrapLines: () => void;
 }
 
-// One row: the branch picker leads, while git actions and the overflow menu
-// trail. The tree toggle is the only icon action that stays out of the menu.
+// One row: the branch picker leads, while one combined menu owns Git actions
+// and diff options. The tree toggle stays directly accessible on desktop.
 function ChangesToolbar(props: ChangesToolbarProps) {
   const {
     branchName,
@@ -376,14 +366,15 @@ function ChangesToolbar(props: ChangesToolbarProps) {
             onToggle={onToggleDesktopTree}
           />
         ) : null}
-        <GitActionsSplitButton gitActions={gitActions} menuOnly />
-        <ChangesOptionsMenu {...props} />
+        <GitActionsSplitButton gitActions={gitActions} menuOnly>
+          <ChangesOptionsMenuItems {...props} />
+        </GitActionsSplitButton>
       </View>
     </PaneContentToolbar>
   );
 }
 
-type ChangesOptionsMenuProps = Pick<
+type ChangesOptionsMenuItemsProps = Pick<
   ChangesToolbarProps,
   | "allFilesCollapsed"
   | "canUseSplitLayout"
@@ -394,7 +385,6 @@ type ChangesOptionsMenuProps = Pick<
   | "isMobile"
   | "isRefreshing"
   | "layout"
-  | "overflowToggleStyle"
   | "refreshSupported"
   | "wrapLines"
   | "onCollapseAll"
@@ -406,7 +396,7 @@ type ChangesOptionsMenuProps = Pick<
   | "onToggleWrapLines"
 >;
 
-function ChangesOptionsMenu({
+function ChangesOptionsMenuItems({
   allFilesCollapsed,
   canUseSplitLayout,
   changesTabOpen,
@@ -416,7 +406,6 @@ function ChangesOptionsMenu({
   isMobile,
   isRefreshing,
   layout,
-  overflowToggleStyle,
   refreshSupported,
   wrapLines,
   onCollapseAll,
@@ -426,9 +415,8 @@ function ChangesOptionsMenu({
   onToggleHideWhitespace,
   onToggleLayout,
   onToggleWrapLines,
-}: ChangesOptionsMenuProps) {
+}: ChangesOptionsMenuItemsProps) {
   const { t } = useTranslation();
-  const optionsLabel = t("workspace.git.diff.options");
   const collapseLabel = t(
     allFilesCollapsed ? "workspace.git.diff.expandAllFiles" : "workspace.git.diff.collapseAllFiles",
   );
@@ -453,91 +441,70 @@ function ChangesOptionsMenu({
       ),
     [isRefreshing],
   );
-
   const showChangesTab = host === "explorer" && !isMobile;
   const showLayout = canUseSplitLayout && !changesTabOpen;
 
   return (
-    <DropdownMenu>
-      <Tooltip delayDuration={300}>
-        <TooltipTrigger asChild>
-          <DropdownMenuTrigger
-            accessibilityRole="button"
-            accessibilityLabel={optionsLabel}
-            testID="changes-options-menu"
-            style={overflowToggleStyle}
-          >
-            <ThemedMoreHorizontal
-              size={paneContentToolbarIconSize(isMobile)}
-              uniProps={foregroundMutedIconColorMapping}
-            />
-          </DropdownMenuTrigger>
-        </TooltipTrigger>
-        <TooltipContent side="bottom">
-          <Text style={styles.tooltipText}>{optionsLabel}</Text>
-        </TooltipContent>
-      </Tooltip>
-      <DropdownMenuContent align="end" width={240} testID="changes-options-menu-content">
-        {hasFiles ? (
-          <DropdownMenuItem
-            leading={allFilesCollapsed ? DIFF_OPTIONS_EXPAND_ICON : DIFF_OPTIONS_COLLAPSE_ICON}
-            testID="changes-toggle-collapse-all"
-            onSelect={allFilesCollapsed ? onExpandAll : onCollapseAll}
-          >
-            {collapseLabel}
-          </DropdownMenuItem>
-        ) : null}
-        {showChangesTab ? (
-          <DropdownMenuItem
-            leading={DIFF_OPTIONS_CHANGES_TAB_ICON}
-            testID="changes-open-tab"
-            onSelect={onToggleChangesTab}
-          >
-            {changesTabLabel}
-          </DropdownMenuItem>
-        ) : null}
-        {hasFiles || showChangesTab ? <DropdownMenuSeparator /> : null}
-        {showLayout ? (
-          <DropdownMenuItem
-            leading={DIFF_OPTIONS_SPLIT_ICON}
-            selected={layout === "split"}
-            testID="changes-toggle-layout"
-            onSelect={onToggleLayout}
-          >
-            {t("workspace.git.diff.split")}
-          </DropdownMenuItem>
-        ) : null}
+    <>
+      {hasFiles ? (
         <DropdownMenuItem
-          leading={DIFF_OPTIONS_WHITESPACE_ICON}
-          selected={hideWhitespace}
-          testID="changes-toggle-whitespace"
-          onSelect={onToggleHideWhitespace}
+          leading={allFilesCollapsed ? DIFF_OPTIONS_EXPAND_ICON : DIFF_OPTIONS_COLLAPSE_ICON}
+          testID="changes-toggle-collapse-all"
+          onSelect={allFilesCollapsed ? onExpandAll : onCollapseAll}
         >
-          {whitespaceLabel}
+          {collapseLabel}
         </DropdownMenuItem>
+      ) : null}
+      {showChangesTab ? (
         <DropdownMenuItem
-          leading={DIFF_OPTIONS_WRAP_ICON}
-          selected={wrapLines}
-          testID="changes-toggle-wrap-lines"
-          onSelect={onToggleWrapLines}
+          leading={DIFF_OPTIONS_CHANGES_TAB_ICON}
+          testID="changes-open-tab"
+          onSelect={onToggleChangesTab}
         >
-          {wrapLinesLabel}
+          {changesTabLabel}
         </DropdownMenuItem>
-        {refreshSupported ? (
-          <>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
-              leading={refreshIcon}
-              disabled={isRefreshing}
-              testID="changes-refresh"
-              onSelect={onRefresh}
-            >
-              {refreshLabel}
-            </DropdownMenuItem>
-          </>
-        ) : null}
-      </DropdownMenuContent>
-    </DropdownMenu>
+      ) : null}
+      {hasFiles || showChangesTab ? <DropdownMenuSeparator /> : null}
+      {showLayout ? (
+        <DropdownMenuItem
+          leading={DIFF_OPTIONS_SPLIT_ICON}
+          selected={layout === "split"}
+          testID="changes-toggle-layout"
+          onSelect={onToggleLayout}
+        >
+          {t("workspace.git.diff.split")}
+        </DropdownMenuItem>
+      ) : null}
+      <DropdownMenuItem
+        leading={DIFF_OPTIONS_WHITESPACE_ICON}
+        selected={hideWhitespace}
+        testID="changes-toggle-whitespace"
+        onSelect={onToggleHideWhitespace}
+      >
+        {whitespaceLabel}
+      </DropdownMenuItem>
+      <DropdownMenuItem
+        leading={DIFF_OPTIONS_WRAP_ICON}
+        selected={wrapLines}
+        testID="changes-toggle-wrap-lines"
+        onSelect={onToggleWrapLines}
+      >
+        {wrapLinesLabel}
+      </DropdownMenuItem>
+      {refreshSupported ? (
+        <>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem
+            leading={refreshIcon}
+            disabled={isRefreshing}
+            testID="changes-refresh"
+            onSelect={onRefresh}
+          >
+            {refreshLabel}
+          </DropdownMenuItem>
+        </>
+      ) : null}
+    </>
   );
 }
 
@@ -755,10 +722,6 @@ function buildForgeSetupMessage(input: {
     command,
     brand: brandLabel,
   });
-}
-
-function buildOverflowButtonStyle(isMobile: boolean): PressableStyleFn {
-  return (state) => paneContentToolbarIconButtonStyle(state, false, isMobile);
 }
 
 function buildToggleButtonStyle(
@@ -1816,8 +1779,6 @@ export function ChangesSurface({
   }, [instanceState, updateState]);
   const codeFontSize = appSettings.codeFontSize;
 
-  const overflowToggleStyle = useMemo(() => buildOverflowButtonStyle(isMobile), [isMobile]);
-
   const toast = useToast();
   const isLocalDaemon = useIsLocalDaemon(serverId);
   const { targets: desktopOpenTargets } = useDesktopOpenTargets({
@@ -2384,7 +2345,6 @@ export function ChangesSurface({
             isMobile={isMobile}
             isRefreshing={isRefreshing}
             layout={instanceState.layout}
-            overflowToggleStyle={overflowToggleStyle}
             refreshSupported={refreshSupported}
             serverId={serverId}
             workspaceId={workspaceId}

@@ -290,6 +290,71 @@ const WorkspaceLayoutPersistedStateSchema = z.strictObject({
   acknowledgedPullRequestByWorkspace: z.record(z.string(), z.string()).optional(),
 });
 
+type WorkspaceLayoutPersistedState = z.infer<typeof WorkspaceLayoutPersistedStateSchema>;
+
+function narrowLegacySidePanel(node: SplitNode, paneId: string): SplitNode {
+  if (node.kind === "pane") {
+    return node;
+  }
+
+  const sidePanelIndex = node.group.children.findIndex(
+    (child) => child.kind === "pane" && child.pane.id === paneId,
+  );
+  const sidePanelSize = node.group.sizes[sidePanelIndex];
+  if (
+    node.group.direction === "horizontal" &&
+    sidePanelIndex >= 0 &&
+    node.group.sizes.length === node.group.children.length &&
+    sidePanelSize !== undefined &&
+    Math.abs(sidePanelSize - 0.5) < Number.EPSILON
+  ) {
+    return {
+      ...node,
+      group: {
+        ...node.group,
+        sizes: node.group.sizes.map((size, index) =>
+          index === sidePanelIndex ? 0.25 : size * 1.5,
+        ),
+      },
+    };
+  }
+
+  return {
+    ...node,
+    group: {
+      ...node.group,
+      children: node.group.children.map((child) => narrowLegacySidePanel(child, paneId)),
+    },
+  };
+}
+
+function migrateWorkspaceLayoutState(
+  persistedState: unknown,
+  version: number,
+): WorkspaceLayoutPersistedState {
+  const result = WorkspaceLayoutPersistedStateSchema.safeParse(persistedState);
+  const state: WorkspaceLayoutPersistedState = result.success
+    ? result.data
+    : { layoutByWorkspace: {} };
+  if (version >= 2) {
+    return state;
+  }
+
+  const layoutByWorkspace = Object.fromEntries(
+    Object.entries(state.layoutByWorkspace).map(([workspaceKey, layout]) => {
+      const paneId = resolveSidePanelPaneId(
+        layout,
+        state.explorerPaneIdByWorkspace?.[workspaceKey],
+      );
+      return [
+        workspaceKey,
+        paneId ? { ...layout, root: narrowLegacySidePanel(layout.root, paneId) } : layout,
+      ];
+    }),
+  );
+  return { ...state, layoutByWorkspace };
+}
+
 function trimNonEmpty(value: string | null | undefined): string | null {
   if (typeof value !== "string") {
     return null;
@@ -688,7 +753,11 @@ function getOpenTabPlacement(
     layout,
     state.sidePanelPaneIdByWorkspace[workspaceKey],
   );
-  if (!isWorkspaceConversationTarget(target) && target.kind !== "terminal" && target.kind !== "background_process") {
+  if (
+    !isWorkspaceConversationTarget(target) &&
+    target.kind !== "terminal" &&
+    target.kind !== "background_process"
+  ) {
     return {
       layout,
       placement: placement ?? AMBIENT_PLACEMENT,
@@ -1702,8 +1771,9 @@ export function createWorkspaceLayoutStore(
       }),
       {
         name: "workspace-layout-state",
-        version: 1,
+        version: 2,
         storage: createValidatedPersistStorage(AsyncStorage, WorkspaceLayoutPersistedStateSchema),
+        migrate: migrateWorkspaceLayoutState,
         partialize: (state) => {
           const layoutByWorkspace: Record<string, WorkspaceLayout> = {};
           for (const key in state.layoutByWorkspace) {

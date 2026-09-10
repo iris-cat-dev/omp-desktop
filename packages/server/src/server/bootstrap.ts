@@ -566,24 +566,27 @@ function createInitialImageGenerationConfig(
   };
 }
 
+function createInitialRelayConfig(config: PaseoDaemonConfig): MutableDaemonConfig["relay"] {
+  const endpoint = config.relayEndpoint ?? DEFAULT_RELAY_ENDPOINT;
+  const publicEndpoint = config.relayPublicEndpoint ?? endpoint;
+  return {
+    enabled: config.relayEnabled === true,
+    endpoint,
+    useTls: config.relayUseTls ?? shouldUseTlsForDefaultHostedRelay(endpoint),
+    publicEndpoint,
+    publicUseTls:
+      config.relayPublicUseTls ??
+      config.relayUseTls ??
+      shouldUseTlsForDefaultHostedRelay(publicEndpoint),
+  };
+}
+
 function createInitialMutableDaemonConfig(config: PaseoDaemonConfig): MutableDaemonConfig {
   const providers = config.providerOverrides ?? {};
   const imageGeneration = createInitialImageGenerationConfig(config);
-  const relayEndpoint = config.relayEndpoint ?? DEFAULT_RELAY_ENDPOINT;
-  const relayUseTls = config.relayUseTls ?? shouldUseTlsForDefaultHostedRelay(relayEndpoint);
-  const relayPublicEndpoint = config.relayPublicEndpoint ?? relayEndpoint;
 
   const initialConfig: MutableDaemonConfig = {
-    relay: {
-      enabled: config.relayEnabled === true,
-      endpoint: relayEndpoint,
-      useTls: relayUseTls,
-      publicEndpoint: relayPublicEndpoint,
-      publicUseTls:
-        config.relayPublicUseTls ??
-        config.relayUseTls ??
-        shouldUseTlsForDefaultHostedRelay(relayPublicEndpoint),
-    },
+    relay: createInitialRelayConfig(config),
     mcp: {
       enabled: config.mcpEnabled ?? true,
       injectIntoAgents: config.mcpInjectIntoAgents ?? true,
@@ -621,6 +624,29 @@ function createInitialMutableDaemonConfig(config: PaseoDaemonConfig): MutableDae
   return initialConfig;
 }
 
+function createDaemonConfigStore(config: PaseoDaemonConfig, logger: Logger): DaemonConfigStore {
+  const initialMutableConfig = createInitialMutableDaemonConfig(config);
+  return new DaemonConfigStore(config.paseoHome, initialMutableConfig, logger, {
+    relayEnabledMutable: config.relayEnabledMutable !== false,
+    relayOverrideControlledPaths: config.configReload?.overrideControlledPaths,
+    startupPersisted: config.configReload?.startupPersisted,
+    env: config.configReload?.env ?? process.env,
+    reloadSource: {
+      resolve: (persisted) => {
+        const reloaded = resolveConfigFromPersisted(config.paseoHome, persisted, {
+          env: config.configReload?.env ?? process.env,
+          cli: config.configReload?.cli,
+          relayEnabledFallback: config.configReload?.relayEnabledFallback,
+        });
+        return {
+          mutable: createInitialMutableDaemonConfig(reloaded),
+          overrideControlledPaths: reloaded.configReload?.overrideControlledPaths ?? [],
+        };
+      },
+    },
+  });
+}
+
 async function prepareOmpRuntime(config: PaseoDaemonConfig, logger: Logger): Promise<void> {
   const obsoleteTimelineDirectory = path.join(config.paseoHome, "agent-timelines");
   await rm(obsoleteTimelineDirectory, { recursive: true, force: true }).catch((error) => {
@@ -654,26 +680,7 @@ export async function createPaseoDaemon(
   const bootstrapStart = performance.now();
   const elapsed = () => `${(performance.now() - bootstrapStart).toFixed(0)}ms`;
   const daemonVersion = config.daemonVersion ?? resolveDaemonVersion(import.meta.url);
-  const initialMutableConfig = createInitialMutableDaemonConfig(config);
-  const daemonConfigStore = new DaemonConfigStore(config.paseoHome, initialMutableConfig, logger, {
-    relayEnabledMutable: config.relayEnabledMutable !== false,
-    relayOverrideControlledPaths: config.configReload?.overrideControlledPaths,
-    startupPersisted: config.configReload?.startupPersisted,
-    env: config.configReload?.env ?? process.env,
-    reloadSource: {
-      resolve: (persisted) => {
-        const reloaded = resolveConfigFromPersisted(config.paseoHome, persisted, {
-          env: config.configReload?.env ?? process.env,
-          cli: config.configReload?.cli,
-          relayEnabledFallback: config.configReload?.relayEnabledFallback,
-        });
-        return {
-          mutable: createInitialMutableDaemonConfig(reloaded),
-          overrideControlledPaths: reloaded.configReload?.overrideControlledPaths ?? [],
-        };
-      },
-    },
-  });
+  const daemonConfigStore = createDaemonConfigStore(config, logger);
   const imageGenerationService = new OpenAIImageGenerationService({
     paseoHome: config.paseoHome,
     getConfig: () => daemonConfigStore.getImageGenerationRuntimeConfig(),
@@ -974,6 +981,7 @@ export async function createPaseoDaemon(
     refreshTimeoutMs: config.providerCatalogRefreshTimeoutMs,
     runtimeSettings: config.agentProviderSettings,
     providerOverrides: config.providerOverrides,
+    desktopConfigDir: config.paseoHome,
     workspaceGitService,
     managedProcesses,
     isDev: config.isDev === true,

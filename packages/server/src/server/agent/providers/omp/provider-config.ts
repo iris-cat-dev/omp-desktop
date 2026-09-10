@@ -12,17 +12,35 @@ const DEFAULT_OMP_MODE_ID = "ask";
 export const MIN_SUPPORTED_OMP_VERSION = "16.3.9";
 export { OMP_MODES };
 
+export const OmpAgentShellModeSchema = z.enum(["auto", "git-bash", "omp-default", "custom"]);
+export type OmpAgentShellMode = z.infer<typeof OmpAgentShellModeSchema>;
+
+const OmpAgentShellConfigSchema = z
+  .object({
+    mode: OmpAgentShellModeSchema,
+    path: z.string().min(1).optional(),
+  })
+  .refine((value) => value.mode !== "custom" || value.path !== undefined, {
+    message: "Custom Agent Shell requires a path",
+    path: ["path"],
+  });
+
 export const OmpProviderParamsSchema = z
   .object({
     sessionDir: z.string().min(1).optional(),
     smolModel: z.string().min(1).optional(),
     slowModel: z.string().min(1).optional(),
     planModel: z.string().min(1).optional(),
+    agentShell: OmpAgentShellConfigSchema.optional(),
   })
   .strict();
 
 export interface OmpRuntimeProviderParams {
   sessionDir: string;
+  agentShell: {
+    mode: OmpAgentShellMode;
+    path?: string;
+  };
 }
 
 export interface OmpModelRoleParams {
@@ -131,7 +149,10 @@ export function resolveOmpProviderParams(providerParams: unknown): {
 } {
   const params = OmpProviderParamsSchema.parse(providerParams ?? {});
   return {
-    runtimeProviderParams: { sessionDir: params.sessionDir ?? OMP_SESSION_DIR },
+    runtimeProviderParams: {
+      sessionDir: params.sessionDir ?? OMP_SESSION_DIR,
+      agentShell: params.agentShell ?? { mode: "auto" },
+    },
     modelRoleParams: {
       ...(params.smolModel ? { smolModel: params.smolModel } : {}),
       ...(params.slowModel ? { slowModel: params.slowModel } : {}),

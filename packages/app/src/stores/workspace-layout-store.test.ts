@@ -140,6 +140,7 @@ describe("workspace-layout-store helpers", () => {
     expect(tabs).toHaveLength(2);
     expect(tabs.map((tab) => tab.target)).toEqual([{ kind: "new_tab" }, { kind: "new_tab" }]);
     expect(new Set(tabs.map((tab) => tab.tabId)).size).toBe(2);
+    expect(expectGroup(layout.root).group.sizes).toEqual([0.75, 0.25]);
   });
 
   it("discards persisted New tabs and restores each empty pane with a fresh identity", async () => {
@@ -163,6 +164,28 @@ describe("workspace-layout-store helpers", () => {
     expect(restoredTabs).toHaveLength(2);
     expect(new Set(restoredTabs.map((tab) => tab.tabId)).size).toBe(2);
     expect(restoredTabs.every((tab) => !persistedIds.has(tab.tabId))).toBe(true);
+  });
+
+  it("narrows the former half-width side panel when restoring version 1 layouts", async () => {
+    const persisted = createWorkspaceLayoutWithSidePanel();
+    expectGroup(persisted.root).group.sizes = [0.5, 0.5];
+    await AsyncStorage.setItem(
+      "workspace-layout-state",
+      JSON.stringify({
+        state: {
+          layoutByWorkspace: { workspace: persisted },
+          splitSizesByWorkspace: {},
+          explorerPaneIdByWorkspace: { workspace: "explorer" },
+        },
+        version: 1,
+      }),
+    );
+
+    const restored = createWorkspaceLayoutStore(createDeterministicWorkspaceLayoutIds());
+    await restored.persist.rehydrate();
+
+    const restoredLayout = restored.getState().layoutByWorkspace.workspace;
+    expect(expectGroup(restoredLayout.root).group.sizes).toEqual([0.75, 0.25]);
   });
 
   it("finds panes and tabs across nested groups", () => {
@@ -1330,9 +1353,9 @@ describe("workspace-layout-store actions", () => {
     });
 
     layout = workspaceLayoutStore.getState().layoutByWorkspace[workspaceKey];
-    expect(
-      findBottomTerminalPaneId({ layout, tabs: collectAllTabs(layout.root) }),
-    ).toBe(findPaneContainingTab(layout.root, "terminal_terminal-1")?.id);
+    expect(findBottomTerminalPaneId({ layout, tabs: collectAllTabs(layout.root) })).toBe(
+      findPaneContainingTab(layout.root, "terminal_terminal-1")?.id,
+    );
   });
 
   it("keeps non-entity tabs in the focused explorer pane", () => {
