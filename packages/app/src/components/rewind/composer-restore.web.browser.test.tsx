@@ -34,12 +34,27 @@ const rewoundImage: UserMessageImageAttachment = {
   createdAt: 1,
 };
 
+const rewoundFile = {
+  type: "uploaded_file" as const,
+  id: "file-1",
+  fileName: "context.json",
+  mimeType: "application/json",
+  size: 42,
+  path: "/tmp/context.json",
+};
+
 function RestoreControl() {
   const restore = useRewindComposerRestore();
   return (
     <button
       type="button"
-      onClick={() => restore?.restoreIfComposerEmpty({ text: "rewound", images: [rewoundImage] })}
+      onClick={() =>
+        restore?.restoreIfComposerEmpty({
+          text: "rewound",
+          images: [rewoundImage],
+          attachments: [rewoundFile],
+        })
+      }
     >
       Restore
     </button>
@@ -62,6 +77,7 @@ function RewindControl() {
           mode: "conversation",
           rewoundText: "rewound",
           rewoundImages: [rewoundImage],
+          rewoundAttachments: [rewoundFile],
         });
       }}
     >
@@ -75,10 +91,11 @@ function ComposerHarness() {
   const [attachments, setAttachments] = useState<UserComposerAttachment[]>([]);
   return (
     <RewindComposerRestoreProvider
-      text={text}
-      setText={setText}
-      attachments={attachments}
-      setAttachments={setAttachments}
+      restoreDraftIfEmpty={(draft) => {
+        if (text.length > 0 || attachments.length > 0) return;
+        setText(draft.text);
+        setAttachments(draft.attachments);
+      }}
     >
       <RestoreControl />
       <output data-testid="composer-text">{text}</output>
@@ -86,6 +103,12 @@ function ComposerHarness() {
         {attachments
           .filter((attachment) => attachment.kind === "image")
           .map((attachment) => attachment.metadata.id)
+          .join(",")}
+      </output>
+      <output data-testid="composer-files">
+        {attachments
+          .filter((attachment) => attachment.kind === "file")
+          .map((attachment) => attachment.attachment.id)
           .join(",")}
       </output>
     </RewindComposerRestoreProvider>
@@ -97,10 +120,11 @@ function RewindMutationHarness() {
   const [attachments, setAttachments] = useState<UserComposerAttachment[]>([]);
   return (
     <RewindComposerRestoreProvider
-      text={text}
-      setText={setText}
-      attachments={attachments}
-      setAttachments={setAttachments}
+      restoreDraftIfEmpty={(draft) => {
+        if (text.length > 0 || attachments.length > 0) return;
+        setText(draft.text);
+        setAttachments(draft.attachments);
+      }}
     >
       <RewindControl />
       <output data-testid="rewind-text">{text}</output>
@@ -108,6 +132,12 @@ function RewindMutationHarness() {
         {attachments
           .filter((attachment) => attachment.kind === "image")
           .map((attachment) => attachment.metadata.id)
+          .join(",")}
+      </output>
+      <output data-testid="rewind-files">
+        {attachments
+          .filter((attachment) => attachment.kind === "file")
+          .map((attachment) => attachment.attachment.id)
           .join(",")}
       </output>
     </RewindComposerRestoreProvider>
@@ -139,6 +169,9 @@ describe("rewind composer restore", () => {
     expect(container.querySelector('[data-testid="composer-text"]')?.textContent).toBe("rewound");
     expect(container.querySelector('[data-testid="composer-images"]')?.textContent).toBe(
       rewoundImage.id,
+    );
+    expect(container.querySelector('[data-testid="composer-files"]')?.textContent).toBe(
+      rewoundFile.id,
     );
   });
 
@@ -175,6 +208,9 @@ describe("rewind composer restore", () => {
       expect(container?.querySelector('[data-testid="rewind-text"]')?.textContent).toBe("rewound");
       expect(container?.querySelector('[data-testid="rewind-images"]')?.textContent).toBe(
         rewoundImage.id,
+      );
+      expect(container?.querySelector('[data-testid="rewind-files"]')?.textContent).toBe(
+        rewoundFile.id,
       );
     });
     expect(fetchAgentTimelineMock).toHaveBeenCalledOnce();

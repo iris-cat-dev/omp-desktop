@@ -1437,6 +1437,7 @@ const ChatAgentReadyContent = memo(function ChatAgentReadyContent({
     textReplacementKey,
     attachments,
     setAttachments,
+    restoreIfEmpty,
     clear,
     isHydrated,
     attachmentFocusRequestId,
@@ -1450,6 +1451,7 @@ const ChatAgentReadyContent = memo(function ChatAgentReadyContent({
       textReplacementKey,
       attachments,
       setAttachments,
+      restoreIfEmpty,
       clear,
       isHydrated,
       attachmentFocusRequestId,
@@ -1462,6 +1464,7 @@ const ChatAgentReadyContent = memo(function ChatAgentReadyContent({
       textReplacementKey,
       attachments,
       setAttachments,
+      restoreIfEmpty,
       clear,
       isHydrated,
       attachmentFocusRequestId,
@@ -1593,12 +1596,7 @@ const ChatAgentReadyContent = memo(function ChatAgentReadyContent({
   );
 
   return (
-    <RewindComposerRestoreProvider
-      text={agentInputDraft.text}
-      setText={agentInputDraft.replaceText}
-      attachments={agentInputDraft.attachments}
-      setAttachments={agentInputDraft.setAttachments}
-    >
+    <RewindComposerRestoreProvider restoreDraftIfEmpty={agentInputDraft.restoreIfEmpty}>
       <View style={styles.root}>
         <View style={styles.container}>
           <View style={styles.conversationBody}>

@@ -40,7 +40,7 @@ export interface DraftStoreState {
 export const AttachmentMetadataSchema = z.strictObject({
   id: z.string(),
   mimeType: z.string(),
-  storageType: z.enum(["web-indexeddb", "desktop-file", "native-file"]),
+  storageType: z.enum(["web-indexeddb", "desktop-file", "native-file", "inline-data"]),
   storageKey: z.string(),
   fileName: z.string().nullable().optional(),
   byteSize: z.number().nullable().optional(),

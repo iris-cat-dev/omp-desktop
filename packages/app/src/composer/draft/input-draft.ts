@@ -59,6 +59,7 @@ export interface AgentInputDraft {
   textReplacementKey: string;
   attachments: UserComposerAttachment[];
   setAttachments: (updater: AttachmentUpdater) => void;
+  restoreIfEmpty: (draft: { text: string; attachments: UserComposerAttachment[] }) => void;
   clear: (lifecycle: "sent" | "abandoned") => void;
   isHydrated: boolean;
   attachmentFocusRequestId: number;
@@ -148,6 +149,24 @@ export function useAgentInputDraft(input: UseAgentInputDraftInput): AgentInputDr
       }));
     },
     [saveDraft],
+  );
+
+  const restoreIfEmpty = useCallback(
+    (rewound: { text: string; attachments: UserComposerAttachment[] }) => {
+      textPublication.cancel();
+      let restored = false;
+      saveDraft((current) => {
+        if (hasDraftContent(current)) {
+          return current;
+        }
+        restored = hasDraftContent(rewound);
+        return rewound;
+      });
+      if (restored && rewound.text.length > 0) {
+        setTextReplacementRevision((revision) => revision + 1);
+      }
+    },
+    [saveDraft, textPublication],
   );
 
   const clear = useCallback(
@@ -321,6 +340,7 @@ export function useAgentInputDraft(input: UseAgentInputDraftInput): AgentInputDr
     textReplacementKey: `${draftKey}:${textReplacementRevision}`,
     attachments,
     setAttachments,
+    restoreIfEmpty,
     clear,
     isHydrated,
     attachmentFocusRequestId,

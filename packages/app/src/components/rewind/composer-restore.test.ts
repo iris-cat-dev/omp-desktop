@@ -1,28 +1,8 @@
 import { describe, expect, test } from "vitest";
-import { restoreComposerAttachmentsIfEmpty, restoreComposerTextIfEmpty } from "./composer-restore";
+import { createRewoundComposerAttachments } from "./composer-restore";
 import { shouldRestoreComposerForRewindMode } from "./rewind-mode";
 
-describe("restoreComposerTextIfEmpty", () => {
-  test("restores the rewound message when the composer is empty", () => {
-    expect(
-      restoreComposerTextIfEmpty({
-        currentText: "",
-        rewoundText: "message before rewind",
-      }),
-    ).toBe("message before rewind");
-  });
-
-  test("preserves an existing composer draft", () => {
-    expect(
-      restoreComposerTextIfEmpty({
-        currentText: "keep this draft",
-        rewoundText: "message before rewind",
-      }),
-    ).toBe("keep this draft");
-  });
-});
-
-describe("restoreComposerAttachmentsIfEmpty", () => {
+describe("createRewoundComposerAttachments", () => {
   const rewoundImage = {
     id: "message-1:image:0",
     mimeType: "image/png",
@@ -30,25 +10,80 @@ describe("restoreComposerAttachmentsIfEmpty", () => {
     storageKey: "base64-image",
     createdAt: 1,
   };
+  const uploadedFile = {
+    type: "uploaded_file" as const,
+    id: "file-1",
+    fileName: "context.json",
+    mimeType: "application/json",
+    size: 42,
+    path: "/tmp/context.json",
+  };
 
-  test("restores rewound images when the composer has no attachments", () => {
+  test("restores image and uploaded-file attachments", () => {
     expect(
-      restoreComposerAttachmentsIfEmpty({
-        currentAttachments: [],
-        rewoundImages: [rewoundImage],
+      createRewoundComposerAttachments({
+        images: [rewoundImage],
+        attachments: [uploadedFile],
       }),
-    ).toEqual([{ kind: "image", metadata: rewoundImage }]);
+    ).toEqual([
+      { kind: "image", metadata: rewoundImage },
+      { kind: "file", attachment: uploadedFile },
+    ]);
   });
 
-  test("preserves existing composer attachments", () => {
-    const currentAttachments = [{ kind: "quoted_content" as const, id: "quote-1", text: "draft" }];
-
+  test("restores workspace file and directory references", () => {
     expect(
-      restoreComposerAttachmentsIfEmpty({
-        currentAttachments,
-        rewoundImages: [rewoundImage],
+      createRewoundComposerAttachments({
+        images: [],
+        attachments: [
+          {
+            type: "text",
+            mimeType: "text/plain",
+            title: "message.tsx",
+            text: "Workspace file: packages/app/src/components/message.tsx\nLines: 10-20",
+          },
+          {
+            type: "text",
+            mimeType: "text/plain",
+            contextKind: "directory",
+            title: "rewind",
+            text: "Directory: packages/app/src/components/rewind",
+          },
+        ],
       }),
-    ).toBe(currentAttachments);
+    ).toEqual([
+      {
+        kind: "workspace_file",
+        path: "packages/app/src/components/message.tsx",
+        selection: { kind: "line_range", startLine: 10, endLine: 20 },
+      },
+      {
+        kind: "directory",
+        path: "packages/app/src/components/rewind",
+      },
+    ]);
+  });
+
+  test("preserves unstructured text attachments as quoted content", () => {
+    expect(
+      createRewoundComposerAttachments({
+        images: [],
+        attachments: [
+          {
+            type: "text",
+            mimeType: "text/plain",
+            title: "Reference",
+            text: "Keep this context",
+          },
+        ],
+      }),
+    ).toEqual([
+      {
+        kind: "quoted_content",
+        id: expect.any(String),
+        text: "Keep this context",
+      },
+    ]);
   });
 });
 

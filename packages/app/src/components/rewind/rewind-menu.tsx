@@ -13,6 +13,7 @@ import {
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { type RewindMode, useRewindCapabilities } from "./use-rewind-capabilities";
 import type { AgentCapabilityFlags } from "@omp-desktop/protocol/agent-types";
+import type { AgentAttachment } from "@omp-desktop/protocol/messages";
 import type { UserMessageImageAttachment } from "@/types/stream";
 
 export type { RewindMode };
@@ -21,10 +22,12 @@ interface RewindMenuProps {
   capabilities: AgentCapabilityFlags;
   rewoundText: string;
   rewoundImages: readonly UserMessageImageAttachment[];
+  rewoundAttachments: readonly AgentAttachment[];
   onRewind: (input: {
     mode: RewindMode;
     rewoundText: string;
     rewoundImages: readonly UserMessageImageAttachment[];
+    rewoundAttachments: readonly AgentAttachment[];
   }) => Promise<void> | void;
   isPending?: boolean;
   testID?: string;
@@ -45,6 +48,7 @@ export const RewindMenu = memo(function RewindMenu({
   capabilities,
   rewoundText,
   rewoundImages,
+  rewoundAttachments,
   onRewind,
   isPending: isPendingProp = false,
   testID = "rewind-menu",
@@ -77,7 +81,7 @@ export const RewindMenu = memo(function RewindMenu({
       if (isLocked) return;
       setPendingMode(mode);
       try {
-        await onRewind({ mode, rewoundText, rewoundImages });
+        await onRewind({ mode, rewoundText, rewoundImages, rewoundAttachments });
       } catch {
         // useRewindAgentMutation owns the toast; the menu only owns flow state.
       } finally {
@@ -85,7 +89,7 @@ export const RewindMenu = memo(function RewindMenu({
         setIsOpen(false);
       }
     },
-    [isLocked, onRewind, rewoundImages, rewoundText],
+    [isLocked, onRewind, rewoundAttachments, rewoundImages, rewoundText],
   );
 
   const triggerStyle = useCallback(

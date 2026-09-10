@@ -395,7 +395,7 @@ describe("useAgentInputDraft live contract", () => {
     });
   });
 
-  it("updates and persists attachments through setAttachments", async () => {
+  it("updates attachments and atomically restores a rewound draft when empty", async () => {
     let latest: ReturnType<typeof useAgentInputDraft> | null = null;
     const image: AttachmentMetadata = {
       id: "next-image",
@@ -403,6 +403,24 @@ describe("useAgentInputDraft live contract", () => {
       storageType: "web-indexeddb",
       storageKey: "attachments/next-image",
       createdAt: 11,
+    };
+    const rewoundImage: AttachmentMetadata = {
+      id: "rewound-image",
+      mimeType: "image/png",
+      storageType: "inline-data",
+      storageKey: "base64-image",
+      createdAt: 12,
+    };
+    const uploadedFile = {
+      kind: "file" as const,
+      attachment: {
+        type: "uploaded_file" as const,
+        id: "file-1",
+        fileName: "context.json",
+        mimeType: "application/json",
+        size: 42,
+        path: "/tmp/context.json",
+      },
     };
 
     function getLatest(): ReturnType<typeof useAgentInputDraft> {
@@ -442,6 +460,32 @@ describe("useAgentInputDraft live contract", () => {
       text: "with attachment",
       attachments: [{ kind: "image", metadata: image }],
     });
+
+    await act(async () => {
+      getLatest().clear("sent");
+      getLatest().restoreIfEmpty({
+        text: "rewound prompt",
+        attachments: [{ kind: "image", metadata: rewoundImage }, uploadedFile],
+      });
+    });
+
+    expect(getLatest().text).toBe("rewound prompt");
+    expect(getLatest().attachments).toEqual([
+      { kind: "image", metadata: rewoundImage },
+      uploadedFile,
+    ]);
+
+    await act(async () => {
+      getLatest().restoreIfEmpty({
+        text: "must not replace the current draft",
+        attachments: [],
+      });
+    });
+    expect(getLatest().text).toBe("rewound prompt");
+    expect(getLatest().attachments).toEqual([
+      { kind: "image", metadata: rewoundImage },
+      uploadedFile,
+    ]);
   });
 
   it("attaches to an unmounted legacy draft without losing its input", async () => {

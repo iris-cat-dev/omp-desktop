@@ -458,6 +458,7 @@ export const UserMessage = memo(function UserMessage({
       mode: RewindMode;
       rewoundText: string;
       rewoundImages: readonly UserMessageImageAttachment[];
+      rewoundAttachments: readonly AgentAttachment[];
     }) => {
       return rewindMutation.rewindAgent(input);
     },
@@ -558,6 +559,7 @@ export const UserMessage = memo(function UserMessage({
                 isPending={rewindMutation.isPending}
                 rewoundText={message}
                 rewoundImages={images}
+                rewoundAttachments={attachments}
                 onRewind={handleRewind}
               />
             ) : null}
