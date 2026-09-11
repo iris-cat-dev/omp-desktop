@@ -2091,7 +2091,6 @@ export const es: TranslationResources = {
       host: "Resumen",
     },
     plugins: pluginSettings.es,
-    ompPlugins: ompPluginSettings,
     metadataGeneration: {
       title: "Generación de metadatos",
       description:
@@ -2658,6 +2657,7 @@ export const es: TranslationResources = {
           localErrorMessage: "Unable to remove localhost connection",
         },
       },
+      ompPlugins: ompPluginSettings,
     },
     imageGeneration: {
       title: "Generación de imágenes",

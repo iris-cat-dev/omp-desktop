@@ -2087,7 +2087,6 @@ export const ru: TranslationResources = {
       host: "Обзор",
     },
     plugins: pluginSettings.ru,
-    ompPlugins: ompPluginSettings,
     metadataGeneration: {
       title: "Генерация метаданных",
       description:
@@ -2660,6 +2659,7 @@ export const ru: TranslationResources = {
           localErrorMessage: "Не удалось удалить подключение к localhost",
         },
       },
+      ompPlugins: ompPluginSettings,
     },
     imageGeneration: {
       title: "Генерация изображений",

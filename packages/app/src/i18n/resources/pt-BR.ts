@@ -2077,7 +2077,6 @@ export const ptBR: TranslationResources = {
       host: "Visão geral",
     },
     plugins: pluginSettings["pt-BR"],
-    ompPlugins: ompPluginSettings,
     metadataGeneration: {
       title: "Geração de metadados",
       description:
@@ -2643,6 +2642,7 @@ export const ptBR: TranslationResources = {
           localErrorMessage: "Não foi possível remover a conexão localhost",
         },
       },
+      ompPlugins: ompPluginSettings,
     },
     imageGeneration: {
       title: "Geração de imagens",

@@ -2055,7 +2055,6 @@ export const ko: TranslationResources = {
       host: "개요",
     },
     plugins: pluginSettings.ko,
-    ompPlugins: ompPluginSettings,
     metadataGeneration: {
       title: "메타데이터 생성",
       description:
@@ -2616,6 +2615,7 @@ export const ko: TranslationResources = {
           localErrorMessage: "localhost 연결을 제거할 수 없습니다",
         },
       },
+      ompPlugins: ompPluginSettings,
     },
     imageGeneration: {
       title: "이미지 생성",

@@ -7,11 +7,13 @@ import { useTranslation } from "react-i18next";
 import type { OmpPluginDoctorCheck, OmpPluginInfo } from "@omp-desktop/protocol/messages";
 
 import { Button } from "@/components/ui/button";
+import { StatusBadge, type StatusBadgeVariant } from "@/components/ui/status-badge";
 import { Switch } from "@/components/ui/switch";
-import { EditingTextInput as TextInput } from "@/components/ui/text-input";
+import { Field, FormTextInput } from "@/components/ui/form-field";
 import { SettingsSection } from "@/screens/settings/settings-section";
 import { useHostRuntimeClient, useHostRuntimeIsConnected } from "@/runtime/host-runtime";
 import type { PluginPageState } from "@/screens/settings/plugins-page-state";
+import { settingsStyles } from "@/styles/settings";
 
 interface OmpPluginsPageProps {
   serverId: string;
@@ -30,10 +32,21 @@ interface DoctorCheckRowProps {
   check: OmpPluginDoctorCheck;
 }
 
-function getDoctorStatusLabel(status: OmpPluginDoctorCheck["status"]): string {
-  if (status === "ok") return "OK";
-  if (status === "warning") return "WARN";
-  return "ERR";
+function getDoctorStatusVariant(status: OmpPluginDoctorCheck["status"]): StatusBadgeVariant {
+  if (status === "ok") return "success";
+  if (status === "warning") return "warning";
+  return "error";
+}
+
+function DoctorCheckRow({ check }: DoctorCheckRowProps) {
+  return (
+    <View style={styles.checkRow}>
+      <View style={styles.checkBadge}>
+        <StatusBadge label={check.name} variant={getDoctorStatusVariant(check.status)} />
+      </View>
+      <Text style={settingsStyles.rowHint}>{check.message}</Text>
+    </View>
+  );
 }
 
 function OmpPluginRow({
@@ -48,12 +61,21 @@ function OmpPluginRow({
   const handleRemove = useCallback(() => onRemove(plugin), [onRemove, plugin]);
   return (
     <View style={styles.pluginRow}>
-      <View style={styles.pluginInfo}>
-        <Text style={styles.pluginName}>
+      <View style={settingsStyles.rowContent}>
+        <Text style={settingsStyles.rowTitle} numberOfLines={1}>
           {plugin.name}
           {plugin.version ? `  ${plugin.version}` : ""}
         </Text>
-        <Text style={styles.muted}>{plugin.path}</Text>
+        {plugin.description ? (
+          <Text style={settingsStyles.rowHint} numberOfLines={2}>
+            {plugin.description}
+          </Text>
+        ) : null}
+        {plugin.path ? (
+          <Text style={styles.pluginPath} numberOfLines={1}>
+            {plugin.path}
+          </Text>
+        ) : null}
       </View>
       <View style={styles.pluginActions}>
         <Switch
@@ -64,26 +86,6 @@ function OmpPluginRow({
         <Button variant="destructive" size="sm" loading={busy} onPress={handleRemove}>
           {removeLabel}
         </Button>
-      </View>
-    </View>
-  );
-}
-
-function DoctorCheckRow({ check }: DoctorCheckRowProps) {
-  return (
-    <View style={styles.pluginRow}>
-      <Text
-        style={[
-          styles.doctorStatus,
-          check.status === "error" && styles.doctorStatusError,
-          check.status === "warning" && styles.doctorStatusWarning,
-        ]}
-      >
-        {getDoctorStatusLabel(check.status)}
-      </Text>
-      <View style={styles.pluginInfo}>
-        <Text style={styles.pluginName}>{check.name}</Text>
-        <Text style={styles.muted}>{check.message}</Text>
       </View>
     </View>
   );
@@ -239,102 +241,197 @@ export function OmpPluginsPage({ serverId }: OmpPluginsPageProps) {
     void handleDoctor(true);
   }, [handleDoctor]);
 
-  const offlineMessage = (
-    <SettingsMessage
-      title={t("settings.host.ompPlugins.states.offlineTitle")}
-      description={t("settings.host.ompPlugins.states.offlineDescription")}
-    />
-  );
-  const loadingMessage = (
-    <SettingsMessage
-      title={t("settings.host.ompPlugins.title")}
-      description={t("settings.host.ompPlugins.states.loading")}
-    />
-  );
   const errorAction = useMemo(
     () => ({ label: t("settings.host.ompPlugins.states.retry"), onPress: handleRetry }),
     [handleRetry, t],
   );
-  const errorMessage = (
-    <SettingsMessage
-      title={t("settings.host.ompPlugins.states.errorTitle")}
-      description={loadError ?? ""}
-      action={errorAction}
-    />
-  );
 
   let body: ReactNode;
   if (pageState === "offline") {
-    body = offlineMessage;
+    body = (
+      <SettingsSection title={t("settings.host.ompPlugins.title")}>
+        <View style={settingsStyles.card} testID="omp-plugins-offline">
+          <View style={[settingsStyles.row, styles.centeredRow]}>
+            <View style={styles.centeredContent}>
+              <Text style={settingsStyles.rowTitle}>
+                {t("settings.host.ompPlugins.states.offlineTitle")}
+              </Text>
+              <Text style={settingsStyles.rowHint}>
+                {t("settings.host.ompPlugins.states.offlineDescription")}
+              </Text>
+            </View>
+          </View>
+        </View>
+      </SettingsSection>
+    );
   } else if (pageState === "loading") {
-    body = loadingMessage;
+    body = (
+      <SettingsSection title={t("settings.host.ompPlugins.title")}>
+        <View style={settingsStyles.card} testID="omp-plugins-loading">
+          <View style={[settingsStyles.row, styles.centeredRow]}>
+            <Text style={settingsStyles.rowHint}>
+              {t("settings.host.ompPlugins.states.loading")}
+            </Text>
+          </View>
+        </View>
+      </SettingsSection>
+    );
   } else if (pageState === "error") {
-    body = errorMessage;
+    body = (
+      <SettingsSection title={t("settings.host.ompPlugins.title")}>
+        <View style={settingsStyles.card} testID="omp-plugins-error">
+          <View style={[settingsStyles.row, styles.centeredRow]}>
+            <View style={styles.centeredContent}>
+              <Text style={settingsStyles.rowTitle}>
+                {t("settings.host.ompPlugins.states.errorTitle")}
+              </Text>
+              {loadError ? (
+                <Text style={settingsStyles.rowError} numberOfLines={4}>
+                  {loadError}
+                </Text>
+              ) : null}
+            </View>
+            <Button size="sm" onPress={errorAction.onPress}>
+              {errorAction.label}
+            </Button>
+          </View>
+        </View>
+      </SettingsSection>
+    );
   } else {
     body = (
       <>
         <SettingsSection title={t("settings.host.ompPlugins.listTitle")}>
-          {pageState === "empty" ? (
-            <Text style={styles.muted}>{t("settings.host.ompPlugins.states.empty")}</Text>
-          ) : (
-            plugins.map((plugin) => (
-              <OmpPluginRow
-                key={plugin.name}
-                plugin={plugin}
-                busy={busyPlugin === plugin.name}
-                onToggle={handleToggle}
-                onRemove={handleRemove}
-                removeLabel={t("settings.host.ompPlugins.actions.remove")}
-                toggleLabel={t("settings.host.ompPlugins.toggleLabel", { id: plugin.name })}
-              />
-            ))
-          )}
-          {rawOutput ? <Text style={styles.rawOutput}>{rawOutput}</Text> : null}
+          <View style={settingsStyles.card} testID="omp-plugins-list-card">
+            {pageState === "empty" ? (
+              <View style={[settingsStyles.row, styles.centeredRow]}>
+                <Text style={settingsStyles.rowHint}>
+                  {t("settings.host.ompPlugins.states.empty")}
+                </Text>
+              </View>
+            ) : (
+              plugins.map((plugin) => (
+                <OmpPluginRow
+                  key={plugin.name}
+                  plugin={plugin}
+                  busy={busyPlugin === plugin.name}
+                  onToggle={handleToggle}
+                  onRemove={handleRemove}
+                  removeLabel={t("settings.host.ompPlugins.actions.remove")}
+                  toggleLabel={t("settings.host.ompPlugins.toggleLabel", { id: plugin.name })}
+                />
+              ))
+            )}
+            {rawOutput ? (
+              <View style={[styles.outputBlock, styles.outputBlockFirst]}>
+                <Text style={styles.outputText}>{rawOutput}</Text>
+              </View>
+            ) : null}
+          </View>
         </SettingsSection>
 
         <SettingsSection title={t("settings.host.ompPlugins.installTitle")}>
-          <TextInput
-            initialValue={installSpec}
-            onChangeText={setInstallSpec}
-            placeholder={t("settings.host.ompPlugins.installPlaceholder")}
-            autoCapitalize="none"
-            autoCorrect={false}
-          />
-          <View style={styles.installActions}>
-            <Button
-              onPress={handleInstallPress}
-              loading={installing}
-              disabled={!installSpec.trim()}
-            >
-              {installDryRun
-                ? t("settings.host.ompPlugins.actions.check")
-                : t("settings.host.ompPlugins.actions.install")}
-            </Button>
-            <Switch
-              value={installDryRun}
-              onValueChange={setInstallDryRun}
-              accessibilityLabel={t("settings.host.ompPlugins.dryRunLabel")}
-            />
-            <Text style={styles.muted}>{t("settings.host.ompPlugins.dryRunLabel")}</Text>
+          <View style={settingsStyles.card} testID="omp-plugins-install-card">
+            <View style={[settingsStyles.row, styles.installRow]}>
+              <Field
+                label={t("settings.host.ompPlugins.installSpecLabel")}
+                hint={t("settings.host.ompPlugins.installPlaceholder")}
+                testID="omp-plugins-install-field"
+              >
+                <View style={styles.installControlRow}>
+                  <View style={styles.installInput}>
+                    <FormTextInput
+                      initialValue={installSpec}
+                      onChangeText={setInstallSpec}
+                      onSubmitEditing={handleInstallPress}
+                      placeholder={t("settings.host.ompPlugins.installPlaceholder")}
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                      editable={!installing}
+                      testID="omp-plugins-install-input"
+                    />
+                  </View>
+                  <Button
+                    onPress={handleInstallPress}
+                    loading={installing}
+                    disabled={!installSpec.trim()}
+                    testID="omp-plugins-install-button"
+                  >
+                    {installDryRun
+                      ? t("settings.host.ompPlugins.actions.check")
+                      : t("settings.host.ompPlugins.actions.install")}
+                  </Button>
+                </View>
+              </Field>
+              <View style={styles.dryRunRow}>
+                <Switch
+                  value={installDryRun}
+                  onValueChange={setInstallDryRun}
+                  accessibilityLabel={t("settings.host.ompPlugins.dryRunLabel")}
+                  testID="omp-plugins-install-dry-run"
+                />
+                <Text style={settingsStyles.rowHint}>
+                  {t("settings.host.ompPlugins.dryRunLabel")}
+                </Text>
+              </View>
+              {installOutput ? (
+                <View style={styles.outputBlock}>
+                  <Text style={styles.outputText}>{installOutput}</Text>
+                </View>
+              ) : null}
+            </View>
           </View>
-          {installOutput ? <Text style={styles.rawOutput}>{installOutput}</Text> : null}
         </SettingsSection>
 
         <SettingsSection title={t("settings.host.ompPlugins.doctorTitle")}>
-          <View style={styles.installActions}>
-            <Button onPress={handleDoctorPress} loading={doctorRunning}>
-              {t("settings.host.ompPlugins.actions.doctor")}
-            </Button>
-            <Button variant="outline" onPress={handleDoctorFixPress} loading={doctorRunning}>
-              {t("settings.host.ompPlugins.actions.doctorFix")}
-            </Button>
+          <View style={settingsStyles.card} testID="omp-plugins-doctor-card">
+            <View style={[settingsStyles.row, styles.doctorActionsRow]}>
+              <View style={settingsStyles.rowContent}>
+                <Text style={settingsStyles.rowTitle}>
+                  {t("settings.host.ompPlugins.doctorTitle")}
+                </Text>
+                <Text style={settingsStyles.rowHint}>
+                  {t("settings.host.ompPlugins.doctorHint")}
+                </Text>
+              </View>
+              <View style={styles.doctorButtons}>
+                <Button
+                  size="sm"
+                  onPress={handleDoctorPress}
+                  loading={doctorRunning}
+                  testID="omp-plugins-doctor-run"
+                >
+                  {t("settings.host.ompPlugins.actions.doctor")}
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onPress={handleDoctorFixPress}
+                  loading={doctorRunning}
+                  disabled={doctorRunning}
+                  testID="omp-plugins-doctor-fix"
+                >
+                  {t("settings.host.ompPlugins.actions.doctorFix")}
+                </Button>
+              </View>
+            </View>
+            {doctorChecks?.map((check) => (
+              <View key={check.name} style={styles.checkRowBorder}>
+                <DoctorCheckRow check={check} />
+              </View>
+            ))}
           </View>
-          {doctorChecks?.map((check) => (
-            <DoctorCheckRow key={check.name} check={check} />
-          ))}
         </SettingsSection>
 
-        {loadError ? <Text style={styles.errorText}>{loadError}</Text> : null}
+        {loadError ? (
+          <View style={settingsStyles.card} testID="omp-plugins-action-error">
+            <View style={[settingsStyles.row, styles.centeredRow]}>
+              <Text style={settingsStyles.rowError} numberOfLines={4}>
+                {loadError}
+              </Text>
+            </View>
+          </View>
+        ) : null}
       </>
     );
   }
@@ -342,84 +439,94 @@ export function OmpPluginsPage({ serverId }: OmpPluginsPageProps) {
   return <View style={styles.container}>{body}</View>;
 }
 
-function SettingsMessage({
-  title,
-  description,
-  action,
-}: {
-  title: string;
-  description: string;
-  action?: { label: string; onPress: () => void };
-}) {
-  return (
-    <View style={styles.messageRow}>
-      <View style={styles.pluginInfo}>
-        <Text style={styles.pluginName}>{title}</Text>
-        <Text style={styles.muted}>{description}</Text>
-      </View>
-      {action ? <Button onPress={action.onPress}>{action.label}</Button> : null}
-    </View>
-  );
-}
-
 const styles = StyleSheet.create((theme) => ({
   container: {
     gap: theme.spacing[4],
+  },
+  centeredRow: {
+    paddingVertical: theme.spacing[4],
+    justifyContent: "center",
+  },
+  centeredContent: {
+    flex: 1,
+    alignItems: "center",
+    gap: theme.spacing[1],
   },
   pluginRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     gap: theme.spacing[3],
-  },
-  pluginInfo: {
-    flex: 1,
-    gap: theme.spacing[1],
-  },
-  pluginName: {
-    color: theme.colors.foreground,
-    fontSize: 14,
-    fontWeight: "500",
+    paddingVertical: theme.spacing[4],
+    paddingHorizontal: theme.spacing[4],
   },
   pluginActions: {
     flexDirection: "row",
     alignItems: "center",
     gap: theme.spacing[3],
   },
-  installActions: {
+  pluginPath: {
+    color: theme.colors.foregroundExtraMuted,
+    fontSize: theme.fontSize.sm,
+    fontFamily: theme.fontFamily.mono,
+    marginTop: theme.spacing[1],
+  },
+  installRow: {
+    flexDirection: "column",
+    alignItems: "stretch",
+    gap: theme.spacing[3],
+  },
+  installControlRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: theme.spacing[2],
+  },
+  installInput: {
+    flex: 1,
+    minWidth: 0,
+  },
+  dryRunRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: theme.spacing[2],
+  },
+  doctorActionsRow: {
+    alignItems: "center",
+  },
+  doctorButtons: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: theme.spacing[2],
+  },
+  checkRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: theme.spacing[3],
+    paddingVertical: theme.spacing[3],
+    paddingHorizontal: theme.spacing[4],
+    flex: 1,
   },
-  muted: {
+  checkRowBorder: {
+    borderTopWidth: 1,
+    borderTopColor: theme.colors.border,
+  },
+  checkBadge: {
+    flexShrink: 0,
+    maxWidth: 180,
+  },
+  outputBlock: {
+    borderTopWidth: 1,
+    borderTopColor: theme.colors.border,
+    backgroundColor: theme.colors.surface2,
+    paddingHorizontal: theme.spacing[4],
+    paddingVertical: theme.spacing[3],
+  },
+  outputBlockFirst: {
+    borderTopWidth: 0,
+  },
+  outputText: {
     color: theme.colors.foregroundMuted,
-    fontSize: 12,
-  },
-  rawOutput: {
-    color: theme.colors.foregroundMuted,
-    fontSize: 11,
-    fontFamily: "monospace",
-  },
-  errorText: {
-    color: theme.colors.statusDanger,
-    fontSize: 12,
-  },
-  doctorStatus: {
-    color: theme.colors.statusSuccess,
-    fontSize: 11,
-    fontWeight: "700",
-    width: 42,
-  },
-  doctorStatusError: {
-    color: theme.colors.statusDanger,
-  },
-  doctorStatusWarning: {
-    color: theme.colors.statusWarning,
-  },
-  messageRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: theme.spacing[3],
+    fontSize: theme.fontSize.code,
+    fontFamily: theme.fontFamily.mono,
   },
 }));

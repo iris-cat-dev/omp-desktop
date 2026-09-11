@@ -21,10 +21,12 @@ export const ompPluginSettings = {
   description: "Manage plugins installed in the OMP runtime (omp plugin).",
   listTitle: "Installed",
   installTitle: "Install",
+  installSpecLabel: "Plugin spec",
   installPlaceholder: "npm package or path, e.g. @scope/omp-plugin-memory",
   dryRunLabel: "Dry run",
   toggleLabel: "Toggle {{id}}",
   doctorTitle: "Health check",
+  doctorHint: "Verifies the omp plugin installation and flags broken entries.",
   actions: {
     install: "Install",
     check: "Check",

@@ -2043,7 +2043,6 @@ export const ar: TranslationResources = {
       host: "نظرة عامة",
     },
     plugins: pluginSettings.ar,
-    ompPlugins: ompPluginSettings,
     metadataGeneration: {
       title: "إنشاء البيانات الوصفية",
       description:
@@ -2600,6 +2599,7 @@ export const ar: TranslationResources = {
           localErrorMessage: "Unable to remove localhost connection",
         },
       },
+      ompPlugins: ompPluginSettings,
     },
     imageGeneration: {
       title: "إنشاء الصور",

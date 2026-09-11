@@ -2062,7 +2062,6 @@ export const ja: TranslationResources = {
       host: "概要",
     },
     plugins: pluginSettings.ja,
-    ompPlugins: ompPluginSettings,
     metadataGeneration: {
       title: "メタデータ生成",
       description:
@@ -2626,6 +2625,7 @@ export const ja: TranslationResources = {
           localErrorMessage: "localhost接続を削除できません",
         },
       },
+      ompPlugins: ompPluginSettings,
     },
     imageGeneration: {
       title: "画像生成",
