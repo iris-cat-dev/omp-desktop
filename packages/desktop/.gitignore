@@ -10,3 +10,6 @@ node_modules/
 
 # Isolated dev environment (PASEO_HOME + Electron userData) created by scripts/dev.sh
 .dev/
+
+# Isolated preview state (PASEO_HOME + Electron userData) from preview-dev.ps1
+.ddev/
