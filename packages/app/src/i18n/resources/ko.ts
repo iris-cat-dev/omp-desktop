@@ -1,5 +1,5 @@
 import { en, type TranslationResources } from "./en";
-import { pluginSettings } from "./plugin-settings";
+import { ompPluginSettings, pluginSettings } from "./plugin-settings";
 import { ompProviderSettings } from "./omp-provider-settings";
 import { providerUsage } from "./provider-usage";
 
@@ -2051,9 +2051,11 @@ export const ko: TranslationResources = {
       usage: "사용량",
       terminals: "터미널",
       plugins: "플러그인",
+      ompPlugins: "OMP 플러그인",
       host: "개요",
     },
     plugins: pluginSettings.ko,
+    ompPlugins: ompPluginSettings,
     metadataGeneration: {
       title: "메타데이터 생성",
       description:

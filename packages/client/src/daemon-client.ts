@@ -131,6 +131,9 @@ import type {
   AgentSkillSelection,
   AgentSkillsStatus,
   AgentSkillsSaveResult,
+  OmpPluginInfo,
+  OmpMarketplacePluginInfo,
+  OmpPluginDoctorCheck,
 } from "@omp-desktop/protocol/messages";
 import type {
   AgentPermissionRequest,
@@ -5349,6 +5352,75 @@ export class DaemonClient {
       responseType: "plugin.list.response",
     });
     return payload.plugins;
+  }
+
+  async listOmpPlugins(): Promise<{
+    requestId: string;
+    plugins: OmpPluginInfo[];
+    marketplace: OmpMarketplacePluginInfo[];
+    rawOutput?: string;
+  }> {
+    const requestId = this.createRequestId();
+    return this.sendCorrelatedSessionRequest({
+      requestId,
+      message: { type: "ompPlugins.list.request" },
+      responseType: "ompPlugins.list.response",
+    });
+  }
+
+  async installOmpPlugin(input: {
+    spec: string;
+    scope?: "user" | "project";
+    dryRun?: boolean;
+  }): Promise<{
+    requestId: string;
+    ok: boolean;
+    plugin: OmpPluginInfo | null;
+    output?: string;
+  }> {
+    const requestId = this.createRequestId();
+    const payload = await this.sendCorrelatedSessionRequest({
+      requestId,
+      message: { type: "ompPlugins.install.request", ...input },
+      responseType: "ompPlugins.install.response",
+    });
+    return { ...payload, plugin: payload.plugin ?? null };
+  }
+
+  async removeOmpPlugin(
+    name: string,
+  ): Promise<{ requestId: string; ok: boolean; output?: string }> {
+    const requestId = this.createRequestId();
+    return this.sendCorrelatedSessionRequest({
+      requestId,
+      message: { type: "ompPlugins.remove.request", name },
+      responseType: "ompPlugins.remove.response",
+    });
+  }
+
+  async setOmpPluginEnabled(
+    name: string,
+    enabled: boolean,
+  ): Promise<{ requestId: string; ok: boolean; name: string; enabled: boolean }> {
+    const requestId = this.createRequestId();
+    return this.sendCorrelatedSessionRequest({
+      requestId,
+      message: { type: "ompPlugins.setEnabled.request", name, enabled },
+      responseType: "ompPlugins.setEnabled.response",
+    });
+  }
+
+  async runOmpPluginDoctor(fix?: boolean): Promise<{
+    requestId: string;
+    checks: OmpPluginDoctorCheck[];
+    rawOutput?: string;
+  }> {
+    const requestId = this.createRequestId();
+    return this.sendCorrelatedSessionRequest({
+      requestId,
+      message: { type: "ompPlugins.doctor.request", ...(fix ? { fix: true } : {}) },
+      responseType: "ompPlugins.doctor.response",
+    });
   }
 
   async getPluginLogs(pluginId: string): Promise<PluginLogEntry[]> {

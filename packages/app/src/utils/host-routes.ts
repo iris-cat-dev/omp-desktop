@@ -519,6 +519,7 @@ export const HOST_SECTION_SLUGS = [
   "usage",
   "terminals",
   "plugins",
+  "omp-plugins",
   "host",
 ] as const;
 

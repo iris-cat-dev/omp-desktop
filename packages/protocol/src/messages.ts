@@ -1833,6 +1833,69 @@ export const OmpProviderLogoutRequestMessageSchema = z.object({
   requestId: z.string(),
 });
 
+/**
+ * OMP CLI plugin management. These wrap the `omp plugin <action> --json` CLI
+ * surface so the desktop can install, list, enable/disable and health-check
+ * plugins from the OMP runtime itself. Deliberately namespaced `ompPlugins.*`
+ * (not `plugin.*`) to stay disjoint from the daemon's own pluginRuntime
+ * protocol, which is a separate upstream feature area.
+ */
+export const OmpPluginInfoSchema = z
+  .object({
+    name: z.string().min(1),
+    version: z.string(),
+    path: z.string().optional(),
+    enabled: z.boolean().optional(),
+    description: z.string().optional(),
+    features: z.array(z.string()).optional(),
+    enabledFeatures: z.array(z.string()).nullable().optional(),
+    extensions: z.array(z.string()).optional(),
+  })
+  .passthrough();
+export type OmpPluginInfo = z.infer<typeof OmpPluginInfoSchema>;
+
+export const OmpMarketplacePluginInfoSchema = z
+  .object({
+    id: z.string().min(1),
+    version: z.string().optional(),
+    scope: z.string().optional(),
+    shadowed: z.boolean().optional(),
+  })
+  .passthrough();
+export type OmpMarketplacePluginInfo = z.infer<typeof OmpMarketplacePluginInfoSchema>;
+
+export const OmpPluginListRequestMessageSchema = z.object({
+  type: z.literal("ompPlugins.list.request"),
+  requestId: z.string(),
+});
+
+export const OmpPluginInstallRequestMessageSchema = z.object({
+  type: z.literal("ompPlugins.install.request"),
+  spec: z.string().trim().min(1).max(200),
+  scope: z.enum(["user", "project"]).optional(),
+  dryRun: z.boolean().optional(),
+  requestId: z.string(),
+});
+
+export const OmpPluginRemoveRequestMessageSchema = z.object({
+  type: z.literal("ompPlugins.remove.request"),
+  name: z.string().trim().min(1).max(214),
+  requestId: z.string(),
+});
+
+export const OmpPluginSetEnabledRequestMessageSchema = z.object({
+  type: z.literal("ompPlugins.setEnabled.request"),
+  name: z.string().trim().min(1).max(214),
+  enabled: z.boolean(),
+  requestId: z.string(),
+});
+
+export const OmpPluginDoctorRequestMessageSchema = z.object({
+  type: z.literal("ompPlugins.doctor.request"),
+  fix: z.boolean().optional(),
+  requestId: z.string(),
+});
+
 export const ProviderUsageListRequestMessageSchema = z.object({
   type: z.literal("provider.usage.list.request"),
   requestId: z.string(),
@@ -3313,6 +3376,11 @@ export const SessionInboundMessageSchema = z.discriminatedUnion("type", [
   OmpProviderLoginFinishRequestMessageSchema,
   OmpProviderLoginCancelRequestMessageSchema,
   OmpProviderLogoutRequestMessageSchema,
+  OmpPluginListRequestMessageSchema,
+  OmpPluginInstallRequestMessageSchema,
+  OmpPluginRemoveRequestMessageSchema,
+  OmpPluginSetEnabledRequestMessageSchema,
+  OmpPluginDoctorRequestMessageSchema,
   ProviderUsageListRequestMessageSchema,
   ResumeAgentRequestMessageSchema,
   ImportAgentRequestMessageSchema,
@@ -6349,6 +6417,66 @@ export const OmpProviderLogoutResponseMessageSchema = z.object({
   payload: OmpProviderManagementSchema.extend({ requestId: z.string() }),
 });
 
+export const OmpPluginListResponseMessageSchema = z.object({
+  type: z.literal("ompPlugins.list.response"),
+  payload: z.object({
+    requestId: z.string(),
+    plugins: z.array(OmpPluginInfoSchema),
+    marketplace: z.array(OmpMarketplacePluginInfoSchema),
+    /** Non-empty when the CLI JSON could not be parsed; shown verbatim by the UI. */
+    rawOutput: z.string().optional(),
+  }),
+});
+
+export const OmpPluginInstallResponseMessageSchema = z.object({
+  type: z.literal("ompPlugins.install.response"),
+  payload: z.object({
+    requestId: z.string(),
+    ok: z.boolean(),
+    plugin: OmpPluginInfoSchema.nullable().optional(),
+    /** Trailing CLI output (bounded) for diagnostics. */
+    output: z.string().optional(),
+  }),
+});
+
+export const OmpPluginRemoveResponseMessageSchema = z.object({
+  type: z.literal("ompPlugins.remove.response"),
+  payload: z.object({
+    requestId: z.string(),
+    ok: z.boolean(),
+    output: z.string().optional(),
+  }),
+});
+
+export const OmpPluginSetEnabledResponseMessageSchema = z.object({
+  type: z.literal("ompPlugins.setEnabled.response"),
+  payload: z.object({
+    requestId: z.string(),
+    ok: z.boolean(),
+    name: z.string(),
+    enabled: z.boolean(),
+  }),
+});
+
+export const OmpPluginDoctorCheckSchema = z
+  .object({
+    name: z.string(),
+    status: z.enum(["ok", "warning", "error"]),
+    message: z.string(),
+    fixed: z.boolean().optional(),
+  })
+  .passthrough();
+export type OmpPluginDoctorCheck = z.infer<typeof OmpPluginDoctorCheckSchema>;
+
+export const OmpPluginDoctorResponseMessageSchema = z.object({
+  type: z.literal("ompPlugins.doctor.response"),
+  payload: z.object({
+    requestId: z.string(),
+    checks: z.array(OmpPluginDoctorCheckSchema),
+    rawOutput: z.string().optional(),
+  }),
+});
+
 export const ProviderUsageToneSchema = z.enum(["default", "ok", "warning", "danger"]);
 export const ProviderUsageStatusSchema = z.enum(["available", "unavailable", "error"]);
 
@@ -7003,6 +7131,11 @@ export const SessionOutboundMessageSchema = z.discriminatedUnion("type", [
   OmpProviderLoginFinishResponseMessageSchema,
   OmpProviderLoginCancelResponseMessageSchema,
   OmpProviderLogoutResponseMessageSchema,
+  OmpPluginListResponseMessageSchema,
+  OmpPluginInstallResponseMessageSchema,
+  OmpPluginRemoveResponseMessageSchema,
+  OmpPluginSetEnabledResponseMessageSchema,
+  OmpPluginDoctorResponseMessageSchema,
   ProviderUsageListResponseMessageSchema,
   ListCommandsResponseSchema,
   ListTerminalsResponseSchema,

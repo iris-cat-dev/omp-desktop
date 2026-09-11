@@ -172,6 +172,8 @@ import {
 } from "./session/checkout/git-metadata-generator.js";
 import { ScheduleSession } from "./session/schedule/schedule-session.js";
 import { ProviderCatalogSession } from "./session/provider/provider-catalog-session.js";
+import { OmpPluginCliService } from "./omp-plugin-cli-service.js";
+import { OmpPluginSession } from "./omp-plugin-session.js";
 import { WorkspaceFilesSession } from "./session/files/workspace-files-session.js";
 import { AgentConfigSession } from "./session/agent-config/agent-config-session.js";
 import { ProjectConfigSession } from "./session/project-config/project-config-session.js";
@@ -739,6 +741,7 @@ export class Session {
   private readonly checkoutSession: CheckoutSession;
   private readonly scheduleSession: ScheduleSession;
   private readonly providerCatalogSession: ProviderCatalogSession;
+  private readonly ompPluginSession: OmpPluginSession;
   private readonly workspaceFilesSession: WorkspaceFilesSession;
   private readonly agentConfigSession: AgentConfigSession;
   private readonly projectConfigSession: ProjectConfigSession;
@@ -930,6 +933,11 @@ export class Session {
       },
       providerSnapshotManager,
       providerUsageService,
+      logger: this.sessionLogger,
+    });
+    this.ompPluginSession = new OmpPluginSession({
+      service: new OmpPluginCliService({ logger: this.sessionLogger }),
+      emit: (msg) => this.emit(msg),
       logger: this.sessionLogger,
     });
     this.agentConfigSession = new AgentConfigSession({
@@ -1939,8 +1947,8 @@ export class Session {
       this.dispatchWorkspaceLabelMessage(msg) ??
       this.dispatchWorkspaceAndProjectMessage(msg) ??
       this.dispatchWorkspaceFileMessage(msg, source) ??
-      this.dispatchProviderMessage(msg) ??
       this.dispatchOrchestrationSkillsMessage(msg) ??
+      this.dispatchProviderMessage(msg) ??
       this.dispatchPluginDirectoryMessage(msg) ??
       this.dispatchPluginMessage(msg) ??
       this.dispatchTerminalMessage(msg) ??
@@ -2010,6 +2018,9 @@ export class Session {
   }
 
   private dispatchPluginMessage(msg: SessionInboundMessage): Promise<void> | undefined {
+    if (msg.type.startsWith("ompPlugins.")) {
+      return this.ompPluginSession.handleInboundMessage(msg);
+    }
     if (msg.type === "plugin.list.request") {
       this.emit({
         type: "plugin.list.response",

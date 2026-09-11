@@ -1,5 +1,5 @@
 import { en, type TranslationResources } from "./en";
-import { pluginSettings } from "./plugin-settings";
+import { ompPluginSettings, pluginSettings } from "./plugin-settings";
 import { ompProviderSettings } from "./omp-provider-settings";
 import { providerUsage } from "./provider-usage";
 
@@ -2083,9 +2083,11 @@ export const ru: TranslationResources = {
       usage: "Использование",
       terminals: "Терминалы",
       plugins: "Плагины",
+      ompPlugins: "Плагины OMP",
       host: "Обзор",
     },
     plugins: pluginSettings.ru,
+    ompPlugins: ompPluginSettings,
     metadataGeneration: {
       title: "Генерация метаданных",
       description:

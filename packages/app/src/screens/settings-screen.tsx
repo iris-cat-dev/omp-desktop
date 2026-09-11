@@ -100,6 +100,7 @@ import {
   HostTerminalsPage,
 } from "@/screens/settings/host-page";
 import { MetadataGenerationPage } from "@/screens/settings/metadata-generation-page";
+import { OmpPluginsPage } from "@/screens/settings/omp-plugins-page";
 import ProjectsScreen from "@/screens/projects-screen";
 import ProjectSettingsScreen from "@/screens/project-settings-screen";
 import { SETTINGS_DESKTOP_SIDEBAR_WIDTH, useIsCompactFormFactor } from "@/constants/layout";
@@ -175,6 +176,11 @@ const HOST_SECTION_ITEMS: HostSectionItem[] = [
   { id: "image-generation", labelKey: "settings.imageGeneration.title", icon: Image },
   { id: "usage", labelKey: "settings.hostSections.usage", icon: Gauge },
   { id: "terminals", labelKey: "settings.hostSections.terminals", icon: SquareTerminal },
+  {
+    id: "omp-plugins",
+    labelKey: "settings.hostSections.ompPlugins",
+    icon: Puzzle,
+  },
 ];
 
 function renderHostSettingsContent(
@@ -196,6 +202,8 @@ function renderHostSettingsContent(
       return <HostProvidersPage serverId={view.serverId} />;
     case "image-generation":
       return <HostImageGenerationPage serverId={view.serverId} />;
+    case "omp-plugins":
+      return <OmpPluginsPage serverId={view.serverId} />;
     case "usage":
       return <HostUsagePage serverId={view.serverId} />;
     case "terminals":

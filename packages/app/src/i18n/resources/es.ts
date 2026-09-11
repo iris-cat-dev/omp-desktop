@@ -1,5 +1,5 @@
 import { en, type TranslationResources } from "./en";
-import { pluginSettings } from "./plugin-settings";
+import { ompPluginSettings, pluginSettings } from "./plugin-settings";
 import { ompProviderSettings } from "./omp-provider-settings";
 import { providerUsage } from "./provider-usage";
 
@@ -2087,9 +2087,11 @@ export const es: TranslationResources = {
       usage: "Uso",
       terminals: "Terminals",
       plugins: "Plugins",
+      ompPlugins: "Plugins de OMP",
       host: "Resumen",
     },
     plugins: pluginSettings.es,
+    ompPlugins: ompPluginSettings,
     metadataGeneration: {
       title: "Generación de metadatos",
       description:

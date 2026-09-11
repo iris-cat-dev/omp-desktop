@@ -11,6 +11,41 @@ const shared = {
   },
 } as const;
 
+/**
+ * OMP-runtime plugin management page. Shipped as English for every locale
+ * except en/zh-CN, which define richer strings inline (i18n types require the
+ * key to exist on all locales; these languages currently fall back to en).
+ */
+export const ompPluginSettings = {
+  title: "OMP plugins",
+  description: "Manage plugins installed in the OMP runtime (omp plugin).",
+  listTitle: "Installed",
+  installTitle: "Install",
+  installPlaceholder: "npm package or path, e.g. @scope/omp-plugin-memory",
+  dryRunLabel: "Dry run",
+  toggleLabel: "Toggle {{id}}",
+  doctorTitle: "Health check",
+  actions: {
+    install: "Install",
+    check: "Check",
+    remove: "Remove",
+    doctor: "Run doctor",
+    doctorFix: "Run doctor (fix)",
+  },
+  feedback: {
+    toggleFailed: "Could not toggle {{id}}",
+    removeFailed: "Could not remove {{id}}",
+  },
+  states: {
+    loading: "Loading plugins…",
+    errorTitle: "Unable to load plugins",
+    retry: "Retry",
+    empty: "No OMP plugins installed",
+    offlineTitle: "Host is offline",
+    offlineDescription: "Reconnect to this host to manage its OMP plugins.",
+  },
+} as const;
+
 export const pluginSettings = {
   ar: {
     ...shared,

@@ -1,5 +1,5 @@
 import { en, type TranslationResources } from "./en";
-import { pluginSettings } from "./plugin-settings";
+import { ompPluginSettings, pluginSettings } from "./plugin-settings";
 import { ompProviderSettings } from "./omp-provider-settings";
 import { providerUsage } from "./provider-usage";
 
@@ -2039,9 +2039,11 @@ export const ar: TranslationResources = {
       usage: "الاستخدام",
       terminals: "Terminals",
       plugins: "Plugins",
+      ompPlugins: "إضافات OMP",
       host: "نظرة عامة",
     },
     plugins: pluginSettings.ar,
+    ompPlugins: ompPluginSettings,
     metadataGeneration: {
       title: "إنشاء البيانات الوصفية",
       description:
