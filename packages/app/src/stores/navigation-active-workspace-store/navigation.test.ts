@@ -7,7 +7,6 @@ import {
   navigateToSidebarWorkspace,
   navigateToWorkspace,
   parseActiveWorkspaceSelection,
-  resolveSidebarActiveWorkspaceSelection,
   type NavigateToLastWorkspaceDeps,
   type NavigateToSidebarWorkspaceDeps,
   type NavigateToWorkspaceDeps,
@@ -78,35 +77,6 @@ function createLastSelectionDeps(
 }
 
 describe("workspace navigation", () => {
-  it("selects the focused agent's owning conversation in a shared tab host", () => {
-    expect(
-      resolveSidebarActiveWorkspaceSelection({
-        routeSelection: { serverId: "server-1", workspaceId: "workspace-host" },
-        focusedTarget: { kind: "agent", agentId: "agent-conversation" },
-        focusedAgent: { id: "agent-conversation", workspaceId: "workspace-conversation" },
-      }),
-    ).toEqual({ serverId: "server-1", workspaceId: "workspace-conversation" });
-  });
-
-  it("keeps the route workspace selected for non-agent and unresolved tabs", () => {
-    const routeSelection = { serverId: "server-1", workspaceId: "workspace-host" };
-
-    expect(
-      resolveSidebarActiveWorkspaceSelection({
-        routeSelection,
-        focusedTarget: { kind: "files" },
-        focusedAgent: null,
-      }),
-    ).toBe(routeSelection);
-    expect(
-      resolveSidebarActiveWorkspaceSelection({
-        routeSelection,
-        focusedTarget: { kind: "agent", agentId: "missing" },
-        focusedAgent: null,
-      }),
-    ).toBe(routeSelection);
-  });
-
   it("reports when no last workspace is known", () => {
     const { deps } = createLastSelectionDeps(null);
 
@@ -235,11 +205,10 @@ describe("workspace navigation", () => {
       workspaceId: "workspace-a",
       archivedAt: null,
     } as Agent;
-    const { deps, historyRequests, openedTabs, navigations, remembered } =
-      createSidebarFakeDeps({
-        getSessionWorkspaces: () => new Map([[workspace.id, workspace]]),
-        getSessionAgents: () => [activeAgent],
-      });
+    const { deps, historyRequests, openedTabs, navigations, remembered } = createSidebarFakeDeps({
+      getSessionWorkspaces: () => new Map([[workspace.id, workspace]]),
+      getSessionAgents: () => [activeAgent],
+    });
 
     const route = await navigateToSidebarWorkspace(
       { serverId: "server-1", workspaceId: "workspace-a" },
@@ -466,7 +435,6 @@ describe("workspace navigation", () => {
 
     expect(selection).toBeNull();
   });
-
 
   it("navigates to the last workspace once a route observation has been remembered", () => {
     const { deps, navigations } = createLastSelectionDeps(null);

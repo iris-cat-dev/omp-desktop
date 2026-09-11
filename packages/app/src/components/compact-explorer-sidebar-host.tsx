@@ -1,7 +1,7 @@
 import { type ReactNode, useCallback, useEffect, useMemo, useRef } from "react";
 import { View } from "react-native";
 import { GestureDetector } from "react-native-gesture-handler";
-import { useActiveWorkspaceSelection } from "@/stores/navigation-active-workspace-store";
+import { useSidebarActiveWorkspaceSelection } from "@/stores/navigation-active-workspace-store";
 import { useWorkspace } from "@/stores/session-store-hooks";
 import { CompactExplorerSidebar } from "@/components/compact-explorer-sidebar";
 import { useOpenFileExplorerGesture } from "@/mobile-panels/gestures";
@@ -46,7 +46,7 @@ function CompactExplorerOpenGestureSurface({
 function useActiveCompactExplorerSidebarModel(
   enabled: boolean,
 ): CompactExplorerSidebarHostModel | null {
-  const selection = useActiveWorkspaceSelection();
+  const selection = useSidebarActiveWorkspaceSelection();
   const workspace = useWorkspace(selection?.serverId ?? null, selection?.workspaceId ?? null);
   const isExplorerOpen = usePanelStore(selectIsCompactFileExplorerOpen);
   const showMobileAgent = usePanelStore((state) => state.showMobileAgent);

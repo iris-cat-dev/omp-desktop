@@ -1,6 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useLocalSearchParams, usePathname } from "expo-router";
-import { useEffect, useMemo, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import {
   createLastWorkspaceSelectionStore,
   LAST_WORKSPACE_SELECTION_STORAGE_KEY,
@@ -12,7 +12,6 @@ import {
   navigateToSidebarWorkspace as navigateToSidebarWorkspacePure,
   navigateToWorkspace as navigateToWorkspacePure,
   parseActiveWorkspaceSelection,
-  resolveSidebarActiveWorkspaceSelection,
   type NavigateToSidebarWorkspaceDeps,
   type NavigateToSidebarWorkspaceInput,
   type NavigateToWorkspaceDeps,
@@ -28,6 +27,10 @@ import { stripHostWorkspaceRouteEchoSearchFromBrowserUrlAfterCommit } from "@/ut
 import { navigateToHostWorkspaceRoute } from "@/navigation/workspace-route-navigation";
 import { getParentAgentIdFromLabels } from "@omp-desktop/protocol/agent-labels";
 import { buildWorkspaceTabPersistenceKey } from "@/workspace-tabs/model";
+import {
+  resolveWorkspaceToolSelection,
+  type WorkspaceToolSelection,
+} from "@/workspace-tabs/tool-workspace-selection";
 
 export type { ActiveWorkspaceSelection } from "@/stores/last-workspace-selection";
 export type { NavigateToWorkspaceInput } from "./navigation";
@@ -144,29 +147,34 @@ export function useSidebarActiveWorkspaceSelection(): ActiveWorkspaceSelection |
       null
     );
   });
-  const focusedAgent = useSessionStore((state) => {
+  const focusedAgentWorkspaceId = useSessionStore((state) => {
     if (!routeSelection || focusedTarget?.kind !== "agent") {
       return null;
     }
     const session = state.sessions[routeSelection.serverId];
-    return (
+    const focusedAgent =
       session?.agents.get(focusedTarget.agentId) ??
       session?.agentDetails.get(focusedTarget.agentId) ??
-      null
-    );
+      null;
+    return focusedAgent?.workspaceId?.trim() || null;
   });
-
-  return useMemo(
+  const [lastToolSelection, setLastToolSelection] = useState<WorkspaceToolSelection | null>(null);
+  const toolSelection = useMemo(
     () =>
-      resolveSidebarActiveWorkspaceSelection({
+      resolveWorkspaceToolSelection({
+        current: lastToolSelection,
         routeSelection,
-        focusedTarget,
-        focusedAgent,
+        focusedAgentWorkspaceId,
       }),
-    [focusedAgent, focusedTarget, routeSelection],
+    [focusedAgentWorkspaceId, lastToolSelection, routeSelection],
   );
-}
 
+  useEffect(() => {
+    setLastToolSelection((current) => (current === toolSelection ? current : toolSelection));
+  }, [toolSelection]);
+
+  return toolSelection?.activeSelection ?? null;
+}
 
 export function useLastWorkspaceSelection(): ActiveWorkspaceSelection | null {
   return useSyncExternalStore(

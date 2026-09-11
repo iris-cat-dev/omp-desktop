@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { ComponentType, ReactNode } from "react";
 import {
   Pressable,
@@ -859,6 +859,13 @@ function SettingsSidebar({
   const scrollRef = useRef<ScrollView>(null);
   const initialScrollOffsetRef = useRef(retainedDesktopSidebarScrollOffset);
   const hasRestoredScrollRef = useRef(initialScrollOffsetRef.current <= 0);
+  useLayoutEffect(() => {
+    if (!isDesktop || !isWeb || hasRestoredScrollRef.current) return;
+    hasRestoredScrollRef.current = true;
+    // Settings sections are separate routes. Restore before the browser paints
+    // so a route change cannot flash the sidebar at scroll position zero.
+    scrollRef.current?.scrollTo({ y: initialScrollOffsetRef.current, animated: false });
+  }, [isDesktop]);
   const handleSidebarContentSizeChange = useCallback(() => {
     if (!isDesktop || hasRestoredScrollRef.current) return;
     hasRestoredScrollRef.current = true;

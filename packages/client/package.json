@@ -1,6 +1,6 @@
 {
   "name": "@omp-desktop/client",
-  "version": "0.2.7",
+  "version": "0.2.8",
   "description": "OMP Desktop client SDK",
   "files": [
     "dist",
@@ -39,8 +39,8 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@omp-desktop/protocol": "0.2.7",
-    "@omp-desktop/relay": "0.2.7",
+    "@omp-desktop/protocol": "0.2.8",
+    "@omp-desktop/relay": "0.2.8",
     "zod": "^4.4.3"
   },
   "devDependencies": {
