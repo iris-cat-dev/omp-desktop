@@ -19,6 +19,18 @@ describe("OMP provider registry", () => {
     });
   });
 
+  test("import-only providers keep empty modes even when the runtime catalog reports OMP modes", async () => {
+    const registry = buildProviderRegistry(logger, { ompRuntime: new FakeOmp() });
+    for (const provider of ["pi", "codex"] as const) {
+      const catalog = await registry[provider].fetchCatalog({ scope: "global" });
+      // The facade delegates to the OMP client, whose catalog carries OMP's
+      // creation modes; the import-only definition must not inherit them, or
+      // the UI's "no modes means not create-capable" filter leaks these
+      // providers into the new-session provider list.
+      expect(catalog.modes).toEqual([]);
+    }
+  });
+
   test("launches OMP in always-ask mode by default", async () => {
     const omp = new FakeOmp();
     const registry = buildProviderRegistry(logger, { ompRuntime: omp });

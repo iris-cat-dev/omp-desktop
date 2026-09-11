@@ -552,16 +552,21 @@ function createRegistryEntry(
           };
         }
         const catalog = await catalogClient.fetchCatalog(options, context);
-        return { ...catalog, models, modes: decorateModes(catalog.modes) };
+        return { ...catalog, models, modes: hasStaticModes ? decorateModes(catalog.modes) : [] };
       }
 
       const catalog = await catalogClient.fetchCatalog(options, context);
+      // Import-only providers (pi/codex) define modes: [] — they run sessions
+      // on the OMP runtime but must not inherit OMP's creation modes, or the
+      // UI's "no modes means not create-capable" filter leaks them into the
+      // new-session provider list.
+      const modes = hasStaticModes ? decorateModes(catalog.modes) : [];
       return {
         ...catalog,
         models: mergeModels(provider, profileModels, additionalModels, catalog.models, {
           profileModelsAreAdditive: resolved.profileModelsAreAdditive,
         }),
-        modes: decorateModes(catalog.modes),
+        modes,
       };
     },
   };
