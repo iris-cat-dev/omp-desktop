@@ -60,6 +60,8 @@ export const en = {
       daemonClientUnavailable: "Daemon client unavailable",
       daemonClientDisconnected: "Daemon client is disconnected",
       noFileFound: "No file found for {{token}}",
+      linkOpenFailed: "Could not open {{token}}: {{reason}}",
+      unsupportedLink: "Cannot open this link: {{token}}",
       unexpectedDictationError: "An unexpected error occurred while handling dictation.",
     },
     connectionStatus: {

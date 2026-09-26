@@ -46,6 +46,8 @@ export const ru: TranslationResources = {
       daemonClientUnavailable: "Daemon клиента недоступен",
       daemonClientDisconnected: "Daemon клиента отключен",
       noFileFound: "Файл для {{token}} не найден",
+      linkOpenFailed: "Не удалось открыть {{token}}: {{reason}}",
+      unsupportedLink: "Невозможно открыть ссылку: {{token}}",
       unexpectedDictationError: "При обработке диктовки произошла непредвиденная ошибка.",
     },
     connectionStatus: {

@@ -76,7 +76,6 @@ import { MarkdownFenceBlock } from "@/components/markdown/fence";
 import { createMarkdownMathRules } from "@/components/markdown/math/rules";
 import type { MarkdownPhase } from "@/components/markdown/fence/types";
 import { splitMarkdownBlocks } from "@/utils/split-markdown-blocks";
-import { colorMarkdownLinkChildren } from "@/components/markdown/link-children";
 import { createAssistantMarkdownParser } from "@/utils/assistant-markdown-parser";
 import { formatDuration, formatMessageTimestamp } from "@/utils/time";
 import { writeMarkdownToRichClipboard } from "@/utils/rich-clipboard";
@@ -987,6 +986,16 @@ function getMarkdownNodeText(node: ASTNode): string {
   return node.children.map(getMarkdownNodeText).join("");
 }
 
+function getMarkdownHeadingId(node: ASTNode): string | undefined {
+  const slug = getMarkdownNodeText(node)
+    .normalize("NFKC")
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\s_-]/gu, "")
+    .trim()
+    .replace(/\s+/g, "-");
+  return slug || undefined;
+}
+
 function nodeHasParentType(parent: unknown, type: string): boolean {
   if (Array.isArray(parent)) {
     return parent.some((entry) => entry?.type === type);
@@ -1510,7 +1519,12 @@ export const AssistantMessage = memo(function AssistantMessage({
         _parent: ASTNode[],
         styles: MarkdownStyles,
       ) => (
-        <View key={node.key} style={styles._VIEW_SAFE_heading1} dataSet={markdownCopyDataSet.h1}>
+        <View
+          key={node.key}
+          nativeID={getMarkdownHeadingId(node)}
+          style={styles._VIEW_SAFE_heading1}
+          dataSet={markdownCopyDataSet.h1}
+        >
           {children}
         </View>
       ),
@@ -1520,7 +1534,12 @@ export const AssistantMessage = memo(function AssistantMessage({
         _parent: ASTNode[],
         styles: MarkdownStyles,
       ) => (
-        <View key={node.key} style={styles._VIEW_SAFE_heading2} dataSet={markdownCopyDataSet.h2}>
+        <View
+          key={node.key}
+          nativeID={getMarkdownHeadingId(node)}
+          style={styles._VIEW_SAFE_heading2}
+          dataSet={markdownCopyDataSet.h2}
+        >
           {children}
         </View>
       ),
@@ -1530,7 +1549,12 @@ export const AssistantMessage = memo(function AssistantMessage({
         _parent: ASTNode[],
         styles: MarkdownStyles,
       ) => (
-        <View key={node.key} style={styles._VIEW_SAFE_heading3} dataSet={markdownCopyDataSet.h3}>
+        <View
+          key={node.key}
+          nativeID={getMarkdownHeadingId(node)}
+          style={styles._VIEW_SAFE_heading3}
+          dataSet={markdownCopyDataSet.h3}
+        >
           {children}
         </View>
       ),
@@ -1540,7 +1564,12 @@ export const AssistantMessage = memo(function AssistantMessage({
         _parent: ASTNode[],
         styles: MarkdownStyles,
       ) => (
-        <View key={node.key} style={styles._VIEW_SAFE_heading4} dataSet={markdownCopyDataSet.h4}>
+        <View
+          key={node.key}
+          nativeID={getMarkdownHeadingId(node)}
+          style={styles._VIEW_SAFE_heading4}
+          dataSet={markdownCopyDataSet.h4}
+        >
           {children}
         </View>
       ),
@@ -1550,7 +1579,12 @@ export const AssistantMessage = memo(function AssistantMessage({
         _parent: ASTNode[],
         styles: MarkdownStyles,
       ) => (
-        <View key={node.key} style={styles._VIEW_SAFE_heading5} dataSet={markdownCopyDataSet.h5}>
+        <View
+          key={node.key}
+          nativeID={getMarkdownHeadingId(node)}
+          style={styles._VIEW_SAFE_heading5}
+          dataSet={markdownCopyDataSet.h5}
+        >
           {children}
         </View>
       ),
@@ -1560,7 +1594,12 @@ export const AssistantMessage = memo(function AssistantMessage({
         _parent: ASTNode[],
         styles: MarkdownStyles,
       ) => (
-        <View key={node.key} style={styles._VIEW_SAFE_heading6} dataSet={markdownCopyDataSet.h6}>
+        <View
+          key={node.key}
+          nativeID={getMarkdownHeadingId(node)}
+          style={styles._VIEW_SAFE_heading6}
+          dataSet={markdownCopyDataSet.h6}
+        >
           {children}
         </View>
       ),
@@ -1897,7 +1936,7 @@ export const AssistantMessage = memo(function AssistantMessage({
           source={getMarkdownLinkSource(node)}
           style={styles.link}
         >
-          {colorMarkdownLinkChildren(children, styles.link.color)}
+          {children}
         </AssistantMarkdownLink>
       ),
       image: (

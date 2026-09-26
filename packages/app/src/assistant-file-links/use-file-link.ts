@@ -1,10 +1,11 @@
 import { useCallback, useMemo } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { useStableEvent } from "@/hooks/use-stable-event";
 import type { OpenFileDisposition } from "@/workspace/file-open";
 import { openExternalUrl } from "@/utils/open-external-url";
-import type { InlinePathTarget } from "./parse";
+import { getDesktopHost } from "@/desktop/host";
+import { isSystemAssistantPath, type InlinePathTarget } from "./parse";
 import {
   useAssistantFileLinkResolverContext,
   type AssistantFileLinkResolverContextValue,
@@ -12,12 +13,14 @@ import {
 import {
   classifyForResolution,
   fetchDaemonResolution,
+  UnresolvedFileLinkError,
   type AssistantFileLinkResolution,
   type AssistantFileLinkSource,
 } from "./resolver";
 
 export interface UseFileLinkResult {
   target: InlinePathTarget | null;
+  canOpen: boolean;
   onHoverIn: () => void;
   onPress: () => void;
   open: (source: AssistantFileLinkSource, disposition: OpenFileDisposition) => void;
@@ -46,6 +49,11 @@ export function useFileLink(source: AssistantFileLinkSource): UseFileLinkResult 
   const activeConfig = context.configRef.current;
   const workspaceRoot = activeConfig.workspaceRoot;
   const serverId = activeConfig.serverId;
+  const localDaemon = context.localDaemon;
+  const canOpen = useMemo(
+    () => canOpenAssistantFileLink(stableSource, workspaceRoot, localDaemon),
+    [stableSource, workspaceRoot, localDaemon],
+  );
   const resolution = useMemo(
     () =>
       classifyForResolution(stableSource, {
@@ -91,13 +99,17 @@ export function useFileLink(source: AssistantFileLinkSource): UseFileLinkResult 
         disposition,
         context,
         queryClient,
+        localDaemon,
         formatNoFileFoundMessage: (token) => t("common.errors.noFileFound", { token }),
+        formatOpenFailedMessage: (token, reason) =>
+          t("common.errors.linkOpenFailed", { token, reason }),
+        formatUnsupportedMessage: (token) => t("common.errors.unsupportedLink", { token }),
       });
     },
   );
 
   const onHoverIn = useStableEvent(() => {
-    if (resolution.kind !== "needsLookup") {
+    if (!canOpen || resolution.kind !== "needsLookup") {
       return;
     }
 
@@ -127,7 +139,10 @@ export function useFileLink(source: AssistantFileLinkSource): UseFileLinkResult 
     return query.data ?? null;
   }, [query.data, resolution]);
 
-  return useMemo(() => ({ target, onHoverIn, onPress, open }), [target, onHoverIn, onPress, open]);
+  return useMemo(
+    () => ({ target, onHoverIn, onPress, open, canOpen }),
+    [target, onHoverIn, onPress, open, canOpen],
+  );
 }
 
 export function useAssistantFileLinkActions(): AssistantFileLinkActions {
@@ -141,8 +156,12 @@ export function useAssistantFileLinkActions(): AssistantFileLinkActions {
   );
   const canOpen = useCallback(
     (source: AssistantFileLinkSource) =>
-      canOpenAssistantFileLink(source, context.configRef.current.workspaceRoot),
-    [context.configRef],
+      canOpenAssistantFileLink(
+        source,
+        context.configRef.current.workspaceRoot,
+        context.localDaemon,
+      ),
+    [context],
   );
   const canResolveFile = useCallback(
     (source: AssistantFileLinkSource) =>
@@ -157,13 +176,36 @@ function openAssistantFileLink(input: {
   source: AssistantFileLinkSource;
   disposition: OpenFileDisposition;
   context: AssistantFileLinkResolverContextValue;
-  queryClient: ReturnType<typeof useQueryClient>;
+  queryClient: QueryClient;
+  localDaemon: boolean;
   formatNoFileFoundMessage: (token: string) => string;
+  formatOpenFailedMessage: (token: string, reason: string) => string;
+  formatUnsupportedMessage: (token: string) => string;
 }): void {
   const capturedConfig = input.context.configRef.current;
   const capturedResolution = classifyForResolution(input.source, {
     workspaceRoot: capturedConfig.workspaceRoot,
   });
+  const reportError = (reason: string) => {
+    const current = input.context.configRef.current;
+    if (
+      current.serverId !== capturedConfig.serverId ||
+      current.workspaceRoot !== capturedConfig.workspaceRoot
+    )
+      return;
+    current.toast?.show(input.formatOpenFailedMessage(input.source.href, reason), {
+      variant: "error",
+      testID: "assistant-file-link-open-error-toast",
+    });
+  };
+
+  if (!canOpenAssistantFileLink(input.source, capturedConfig.workspaceRoot, input.localDaemon)) {
+    capturedConfig.toast?.show(input.formatUnsupportedMessage(input.source.href), {
+      variant: "error",
+      testID: "assistant-file-link-unsupported-toast",
+    });
+    return;
+  }
 
   if (capturedResolution.kind === "resolved") {
     void dispatchResolvedLink({
@@ -172,6 +214,9 @@ function openAssistantFileLink(input: {
       capturedServerId: capturedConfig.serverId,
       capturedWorkspaceRoot: capturedConfig.workspaceRoot,
       context: input.context,
+      localDaemon: input.localDaemon,
+    }).catch((error: unknown) => {
+      reportError(error instanceof Error ? error.message : String(error));
     });
     return;
   }
@@ -203,15 +248,19 @@ function openAssistantFileLink(input: {
         capturedServerId: capturedConfig.serverId,
         capturedWorkspaceRoot: capturedConfig.workspaceRoot,
         context: input.context,
+        localDaemon: input.localDaemon,
       });
     } catch (error) {
-      await dispatchUnresolvedError({
-        error,
-        noFileFoundMessage: input.formatNoFileFoundMessage(capturedResolution.token),
-        capturedServerId: capturedConfig.serverId,
-        capturedWorkspaceRoot: capturedConfig.workspaceRoot,
-        context: input.context,
-      });
+      if (error instanceof UnresolvedFileLinkError) {
+        dispatchUnresolvedError({
+          noFileFoundMessage: input.formatNoFileFoundMessage(capturedResolution.token),
+          capturedServerId: capturedConfig.serverId,
+          capturedWorkspaceRoot: capturedConfig.workspaceRoot,
+          context: input.context,
+        });
+      } else {
+        reportError(error instanceof Error ? error.message : String(error));
+      }
     }
   };
 
@@ -221,9 +270,27 @@ function openAssistantFileLink(input: {
 function canOpenAssistantFileLink(
   source: AssistantFileLinkSource,
   workspaceRoot: string | undefined,
+  localDaemon: boolean,
 ): boolean {
   const resolution = classifyForResolution(source, { workspaceRoot });
-  return resolution.kind === "needsLookup" || resolution.value.kind !== "ignored";
+  let target: InlinePathTarget;
+  if (resolution.kind === "needsLookup") {
+    target = resolution.target;
+  } else if (resolution.value.kind === "file") {
+    target = resolution.value.target;
+  } else {
+    return resolution.value.kind === "external";
+  }
+  if (!isSystemAssistantPath(target)) return true;
+  const root = workspaceRoot?.replace(/\\/g, "/").replace(/\/+$/, "");
+  const path = target.path.replace(/\\/g, "/");
+  const normalizeCase = (value: string) => (/^[A-Za-z]:/.test(value) ? value.toLowerCase() : value);
+  return Boolean(
+    localDaemon &&
+    root &&
+    getDesktopHost()?.opener?.openPath &&
+    normalizeCase(path).startsWith(`${normalizeCase(root ?? "")}/`),
+  );
 }
 
 function canResolveAssistantFileLinkToFile(
@@ -261,6 +328,7 @@ async function dispatchResolvedLink(input: {
   capturedServerId?: string;
   capturedWorkspaceRoot?: string;
   context: AssistantFileLinkResolverContextValue;
+  localDaemon: boolean;
 }) {
   const { value } = input.resolution;
   if (value.kind === "file") {
@@ -270,6 +338,7 @@ async function dispatchResolvedLink(input: {
       capturedServerId: input.capturedServerId,
       capturedWorkspaceRoot: input.capturedWorkspaceRoot,
       context: input.context,
+      localDaemon: input.localDaemon,
     });
     return;
   }
@@ -289,12 +358,22 @@ async function dispatchFileTarget(input: {
   capturedServerId?: string;
   capturedWorkspaceRoot?: string;
   context: AssistantFileLinkResolverContextValue;
+  localDaemon: boolean;
 }) {
   const current = input.context.configRef.current;
   if (
     current.serverId !== input.capturedServerId ||
     current.workspaceRoot !== input.capturedWorkspaceRoot
   ) {
+    return;
+  }
+  if (isSystemAssistantPath(input.target)) {
+    if (!input.localDaemon || !input.capturedWorkspaceRoot) {
+      throw new Error("Local desktop file opening is unavailable.");
+    }
+    const opener = getDesktopHost()?.opener?.openPath;
+    if (!opener) throw new Error("Local desktop file opening is unavailable.");
+    await opener({ path: input.target.path, workspaceRoot: input.capturedWorkspaceRoot });
     return;
   }
   current.onOpenWorkspaceFile?.(input.target, input.disposition);
@@ -317,7 +396,6 @@ async function dispatchExternalUrl(input: {
 }
 
 async function dispatchUnresolvedError(input: {
-  error: unknown;
   noFileFoundMessage: string;
   capturedServerId?: string;
   capturedWorkspaceRoot?: string;

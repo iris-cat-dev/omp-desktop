@@ -39,6 +39,12 @@ Opening a new conversation from the sidebar keeps the current header tabs visibl
 - Local text previews support files up to 2 MiB, including extensionless files. Directories, binary files, and larger files show an explanation instead.
 - Terminal surfaces keep their existing file-path drop behavior.
 
+## Assistant message links
+
+HTTP(S) links open externally. Text/source links open in the workspace file panel. On the local desktop host, links to existing images, documents, archives, and directories inside the workspace open with the operating system; executable files are shown in the file manager rather than launched. Web conversation headings support native `#heading` navigation.
+
+Targets that cannot be opened are plain text rather than colored links, and clicking one shows an unsupported-link error. Failed file or URL opens also show an error. A `sandbox:` URL is not a local file path: conversation data does not contain an authoritative mapping to an attachment on this host, so those links cannot open until such a mapping is provided. Remote-host binary files likewise cannot be opened by the local desktop file manager.
+
 ## Background processes
 
 Background commands started by the current Agent appear beside the workspace branch under the composer. The indicator shows the active count; opening it lists live and recently completed commands. Select a command to open its read-only terminal output in a bottom pane, or use **Stop** to terminate that command. Closing the output pane does not stop the process. Stopping the current Agent response terminates that Agent's running background commands and suppresses their late completion events; reconnecting restores retained process state and output.

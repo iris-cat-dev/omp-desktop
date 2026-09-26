@@ -46,6 +46,8 @@ export const fr: TranslationResources = {
       daemonClientUnavailable: "ClientDaemonindisponible",
       daemonClientDisconnected: "Le clientDaemonest déconnecté",
       noFileFound: "Aucun fichier trouvé pour{{token}}",
+      linkOpenFailed: "Impossible d'ouvrir {{token}} : {{reason}}",
+      unsupportedLink: "Impossible d'ouvrir ce lien : {{token}}",
       unexpectedDictationError:
         "Une erreur inattendue s'est produite lors du traitement de la dictée.",
     },

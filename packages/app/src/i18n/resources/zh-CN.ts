@@ -61,6 +61,8 @@ export const zhCN: TranslationResources = {
       daemonClientUnavailable: "Daemon client 不可用",
       daemonClientDisconnected: "Daemon client 已断开连接",
       noFileFound: "未找到 {{token}} 对应的文件",
+      linkOpenFailed: "无法打开 {{token}}：{{reason}}",
+      unsupportedLink: "无法打开此链接：{{token}}",
       unexpectedDictationError: "处理听写时发生意外错误。",
     },
     connectionStatus: {

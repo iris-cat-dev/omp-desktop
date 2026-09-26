@@ -20,63 +20,94 @@ const INLINE_LINE_FRAGMENT = /^L([0-9]+)(?:C[0-9]+)?(?:-L?([0-9]+)(?:C[0-9]+)?)?
 const INLINE_COLON_LINE_SUFFIX = /^(.+?):([0-9]+)(?::[0-9]+)?(?:-([0-9]+)(?::[0-9]+)?)?$/;
 const INLINE_PAREN_LINE_SUFFIX = /^(.+?)\(([0-9]+)(?:,[0-9]+)?(?:-([0-9]+)(?:,[0-9]+)?)?\)$/;
 const INLINE_WORD_LINE_SUFFIX = /^(.+?)\s+lines?\s+([0-9]+)(?:-([0-9]+))?$/i;
-const ASSISTANT_FILE_EXTENSIONS = new Set([
-  "astro",
-  "bash",
-  "c",
-  "cc",
-  "cjs",
-  "cpp",
-  "cs",
-  "css",
-  "cts",
-  "cxx",
-  "env",
-  "fish",
-  "go",
-  "gql",
-  "gradle",
-  "graphql",
-  "h",
-  "hpp",
-  "htm",
-  "html",
-  "ini",
-  "java",
-  "js",
-  "json",
-  "jsonc",
-  "jsx",
-  "kt",
-  "kts",
-  "less",
-  "lock",
-  "lua",
-  "md",
-  "mdx",
-  "mjs",
-  "mts",
-  "php",
-  "proto",
-  "py",
-  "rb",
-  "rs",
-  "sass",
-  "scss",
-  "sh",
-  "sql",
-  "svelte",
-  "swift",
-  "toml",
-  "ts",
-  "tsx",
-  "txt",
-  "vue",
-  "xml",
-  "yaml",
-  "yml",
-  "zsh",
-]);
+const ASSISTANT_FILE_EXTENSIONS: Record<string, true> = {
+  astro: true,
+  bash: true,
+  c: true,
+  cc: true,
+  cjs: true,
+  cpp: true,
+  cs: true,
+  css: true,
+  cts: true,
+  cxx: true,
+  env: true,
+  fish: true,
+  go: true,
+  gql: true,
+  gradle: true,
+  graphql: true,
+  h: true,
+  hpp: true,
+  htm: true,
+  html: true,
+  ini: true,
+  java: true,
+  js: true,
+  json: true,
+  jsonc: true,
+  jsx: true,
+  kt: true,
+  kts: true,
+  less: true,
+  lock: true,
+  lua: true,
+  md: true,
+  mdx: true,
+  mjs: true,
+  mts: true,
+  php: true,
+  proto: true,
+  py: true,
+  rb: true,
+  rs: true,
+  sass: true,
+  scss: true,
+  sh: true,
+  sql: true,
+  svelte: true,
+  swift: true,
+  toml: true,
+  ts: true,
+  tsx: true,
+  txt: true,
+  vue: true,
+  xml: true,
+  yaml: true,
+  yml: true,
+  zsh: true,
+};
+
+const SYSTEM_FILE_EXTENSIONS: Record<string, true> = {
+  "7z": true,
+  doc: true,
+  docx: true,
+  exe: true,
+  gif: true,
+  jpeg: true,
+  jpg: true,
+  pdf: true,
+  png: true,
+  rar: true,
+  tar: true,
+  webp: true,
+  xls: true,
+  xlsx: true,
+  xz: true,
+  zip: true,
+};
+
+export function isTextAssistantFile(path: string): boolean {
+  const fileName = path.replace(/\\/g, "/").split("/").pop() ?? "";
+  if (fileName.startsWith(".") && !fileName.slice(1).includes(".")) return true;
+  return (
+    ASSISTANT_FILE_EXTENSIONS[fileName.slice(fileName.lastIndexOf(".") + 1).toLowerCase()] === true
+  );
+}
+
+export function isSystemAssistantPath(target: InlinePathTarget): boolean {
+  return target.raw.endsWith("/") || !isTextAssistantFile(target.path);
+}
 
 export interface AssistantHrefParseOptions {
   workspaceRoot?: string;
@@ -262,10 +293,13 @@ export function classifyAssistantFileLink(
   }
 
   if (isExternalHref(trimmed)) {
-    return {
-      kind: "external",
-      raw,
-    };
+    try {
+      const protocol = new URL(trimmed).protocol;
+      if (protocol !== "http:" && protocol !== "https:") return null;
+    } catch {
+      return null;
+    }
+    return { kind: "external", raw };
   }
 
   if (/\s/.test(trimmed)) {
@@ -601,31 +635,27 @@ function isPlausibleAssistantLocalPath(pathValue: string): boolean {
   if (!firstSegment) {
     return false;
   }
-
+  if (normalized.endsWith("/")) return !isDomainLikePathSegment(firstSegment);
   if (segments.length > 1) {
     const lastSegment = segments[segments.length - 1];
-    return !isDomainLikePathSegment(firstSegment) && isPlausibleAssistantFileName(lastSegment);
+    return (
+      !isDomainLikePathSegment(firstSegment) &&
+      (pathValue.endsWith("/") || (Boolean(lastSegment) && lastSegment.includes(".")))
+    );
   }
 
   return isPlausibleAssistantFileName(firstSegment);
 }
 
 function isPlausibleAssistantFileName(fileName: string | undefined): boolean {
-  if (!fileName) {
-    return false;
-  }
-
-  if (fileName.startsWith(".") && fileName.length > 1) {
-    return true;
-  }
-
+  if (!fileName) return false;
+  if (fileName.startsWith(".") && fileName.length > 1) return true;
   const lastDot = fileName.lastIndexOf(".");
-  if (lastDot < 0) {
-    return false;
-  }
-
+  if (lastDot < 0) return false;
   const extension = fileName.slice(lastDot + 1).toLowerCase();
-  return ASSISTANT_FILE_EXTENSIONS.has(extension);
+  return (
+    ASSISTANT_FILE_EXTENSIONS[extension] === true || SYSTEM_FILE_EXTENSIONS[extension] === true
+  );
 }
 
 function isDomainLikePathSegment(segment: string): boolean {

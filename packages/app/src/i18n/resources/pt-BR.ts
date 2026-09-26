@@ -46,6 +46,8 @@ export const ptBR: TranslationResources = {
       daemonClientUnavailable: "Cliente do daemon indisponível",
       daemonClientDisconnected: "O cliente do daemon está desconectado",
       noFileFound: "Nenhum arquivo encontrado para {{token}}",
+      linkOpenFailed: "Não foi possível abrir {{token}}: {{reason}}",
+      unsupportedLink: "Não é possível abrir este link: {{token}}",
       unexpectedDictationError: "Ocorreu um erro inesperado ao processar o ditado.",
     },
     connectionStatus: {

@@ -4,6 +4,8 @@ import { StyleSheet } from "react-native-unistyles";
 import { isNative, isWeb } from "@/constants/platform";
 import { MarkdownTextSpan } from "@/components/markdown-text";
 import { MarkdownLinkText } from "@/components/markdown/link-text";
+import { colorMarkdownLinkChildren } from "@/components/markdown/link-children";
+import { ompBrandColors } from "@/styles/theme";
 import { AssistantLinkPressProvider, type AssistantLinkPress } from "./link-press-context";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { CODE_SURFACE_DATASET } from "@/styles/code-surface";
@@ -11,6 +13,7 @@ import { markdownCopyDataSet } from "@/assistant-selection-copy/markup";
 import { useAssistantFileLinkResolverContext } from "./provider";
 import type { AssistantFileLinkSource } from "./resolver";
 import { useFileLink } from "./use-file-link";
+import { useStableEvent } from "@/hooks/use-stable-event";
 
 interface AssistantMarkdownLinkProps {
   source: AssistantFileLinkSource;
@@ -30,7 +33,7 @@ export function AssistantMarkdownLink({
   monoSurface,
   children,
 }: AssistantMarkdownLinkProps) {
-  const { target, onHoverIn, onPress } = useFileLink(source);
+  const { target, onHoverIn, onPress, canOpen } = useFileLink(source);
   const { configRef } = useAssistantFileLinkResolverContext();
   const workspaceRoot = configRef.current.workspaceRoot;
   const tooltipPath = useMemo(
@@ -38,10 +41,27 @@ export function AssistantMarkdownLink({
     [target, workspaceRoot],
   );
   const linkPress = useMemo<AssistantLinkPress>(
-    () => ({ onPress, accessibilityRole: "link" }),
-    [onPress],
+    () => ({ onPress, accessibilityRole: canOpen ? "link" : undefined }),
+    [onPress, canOpen],
   );
   const unwrapForMarkdownCopy = source.sourceType === "inline-code" || source.markup === "linkify";
+  const isAnchor = isWeb && source.href.startsWith("#") && source.href.length > 1;
+  const interactive = canOpen || isAnchor;
+  const textStyle = interactive ? style : [style, styles.unsupportedText];
+  const content = colorMarkdownLinkChildren(
+    children,
+    interactive ? styles.linkColor.color : styles.unsupportedText.color,
+  );
+  const handleClick = useStableEvent((event: MouseEvent<HTMLAnchorElement>) => {
+    if (isAnchor || event.button !== 0) return;
+    event.preventDefault();
+    onPress();
+  });
+  const handleAuxClick = useStableEvent((event: MouseEvent<HTMLAnchorElement>) => {
+    if (event.button !== 1 || isAnchor) return;
+    event.preventDefault();
+    onPress();
+  });
 
   if (isNative) {
     // Must be a MarkdownTextSpan, not a plain <Text>: on iOS the link renders
@@ -59,12 +79,12 @@ export function AssistantMarkdownLink({
     // the <a> path below.
     const span = (
       <MarkdownTextSpan
-        accessibilityRole="link"
+        accessibilityRole={interactive ? "link" : undefined}
         monoSurface={monoSurface}
         onPress={onPress}
-        style={style}
+        style={textStyle}
       >
-        {children}
+        {content}
       </MarkdownTextSpan>
     );
     return (
@@ -78,23 +98,38 @@ export function AssistantMarkdownLink({
     );
   }
 
+  if (!interactive) {
+    return (
+      <span onClickCapture={onPress} style={LINK_ANCHOR_STYLE}>
+        <Text dataSet={monoSurface ? MARKDOWN_CODE_LINK_DATASET : undefined} style={textStyle}>
+          {content}
+        </Text>
+      </span>
+    );
+  }
+
   const anchor = (
     <a
       {...(unwrapForMarkdownCopy ? { "data-paseo-markdown-unwrap": "true" } : {})}
       href={source.href}
       title={source.title}
-      onClickCapture={preventAnchorNavigation}
-      onAuxClickCapture={preventAnchorNavigation}
+      onClickCapture={handleClick}
+      onAuxClickCapture={handleAuxClick}
       style={LINK_ANCHOR_STYLE}
     >
-      <MarkdownLinkText
-        dataSet={monoSurface ? MARKDOWN_CODE_LINK_DATASET : undefined}
-        style={style}
-        onPress={onPress}
-        onHoverIn={onHoverIn}
-      >
-        {children}
-      </MarkdownLinkText>
+      {isAnchor ? (
+        <Text dataSet={monoSurface ? MARKDOWN_CODE_LINK_DATASET : undefined} style={textStyle}>
+          {content}
+        </Text>
+      ) : (
+        <MarkdownLinkText
+          dataSet={monoSurface ? MARKDOWN_CODE_LINK_DATASET : undefined}
+          style={textStyle}
+          onHoverIn={onHoverIn}
+        >
+          {content}
+        </MarkdownLinkText>
+      )}
     </a>
   );
 
@@ -231,11 +266,14 @@ const LINK_ANCHOR_STYLE: CSSProperties = {
   textDecoration: "none",
 };
 
-function preventAnchorNavigation(event: MouseEvent<HTMLAnchorElement>): void {
-  event.preventDefault();
-}
-
 const styles = StyleSheet.create((theme) => ({
+  unsupportedText: {
+    color: theme.colors.foreground,
+    textDecorationLine: "none",
+  },
+  linkColor: {
+    color: theme.colorScheme === "dark" ? ompBrandColors.cyan : ompBrandColors.cyanOnLight,
+  },
   tooltipPath: {
     color: theme.colors.foreground,
     fontSize: theme.fontSize.sm,

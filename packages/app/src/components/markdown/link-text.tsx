@@ -6,7 +6,7 @@ import { markdownLinkTextStyle } from "./link-children";
 interface MarkdownLinkTextProps {
   style: StyleProp<TextStyle>;
   dataSet?: Record<string, string>;
-  onPress(): void;
+  onPress?(): void;
   onHoverIn?(): void;
   children?: ReactNode;
 }

@@ -46,6 +46,8 @@ export const es: TranslationResources = {
       daemonClientUnavailable: "ClienteDaemonno disponible",
       daemonClientDisconnected: "El clienteDaemonestá desconectado",
       noFileFound: "No se encontró ningún archivo para{{token}}",
+      linkOpenFailed: "No se pudo abrir {{token}}: {{reason}}",
+      unsupportedLink: "No se puede abrir este enlace: {{token}}",
       unexpectedDictationError: "Se produjo un error inesperado al manejar el dictado.",
     },
     connectionStatus: {

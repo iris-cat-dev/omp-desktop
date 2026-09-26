@@ -61,6 +61,7 @@ export interface DesktopNotificationBridge {
 
 export interface DesktopOpenerBridge {
   openUrl?: (url: string) => Promise<void>;
+  openPath?: (input: { path: string; workspaceRoot: string }) => Promise<void>;
 }
 
 export interface DesktopEditorTargetDescriptor {

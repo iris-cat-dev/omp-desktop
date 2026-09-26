@@ -46,6 +46,8 @@ export const ja: TranslationResources = {
       daemonClientUnavailable: "デーモンクライアントが利用できません",
       daemonClientDisconnected: "デーモンクライアントが切断されています",
       noFileFound: "{{token}}のファイルが見つかりません",
+      linkOpenFailed: "{{token}}を開けませんでした: {{reason}}",
+      unsupportedLink: "このリンクは開けません: {{token}}",
       unexpectedDictationError: "音声入力処理中に予期しないエラーが発生しました。",
     },
     connectionStatus: {

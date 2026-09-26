@@ -117,10 +117,8 @@ describe("classifyAssistantFileLink", () => {
       kind: "external",
       raw: "http://dumm.md",
     });
-    expect(classifyAssistantFileLink("mailto:test@example.com")).toEqual({
-      kind: "external",
-      raw: "mailto:test@example.com",
-    });
+    expect(classifyAssistantFileLink("mailto:test@example.com")).toBeNull();
+    expect(classifyAssistantFileLink("sandbox:/C:/Users/test/report.docx")).toBeNull();
   });
 
   it("classifies bare workspace candidates separately from direct relative files", () => {
@@ -210,6 +208,27 @@ describe("classifyAssistantFileLink", () => {
         },
       ),
     ).toBeNull();
+  });
+
+  it("recognizes non-text files and folders without treating domains as paths", () => {
+    const workspaceRoot = "/Users/test/project";
+    for (const value of [
+      "assets/photo.png",
+      "report.docx",
+      "archive.zip",
+      "tools/app.exe",
+      "docs/",
+      "subdir/asset.custom",
+    ]) {
+      const result = classifyAssistantFileLink(value, { workspaceRoot });
+      expect(result?.kind).toBe(
+        value === "report.docx" || value === "archive.zip"
+          ? "ambiguousFileCandidate"
+          : "directFile",
+      );
+    }
+    expect(classifyAssistantFileLink("example.com/path", { workspaceRoot })).toBeNull();
+    expect(classifyAssistantFileLink("sandbox:/tmp/report.docx", { workspaceRoot })).toBeNull();
   });
 });
 
