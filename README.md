@@ -28,6 +28,8 @@ Closing the last empty conversation tab returns to the project creation page. On
 
 Cleanup preserves workspaces with agent history (including archived agents), live or pending resources, a custom title, pins, labels, or worktree ownership. Older hosts must be updated before automatic cleanup is available. An existing empty sidebar entry can be reopened and its empty tab closed to retry cleanup; entries are never bulk-removed merely because they are named `main`.
 
+Opening a new conversation from the sidebar keeps the current header tabs visible. The draft still owns a newly created workspace for execution, while the existing workspace remains the tab host until navigation explicitly changes it.
+
 ## File drag and drop
 
 - Drop files onto the message input to add attachments without sending a message.

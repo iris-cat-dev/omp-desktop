@@ -17,6 +17,38 @@ describe("New tab identity", () => {
   });
 });
 
+describe("draft tab identity", () => {
+  it("preserves and compares the draft execution workspace", () => {
+    const target = normalizeWorkspaceTabTarget({
+      kind: "draft",
+      draftId: " draft-1 ",
+      workspaceId: " workspace-target ",
+    });
+
+    expect(target).toEqual({
+      kind: "draft",
+      draftId: "draft-1",
+      workspaceId: "workspace-target",
+    });
+    expect(
+      target &&
+        workspaceTabTargetsEqual(target, {
+          kind: "draft",
+          draftId: "draft-1",
+          workspaceId: "workspace-target",
+        }),
+    ).toBe(true);
+    expect(
+      target &&
+        workspaceTabTargetsEqual(target, {
+          kind: "draft",
+          draftId: "draft-1",
+          workspaceId: "workspace-other",
+        }),
+    ).toBe(false);
+  });
+});
+
 describe("provider subagent tab identity", () => {
   test("normalizes and compares the parent and provider child as one tab identity", () => {
     const target = normalizeWorkspaceTabTarget({

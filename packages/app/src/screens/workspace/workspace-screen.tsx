@@ -88,6 +88,7 @@ import type {
 } from "@/keyboard/keyboard-action-dispatcher";
 import { useCreateFlowStore } from "@/stores/create-flow-store";
 import { normalizeWorkspaceTabTarget, workspaceTabTargetsEqual } from "@/workspace-tabs/identity";
+import { resolveClosedTabWorkspaceArchives } from "@/workspace-tabs/close-cleanup";
 import { isWorkspaceSidePanelToolTarget } from "@/workspace-tabs/side-panel-target";
 import { useVisibleAgentIds } from "./visible-agent-ids";
 import {
@@ -1771,18 +1772,27 @@ function WorkspaceScreenContent({
         removeResidentBrowserWebview(browserId);
         void getDesktopHost()?.browser?.unregisterWorkspaceBrowser?.(browserId);
       }
-      if (closeWorkspaceTab(persistenceKey, normalizedTabId) === "workspace-empty") {
-        leavingWorkspaceRef.current = true;
+      const closeResult = closeWorkspaceTab(persistenceKey, normalizedTabId);
+      const routeWorkspaceEmpty = closeResult === "workspace-empty";
+      const closedDraftId = closingTarget?.kind === "draft" ? closingTarget.draftId : undefined;
+      resolveClosedTabWorkspaceArchives({
+        routeWorkspaceId: normalizedWorkspaceId,
+        closingTarget,
+        routeWorkspaceEmpty,
+      }).forEach((archiveWorkspaceId) => {
         void archiveEmptyWorkspace({
           client,
-          workspace: { serverId: normalizedServerId, workspaceId: normalizedWorkspaceId },
-          closedDraftId: closingTarget?.kind === "draft" ? closingTarget.draftId : undefined,
+          workspace: {
+            serverId: normalizedServerId,
+            workspaceId: archiveWorkspaceId,
+          },
+          closedDraftId,
           hasPendingTerminalCreate:
             createTerminalMutation.isPending || pendingTerminalCreateInput !== null,
         }).catch((error: unknown) => {
           console.error("[WorkspaceScreen] Failed to archive empty workspace", {
             error,
-            workspaceId: normalizedWorkspaceId,
+            workspaceId: archiveWorkspaceId,
           });
           toast.error(
             t("sidebar.workspace.toasts.emptyArchiveFailed", {
@@ -1793,6 +1803,9 @@ function WorkspaceScreenContent({
             }),
           );
         });
+      });
+      if (routeWorkspaceEmpty) {
+        leavingWorkspaceRef.current = true;
         router.replace(buildOpenProjectRoute());
       }
     },

@@ -58,7 +58,7 @@ beforeEach(() => {
   });
 });
 
-it("creates independent workspaces on repeated new-conversation actions without replacing hi", async () => {
+it("keeps the current tab host while creating independent workspaces", async () => {
   state.workspaces.set(rootWorkspace.id, rootWorkspace);
   useGlobalNewWorkspaceAction();
   const { handle } = state.registerHandler.mock.calls[0]![0];
@@ -69,23 +69,38 @@ it("creates independent workspaces on repeated new-conversation actions without 
 
   expect(state.workspaces.get(rootWorkspace.id)).toEqual(rootWorkspace);
   expect([...state.workspaces.keys()]).toEqual([
-    "root-workspace", "new-workspace-1", "new-workspace-2",
+    "root-workspace",
+    "new-workspace-1",
+    "new-workspace-2",
   ]);
   const destinations = state.navigateToWorkspace.mock.calls.map(([destination]) => destination);
   expect(destinations.map((destination) => destination.workspaceId)).toEqual([
-    "new-workspace-1", "new-workspace-2",
+    "root-workspace",
+    "root-workspace",
+  ]);
+  expect(destinations.map((destination) => destination.target.workspaceId)).toEqual([
+    "new-workspace-1",
+    "new-workspace-2",
   ]);
   expect(destinations[0].target.draftId).not.toBe(destinations[1].target.draftId);
 });
 
-it("creates a new workspace even when the project already has a root workspace", async () => {
+it("opens the new workspace draft in an existing tab host", async () => {
   state.workspaces.set(rootWorkspace.id, rootWorkspace);
-  await openProjectWorkspaceDraft({ ...project, draftId: "new-draft" });
+  await openProjectWorkspaceDraft({
+    ...project,
+    draftId: "new-draft",
+    tabHost: { serverId: "host", workspaceId: rootWorkspace.id },
+  });
   expect(state.workspaces.get(rootWorkspace.id)?.name).toBe("hi");
   expect(state.navigateToWorkspace).toHaveBeenCalledWith({
     serverId: "host",
-    workspaceId: "new-workspace-1",
-    target: { kind: "draft", draftId: "new-draft" },
+    workspaceId: "root-workspace",
+    target: {
+      kind: "draft",
+      draftId: "new-draft",
+      workspaceId: "new-workspace-1",
+    },
   });
 });
 
@@ -94,6 +109,7 @@ it("preserves a fork's setup and maps its cwd into the new workspace", async () 
   await openProjectWorkspaceDraft({
     ...project,
     draftId: "fork-draft",
+    tabHost: { serverId: "host", workspaceId: rootWorkspace.id },
     sourceDirectory: "/repo/worktrees/feature",
     setup: {
       provider: "claude",
@@ -106,10 +122,11 @@ it("preserves a fork's setup and maps its cwd into the new workspace", async () 
   });
   expect(state.navigateToWorkspace).toHaveBeenCalledWith({
     serverId: "host",
-    workspaceId: "new-workspace-1",
+    workspaceId: "root-workspace",
     target: {
       kind: "draft",
       draftId: "fork-draft",
+      workspaceId: "new-workspace-1",
       setup: expect.objectContaining({ cwd: "/repo/src" }),
     },
   });

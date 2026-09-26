@@ -10,6 +10,7 @@ import { useStableEvent } from "@/hooks/use-stable-event";
 import { useHostFeature } from "@/runtime/host-features";
 import { generateDraftId } from "@/stores/draft-keys";
 import { openProjectWorkspaceDraft } from "@/utils/open-project-workspace-draft";
+import { useActiveWorkspaceSelection } from "@/stores/navigation-active-workspace-store";
 import { useSessionStore } from "@/stores/session-store";
 import {
   buildDraftWorkspaceAttachmentScopeKey,
@@ -116,6 +117,7 @@ export function useForkAgent(
   const { serverId, toast, readOnly = false } = input;
   const { t } = useTranslation();
   const client = useSessionStore((state) => state.sessions[serverId]?.client ?? null);
+  const tabHost = useActiveWorkspaceSelection();
   const supportsAgentForkContext = useHostFeature(serverId, "agentForkContext") && !readOnly;
 
   return useStableEvent(async ({ agentId, agent, boundary }) => {
@@ -173,6 +175,7 @@ export function useForkAgent(
           projectId: project.projectId,
           projectRootPath: project.projectRootPath,
           draftId,
+          tabHost,
           ...(draftSetup ? { setup: draftSetup, sourceDirectory } : {}),
         });
       } catch (error) {

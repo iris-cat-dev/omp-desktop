@@ -2,6 +2,7 @@ import { navigateToWorkspace } from "@/stores/navigation-active-workspace-store"
 import { generateDraftId } from "@/stores/draft-keys";
 import { normalizeWorkspaceDescriptor, useSessionStore } from "@/stores/session-store";
 import type { WorkspaceDraftTabSetup } from "@/workspace-tabs/model";
+import type { ActiveWorkspaceSelection } from "@/stores/last-workspace-selection";
 import { remapDraftCwdToWorkspace } from "@/utils/remap-draft-cwd-to-workspace";
 
 export async function openProjectWorkspaceDraft(input: {
@@ -9,6 +10,7 @@ export async function openProjectWorkspaceDraft(input: {
   projectId: string;
   projectRootPath: string;
   draftId?: string;
+  tabHost?: ActiveWorkspaceSelection | null;
   setup?: WorkspaceDraftTabSetup;
   sourceDirectory?: string;
 }): Promise<void> {
@@ -19,6 +21,10 @@ export async function openProjectWorkspaceDraft(input: {
 
   const session = useSessionStore.getState().sessions[serverId];
   if (!session?.client) throw new Error("Host is unavailable");
+  const tabHostWorkspace =
+    input.tabHost?.serverId === serverId
+      ? session.workspaces.get(input.tabHost.workspaceId)
+      : undefined;
   const payload = await session.client.createWorkspace({
     source: { kind: "directory", path: projectRootPath, projectId },
   });
@@ -37,12 +43,15 @@ export async function openProjectWorkspaceDraft(input: {
         }),
       }
     : undefined;
+  const tabHostWorkspaceId =
+    tabHostWorkspace && !tabHostWorkspace.archivingAt ? tabHostWorkspace.id : workspace.id;
   navigateToWorkspace({
     serverId,
-    workspaceId: workspace.id,
+    workspaceId: tabHostWorkspaceId,
     target: {
       kind: "draft",
       draftId: input.draftId?.trim() || generateDraftId(),
+      workspaceId: workspace.id,
       ...(setup ? { setup } : {}),
     },
   });

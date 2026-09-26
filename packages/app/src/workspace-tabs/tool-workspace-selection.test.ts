@@ -31,6 +31,40 @@ describe("workspace tool selection", () => {
     ).toBe(focused);
   });
 
+  it("uses an explicit draft workspace without changing the route tab host", () => {
+    const draftTarget = {
+      kind: "draft",
+      draftId: "draft-new-conversation",
+      workspaceId: "workspace-draft",
+    } as const;
+    const focused = resolveWorkspaceToolSelection({
+      current: null,
+      routeSelection: ROUTE,
+      focusedTarget: draftTarget,
+      focusedAgentWorkspaceId: null,
+    });
+
+    expect(focused?.activeSelection).toEqual({
+      serverId: "server-1",
+      workspaceId: "workspace-draft",
+    });
+    expect(
+      resolveWorkspaceToolSelection({
+        current: focused,
+        routeSelection: ROUTE,
+        focusedTarget: { kind: "files" },
+        focusedAgentWorkspaceId: null,
+      }),
+    ).toBe(focused);
+    expect(
+      resolveWorkspaceTabWorkspaceId({
+        target: draftTarget,
+        routeWorkspaceId: ROUTE.workspaceId,
+        toolWorkspaceId: "workspace-draft",
+      }),
+    ).toBe("workspace-draft");
+  });
+
   it("resets the tool scope when the route host changes", () => {
     const current = resolveWorkspaceToolSelection({
       current: null,

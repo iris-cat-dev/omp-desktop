@@ -21,7 +21,7 @@ function getPreparedTarget(target: WorkspaceTabTarget): WorkspaceTabTarget {
   if (target.kind !== "draft" || target.draftId.trim() !== "new") {
     return target;
   }
-  return { kind: "draft", draftId: generateDraftId() };
+  return { ...target, draftId: generateDraftId() };
 }
 
 export function prepareWorkspaceTab(

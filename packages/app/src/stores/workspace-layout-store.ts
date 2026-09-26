@@ -193,6 +193,7 @@ const WorkspaceTabTargetStorageSchema = z.discriminatedUnion("kind", [
   z.strictObject({
     kind: z.literal("draft"),
     draftId: z.string(),
+    workspaceId: z.string().optional(),
     setup: WorkspaceDraftTabSetupStorageSchema.optional(),
   }),
   z.strictObject({ kind: z.literal("agent"), agentId: z.string() }),
@@ -1229,7 +1230,8 @@ export function createWorkspaceLayoutStore(
             const isLastContentPane = collectAllPanes(layout.root).every(
               (pane) =>
                 pane.id === closingPane?.id ||
-                getPaneWorkspaceTabZone({ layout, paneId: pane.id, sidePanelPaneId }) !== "workspace",
+                getPaneWorkspaceTabZone({ layout, paneId: pane.id, sidePanelPaneId }) !==
+                  "workspace",
             );
             if (
               closingPane?.tabIds.length === 1 &&

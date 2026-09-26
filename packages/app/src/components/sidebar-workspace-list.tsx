@@ -153,11 +153,8 @@ import type { HostBadgeModel } from "@/hosts/appearance";
 import { useHostBadges } from "@/hosts/use-host-badges";
 import { useSidebarRowItems } from "@/components/sidebar/display-preferences/model";
 import { openProjectWorkspaceDraft } from "@/utils/open-project-workspace-draft";
-import {
-  collectAllTabs,
-  findPaneById,
-  useWorkspaceLayoutStore,
-} from "@/stores/workspace-layout-store";
+import { useWorkspaceLayoutStore } from "@/stores/workspace-layout-store";
+import { groupSidebarAgentDrafts, type SidebarAgentDraft } from "@/components/sidebar-agent-drafts";
 
 const workspaceKeyExtractor = (workspace: SidebarWorkspacePlacement) => workspace.workspaceKey;
 
@@ -173,6 +170,7 @@ const ThemedTrash2 = withUnistyles(Trash2);
 const ThemedSettings = withUnistyles(Settings);
 const ThemedCopy = withUnistyles(Copy);
 const ThemedEyeOff = withUnistyles(EyeOff);
+const EMPTY_AGENT_DRAFTS: readonly SidebarAgentDraft[] = [];
 
 const foregroundColorMapping = (theme: Theme) => ({
   color: theme.colors.foreground,
@@ -819,12 +817,14 @@ function NewWorkspaceButton({
 function SidebarAgentDraftRow({
   serverId,
   workspaceId,
+  tabHostWorkspaceId,
   draftId,
   selected,
   onWorkspacePress,
 }: {
   serverId: string;
   workspaceId: string;
+  tabHostWorkspaceId: string;
   draftId: string;
   selected: boolean;
   onWorkspacePress?: () => void;
@@ -834,10 +834,10 @@ function SidebarAgentDraftRow({
     onWorkspacePress?.();
     navigateToWorkspace({
       serverId,
-      workspaceId,
-      target: { kind: "draft", draftId },
+      workspaceId: tabHostWorkspaceId,
+      target: { kind: "draft", draftId, workspaceId },
     });
-  }, [draftId, onWorkspacePress, serverId, workspaceId]);
+  }, [draftId, onWorkspacePress, serverId, tabHostWorkspaceId, workspaceId]);
   const rowStyle = useCallback(
     ({ hovered = false, pressed }: PressableStateCallbackType & { hovered?: boolean }) => [
       styles.agentDraftRow,
@@ -1630,6 +1630,7 @@ function WorkspaceRow({
 
 function ProjectBlock({
   project,
+  agentDrafts,
   workspaceEntriesByKey,
   collapsed,
   displayName,
@@ -1653,6 +1654,7 @@ function ProjectBlock({
   onToggleWorkspacePin,
 }: {
   project: SidebarProjectEntry;
+  agentDrafts: readonly SidebarAgentDraft[];
   workspaceEntriesByKey: ReadonlyMap<string, SidebarWorkspaceEntry>;
   collapsed: boolean;
   displayName: string;
@@ -1679,42 +1681,15 @@ function ProjectBlock({
     () => buildSidebarProjectRowModel({ project, collapsed }),
     [collapsed, project],
   );
-  const workspaceLayouts = useWorkspaceLayoutStore((state) => state.layoutByWorkspace);
-  const agentDrafts = useMemo(() => {
-    if (collapsed) return [];
-    const drafts: Array<{
-      serverId: string;
-      workspaceId: string;
-      draftId: string;
-      selected: boolean;
-    }> = [];
-    for (const workspace of project.workspaces) {
-      const layout = workspaceLayouts[workspace.workspaceKey];
-      if (!layout) continue;
-      const focusedPane = findPaneById(layout.root, layout.focusedPaneId);
-      for (const tab of collectAllTabs(layout.root)) {
-        if (tab.target.kind !== "draft") continue;
-        drafts.push({
-          serverId: workspace.serverId,
-          workspaceId: workspace.workspaceId,
-          draftId: tab.target.draftId,
-          selected:
-            activeWorkspaceSelection?.serverId === workspace.serverId &&
-            activeWorkspaceSelection.workspaceId === workspace.workspaceId &&
-            focusedPane?.focusedTabId === tab.tabId,
-        });
-      }
-    }
-    return drafts;
-  }, [activeWorkspaceSelection, collapsed, project.workspaces, workspaceLayouts]);
+  const visibleAgentDrafts = collapsed ? EMPTY_AGENT_DRAFTS : agentDrafts;
   const workspaceRows = useMemo(() => {
     const draftWorkspaceKeys = new Set(
-      agentDrafts.map((draft) => `${draft.serverId}:${draft.workspaceId}`),
+      visibleAgentDrafts.map((draft) => `${draft.serverId}:${draft.workspaceId}`),
     );
     return project.workspaces.filter(
       (workspace) => !draftWorkspaceKeys.has(workspace.workspaceKey),
     );
-  }, [agentDrafts, project.workspaces]);
+  }, [project.workspaces, visibleAgentDrafts]);
   const {
     visibleItems: visibleWorkspaces,
     expanded: workspacesExpanded,
@@ -1883,7 +1858,7 @@ function ProjectBlock({
   if (!collapsed && project.workspaces.length > 0) {
     projectChildren = (
       <>
-        {agentDrafts.map((draft) => (
+        {visibleAgentDrafts.map((draft) => (
           <SidebarAgentDraftRow
             key={draft.draftId}
             {...draft}
@@ -1955,6 +1930,7 @@ function areProjectBlockPropsEqual(previous: ProjectBlockProps, next: ProjectBlo
   return (
     previous.project === next.project &&
     previous.workspaceEntriesByKey === next.workspaceEntriesByKey &&
+    previous.agentDrafts === next.agentDrafts &&
     previous.collapsed === next.collapsed &&
     previous.displayName === next.displayName &&
     previous.iconDataUri === next.iconDataUri &&
@@ -2179,6 +2155,17 @@ function ProjectModeList({
   const hasActiveHostFilter = useSidebarViewStore((state) => state.hostFilters.length > 0);
   const toast = useToast();
   const showShortcutBadges = useShowShortcutBadges();
+  const activeRouteWorkspaceSelection = useActiveWorkspaceSelection();
+  const workspaceLayouts = useWorkspaceLayoutStore((state) => state.layoutByWorkspace);
+  const agentDraftsByProjectViewKey = useMemo(
+    () =>
+      groupSidebarAgentDrafts({
+        projects,
+        workspaceLayouts,
+        activeRouteSelection: activeRouteWorkspaceSelection,
+      }),
+    [activeRouteWorkspaceSelection, projects, workspaceLayouts],
+  );
 
   const getProjectOrder = useSidebarOrderStore((state) => state.getProjectOrder);
   const setProjectOrder = useSidebarOrderStore((state) => state.setProjectOrder);
@@ -2212,11 +2199,12 @@ function ProjectModeList({
         serverId: source.serverId,
         projectId: source.projectId,
         projectRootPath: source.sourceDirectory,
+        tabHost: activeRouteWorkspaceSelection,
       }).catch((error) => {
         toast.error(error instanceof Error ? error.message : String(error));
       });
     },
-    [onWorkspacePress, toast],
+    [activeRouteWorkspaceSelection, onWorkspacePress, toast],
   );
   const handleProjectDragEnd = useCallback(
     (reorderedProjects: SidebarProjectEntry[]) => {
@@ -2278,6 +2266,7 @@ function ProjectModeList({
         <MemoProjectBlock
           key={item.viewKey}
           project={item}
+          agentDrafts={agentDraftsByProjectViewKey.get(item.viewKey) ?? EMPTY_AGENT_DRAFTS}
           workspaceEntriesByKey={workspaceEntriesByKey}
           collapsed={collapsedProjectKeys.has(item.viewKey)}
           displayName={item.projectName}
@@ -2305,6 +2294,7 @@ function ProjectModeList({
     [
       collapsedProjectKeys,
       activeWorkspaceSelection,
+      agentDraftsByProjectViewKey,
       onWorkspacePress,
       handleCreateConversationDraft,
       handleWorkspaceReorder,

@@ -55,6 +55,7 @@ export function useGlobalNewWorkspaceAction() {
         serverId: project.serverId,
         projectId: project.projectId,
         projectRootPath: project.projectRootPath,
+        tabHost: selection,
       }).catch((error: unknown) => toast.error(toErrorMessage(error)));
     } else {
       router.navigate(buildOpenProjectRoute());

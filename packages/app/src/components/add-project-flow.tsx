@@ -98,6 +98,7 @@ import { useHostFeatureMap } from "@/runtime/host-features";
 import { GitHubAuthCallout } from "@/git/github-auth-callout";
 import { useSessionStore } from "@/stores/session-store";
 import { useRecommendedProjectPaths } from "@/stores/session-store-hooks";
+import { useActiveWorkspaceSelection } from "@/stores/navigation-active-workspace-store";
 import type { AddProjectFlowRequest } from "@/stores/add-project-flow-store";
 import type { Theme } from "@/styles/theme";
 import { shortenPath } from "@/utils/shorten-path";
@@ -332,6 +333,7 @@ function setPageStatus(
 // eslint-disable-next-line complexity
 export function AddProjectFlow({ request, onClose }: AddProjectFlowProps) {
   const { t } = useTranslation();
+  const tabHost = useActiveWorkspaceSelection();
   const hosts = useHosts();
   const hostIds = useMemo(() => hosts.map((host) => host.serverId), [hosts]);
   const connectionStatuses = useHostRuntimeConnectionStatuses(hostIds);
@@ -506,10 +508,11 @@ export function AddProjectFlow({ request, onClose }: AddProjectFlowProps) {
         serverId,
         projectId: project.projectId,
         projectRootPath: project.projectRootPath,
+        tabHost,
       });
       onClose();
     },
-    [onClose],
+    [onClose, tabHost],
   );
 
   const openAddedProject = useCallback(

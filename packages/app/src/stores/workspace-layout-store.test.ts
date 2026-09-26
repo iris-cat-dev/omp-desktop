@@ -166,6 +166,44 @@ describe("workspace-layout-store helpers", () => {
     expect(restoredTabs.every((tab) => !persistedIds.has(tab.tabId))).toBe(true);
   });
 
+  it("restores a draft execution workspace independently from its tab host", async () => {
+    const workspaceKey = createWorkspaceKey();
+    await AsyncStorage.setItem(
+      "workspace-layout-state",
+      JSON.stringify({
+        state: {
+          layoutByWorkspace: {
+            [workspaceKey]: {
+              root: createPane({
+                id: "main",
+                tabIds: ["draft-cross-workspace"],
+                targetsByTabId: {
+                  "draft-cross-workspace": {
+                    kind: "draft",
+                    draftId: "draft-cross-workspace",
+                    workspaceId: "workspace-target",
+                  },
+                },
+              }),
+              focusedPaneId: "main",
+            },
+          },
+          splitSizesByWorkspace: {},
+          explorerPaneIdByWorkspace: {},
+        },
+        version: 2,
+      }),
+    );
+    const restored = createWorkspaceLayoutStore(createDeterministicWorkspaceLayoutIds());
+    await restored.persist.rehydrate();
+
+    expect(restored.getState().getWorkspaceTabs(workspaceKey)[0]?.target).toEqual({
+      kind: "draft",
+      draftId: "draft-cross-workspace",
+      workspaceId: "workspace-target",
+    });
+  });
+
   it("survives closing the draft created while repairing a hidden-only layout", async () => {
     await AsyncStorage.setItem(
       "workspace-layout-state",
